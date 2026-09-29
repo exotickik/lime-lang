@@ -714,11 +714,43 @@ impl<'a> FnLowerer<'a> {
             .unwrap_or(0)
     }
 
+    fn lower_string_eq(&mut self, op: BinOp, lhs: &Expr, rhs: &Expr) -> Operand {
+        self.module.needs_strcmp = true;
+        let l = self.lower_expr(lhs);
+        let r = self.lower_expr(rhs);
+        let cmpres = self.fresh_value();
+        self.emit(
+            Some(cmpres),
+            InstrKind::Call {
+                callee: "strcmp".to_string(),
+                args: vec![l, r],
+                ret: Type::I32,
+                variadic_from: None,
+            },
+        );
+        let pred = if op == BinOp::Eq { CmpPred::Eq } else { CmpPred::Ne };
+        let dst = self.fresh_value();
+        self.emit(
+            Some(dst),
+            InstrKind::Cmp {
+                pred,
+                ty: Type::I32,
+                signed: true,
+                lhs: Operand::Val(cmpres),
+                rhs: Operand::ConstInt(0, Type::I32),
+            },
+        );
+        Operand::Val(dst)
+    }
+
     fn lower_binary(&mut self, op: BinOp, lhs: &Expr, rhs: &Expr, expr: &Expr) -> Operand {
         if op == BinOp::And || op == BinOp::Or {
             return self.lower_logical(op, lhs, rhs);
         }
         let operand_ty = self.results.expr_type(lhs.id).clone();
+        if operand_ty == Type::Str && (op == BinOp::Eq || op == BinOp::Ne) {
+            return self.lower_string_eq(op, lhs, rhs);
+        }
         let signed = operand_ty.is_signed_int();
         let l = self.lower_expr(lhs);
         let r = self.lower_expr(rhs);
@@ -802,12 +834,29 @@ impl<'a> FnLowerer<'a> {
                 Operand::Unit
             }
             Some(Res::Builtin(Builtin::Panjang)) => {
-                let size = match self.results.expr_type(args[0].id) {
-                    Type::Array { size, .. } => *size,
-                    _ => 0,
-                };
-                self.lower_expr(&args[0]);
-                Operand::ConstInt(size as u128, Type::I64)
+                let arg_ty = self.results.expr_type(args[0].id).clone();
+                match arg_ty {
+                    Type::Str => {
+                        self.module.needs_strlen = true;
+                        let s = self.lower_expr(&args[0]);
+                        let dst = self.fresh_value();
+                        self.emit(
+                            Some(dst),
+                            InstrKind::Call {
+                                callee: "strlen".to_string(),
+                                args: vec![s],
+                                ret: Type::I64,
+                                variadic_from: None,
+                            },
+                        );
+                        Operand::Val(dst)
+                    }
+                    Type::Array { size, .. } => {
+                        self.lower_expr(&args[0]);
+                        Operand::ConstInt(size as u128, Type::I64)
+                    }
+                    _ => Operand::ConstInt(0, Type::I64),
+                }
             }
             Some(Res::Func(idx)) => {
                 let sig = self.results.functions[*idx].clone();

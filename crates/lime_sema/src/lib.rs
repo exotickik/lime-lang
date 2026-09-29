@@ -278,4 +278,28 @@ mod tests {
         );
         assert!(!d.has_errors(), "{:?}", d.diagnostics());
     }
+
+    #[test]
+    fn string_equality_ok() {
+        let d = check("program P\nutama { jika \"a\" == \"a\" { tampilkan(\"y\") } }");
+        assert!(!d.has_errors(), "{:?}", d.diagnostics());
+    }
+
+    #[test]
+    fn string_ordering_rejected() {
+        let d = check("program P\nutama { jika \"a\" < \"b\" { } }");
+        assert!(has_code(&d, codes::E_INVALID_OPERAND));
+    }
+
+    #[test]
+    fn panjang_on_string_ok() {
+        let d = check("program P\nutama { tampilkan(panjang(\"halo\")) }");
+        assert!(!d.has_errors(), "{:?}", d.diagnostics());
+    }
+
+    #[test]
+    fn string_int_equality_mismatch() {
+        let d = check("program P\nutama { jika \"a\" == 1 { } }");
+        assert!(has_code(&d, codes::E_TYPE_MISMATCH_BINOP));
+    }
 }

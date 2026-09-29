@@ -31,10 +31,21 @@ pub fn emit_module(module: &Module, target: &Target) -> String {
     if module.needs_abort {
         writeln!(out, "declare void @abort()").ok();
     }
+    if module.needs_strcmp {
+        writeln!(out, "declare i32 @strcmp(ptr, ptr)").ok();
+    }
+    if module.needs_strlen {
+        writeln!(out, "declare i64 @strlen(ptr)").ok();
+    }
     for e in &module.externs {
         emit_extern_decl(&mut out, e);
     }
-    if module.needs_printf || module.needs_abort || !module.externs.is_empty() {
+    if module.needs_printf
+        || module.needs_abort
+        || module.needs_strcmp
+        || module.needs_strlen
+        || !module.externs.is_empty()
+    {
         out.push('\n');
     }
 

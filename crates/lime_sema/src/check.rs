@@ -838,13 +838,13 @@ impl<'a> Checker<'a> {
                     return Type::I64;
                 }
                 let at = self.check_expr(&args[0], None);
-                if !at.is_error() && !matches!(at, Type::Array { .. }) {
+                if !at.is_error() && !matches!(at, Type::Array { .. } | Type::Str) {
                     self.diags.emit(
                         Diagnostic::error(
                             codes::E_INVALID_OPERAND,
-                            format!("'panjang' butuh larik, bukan '{}'", at.display()),
+                            format!("'panjang' butuh larik atau teks, bukan '{}'", at.display()),
                         )
-                        .primary(args[0].span, "bukan larik"),
+                        .primary(args[0].span, "bukan larik atau teks"),
                     );
                 }
                 Type::I64

@@ -43,6 +43,9 @@ Legend: ✅ done · 🟡 in progress · ⬜ planned
 
 ## Phase 4 — Runtime + standard library
 - 🟡 `tampilkan` I/O builtin (implemented via libc FFI)
+- 🟡 String model: UTF-8, immutable value semantics, content comparison
+  (`strcmp`), byte length (`panjang`/`strlen`); concatenation, slicing,
+  indexing, and owned strings pending the allocator
 - ⬜ `lime/std`: io, string, collections, filesystem, process, math, time
 
 ## Phase 5 — Advanced language

@@ -9,11 +9,22 @@ claims to exist before it does.
 ### Core I/O
 - `tampilkan(x)` — print a value followed by a newline. Built into the compiler
   and lowered to a libc `printf` call over Lime's native-ABI FFI. Accepts
-  `teks`, all integer types, `f32`/`f64`, `boolean`, and `karakter`.
+  `teks`, all integer types, `f32`/`f64`, `boolean`, `karakter`, and enums
+  (printed as the variant name).
 
   Formatting: integers print in decimal (signed/unsigned per type), floats with
   a compact `%g` form, `boolean` as `benar`/`salah`, `teks` verbatim. Non-ASCII
   `karakter` printing is a known bootstrap limitation — use `teks` for those.
+
+### Length
+- `panjang(x)` — for an array `[T; N]` returns `N` (a compile-time constant); for
+  a `teks` returns the UTF-8 **byte** length (via libc `strlen`). Result type
+  `angka`.
+
+### Strings
+- Content comparison with `==` / `!=` (via libc `strcmp`). See
+  `docs/LANGUAGE_SPEC.md` §2.3 for the full string model. Concatenation, slicing
+  and owned strings are pending the allocator and are not yet available.
 
 ## Planned modules
 

@@ -97,12 +97,32 @@ generator selects signed vs unsigned instructions (`sdiv`/`udiv`,
 - **Arrays / slices** **(planned)**: `[T; N]` fixed arrays, `iris<T>` slices.
 
 ### 2.3 Strings
-Design intent: `teks` is an immutable UTF-8 string value. The production layout
-is a fat pointer `{ ptr: bita*, len: u64 }` with owned/borrowed variants.
 
-Bootstrap simplification: string literals are emitted as NUL-terminated static
-UTF-8 buffers and `teks` is represented as `i8*`. This is sufficient for the
-current I/O surface and is called out in `docs/MEMORY_MODEL.md` as interim.
+**Encoding.** `teks` is a UTF-8 string. Source is UTF-8 and string literals
+preserve their bytes exactly.
+
+**Value semantics & mutability.** `teks` is an immutable value. There is no
+in-place string mutation; string-producing operations yield new values.
+
+**Representation (bootstrap).** A `teks` is a pointer to a NUL-terminated,
+immutable, static UTF-8 buffer. String literals are emitted as such buffers and
+deduplicated. The production layout is a fat pointer `{ ptr: bita*, len: u64 }`
+with owned and borrowed variants; adopting it (and thus allowing embedded NUL
+bytes) is scheduled with the memory model.
+
+**Supported operations (implemented):**
+- **Comparison** `==` / `!=` compares **contents** (via libc `strcmp`), not
+  addresses; ordering operators (`<`, `>`, …) are **not** defined on `teks`.
+- **Length** `panjang(s)` returns the number of **bytes** (UTF-8 code units) as
+  `angka`, via libc `strlen`. It is a byte count, not a character count —
+  `panjang("🍋")` is `4`.
+- **Printing** `tampilkan(s)` writes the bytes followed by a newline.
+- **Comparison to non-strings** is a type error; there is no implicit conversion.
+
+**Planned (needs the allocator from the memory-model phase):** concatenation,
+slicing, byte/char indexing, character iteration, owned/growable strings, and
+number↔string conversion. These are intentionally not yet implemented rather
+than faked; see `docs/ROADMAP.md`.
 
 ### 2.4 Type inference
 Local bindings without an annotation infer their type from the initializer.

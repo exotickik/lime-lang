@@ -151,6 +151,8 @@ pub struct Module {
     pub funcs: Vec<Func>,
     pub needs_printf: bool,
     pub needs_abort: bool,
+    pub needs_strcmp: bool,
+    pub needs_strlen: bool,
 }
 
 impl Module {
