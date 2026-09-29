@@ -232,4 +232,50 @@ mod tests {
         let d = check("program P\nenum E { A, A }\nutama { }");
         assert!(has_code(&d, codes::E_REDEFINITION));
     }
+
+    #[test]
+    fn valid_array_usage() {
+        let d = check(
+            "program P\nutama { nilai xs: [i32; 3] = [1i32, 2i32, 3i32] tampilkan(xs[0]) tampilkan(panjang(xs)) }",
+        );
+        assert!(!d.has_errors(), "{:?}", d.diagnostics());
+    }
+
+    #[test]
+    fn array_element_type_mismatch() {
+        let d = check("program P\nutama { nilai xs: [i32; 2] = [1i32, benar] }");
+        assert!(has_code(&d, codes::E_TYPE_MISMATCH_ASSIGN));
+    }
+
+    #[test]
+    fn indexing_non_array_error() {
+        let d = check("program P\nutama { nilai x = 5 tampilkan(x[0]) }");
+        assert!(has_code(&d, codes::E_NOT_INDEXABLE));
+    }
+
+    #[test]
+    fn non_integer_index_error() {
+        let d = check("program P\nutama { nilai xs: [i32; 2] = [1i32, 2i32] tampilkan(xs[benar]) }");
+        assert!(has_code(&d, codes::E_INVALID_OPERAND));
+    }
+
+    #[test]
+    fn panjang_on_non_array_error() {
+        let d = check("program P\nutama { tampilkan(panjang(5)) }");
+        assert!(has_code(&d, codes::E_INVALID_OPERAND));
+    }
+
+    #[test]
+    fn foreach_on_non_array_error() {
+        let d = check("program P\nutama { untuk x pada 5 { tampilkan(x) } }");
+        assert!(has_code(&d, codes::E_NOT_ITERABLE));
+    }
+
+    #[test]
+    fn foreach_binds_element_type() {
+        let d = check(
+            "program P\nutama { nilai xs: [angka; 2] = [1, 2] ubah s = 0 untuk x pada xs { s = s + x } tampilkan(s) }",
+        );
+        assert!(!d.has_errors(), "{:?}", d.diagnostics());
+    }
 }

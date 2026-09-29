@@ -9,6 +9,7 @@ pub struct LocalId(pub u32);
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum Builtin {
     Tampilkan,
+    Panjang,
 }
 
 #[derive(Clone, Debug)]

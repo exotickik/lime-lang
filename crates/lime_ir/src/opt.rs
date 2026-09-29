@@ -202,6 +202,23 @@ fn subst_kind(kind: &mut InstrKind, known: &HashMap<u32, Operand>) -> bool {
             changed |= subst_operand(agg, known);
             changed |= subst_operand(value, known);
         }
+        InstrKind::MakeArray { elems, .. } => {
+            for e in elems {
+                changed |= subst_operand(e, known);
+            }
+        }
+        InstrKind::Gep { indices, .. } => {
+            for idx in indices {
+                if let GepIndex::ArrayVal(op) = idx {
+                    changed |= subst_operand(op, known);
+                }
+            }
+        }
+        InstrKind::LoadPtr { ptr, .. } => changed |= subst_operand(ptr, known),
+        InstrKind::StorePtr { ptr, value, .. } => {
+            changed |= subst_operand(ptr, known);
+            changed |= subst_operand(value, known);
+        }
         InstrKind::Load { .. } => {}
     }
     changed
@@ -253,6 +270,9 @@ fn is_pure(kind: &InstrKind) -> bool {
             | InstrKind::MakeStruct { .. }
             | InstrKind::ExtractField { .. }
             | InstrKind::InsertField { .. }
+            | InstrKind::MakeArray { .. }
+            | InstrKind::Gep { .. }
+            | InstrKind::LoadPtr { .. }
     )
 }
 
@@ -290,6 +310,23 @@ fn collect_uses(kind: &InstrKind, used: &mut HashSet<u32>) {
         InstrKind::ExtractField { agg, .. } => note_use(agg, used),
         InstrKind::InsertField { agg, value, .. } => {
             note_use(agg, used);
+            note_use(value, used);
+        }
+        InstrKind::MakeArray { elems, .. } => {
+            for e in elems {
+                note_use(e, used);
+            }
+        }
+        InstrKind::Gep { indices, .. } => {
+            for idx in indices {
+                if let GepIndex::ArrayVal(op) = idx {
+                    note_use(op, used);
+                }
+            }
+        }
+        InstrKind::LoadPtr { ptr, .. } => note_use(ptr, used),
+        InstrKind::StorePtr { ptr, value, .. } => {
+            note_use(ptr, used);
             note_use(value, used);
         }
         InstrKind::Load { .. } => {}

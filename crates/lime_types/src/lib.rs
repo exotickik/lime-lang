@@ -48,6 +48,7 @@ pub enum Type {
     Unit,
     Struct(StructId),
     Enum(EnumId),
+    Array { elem: Box<Type>, size: u64 },
     Fn { params: Vec<Type>, ret: Box<Type> },
 
     Error,
@@ -124,6 +125,7 @@ impl Type {
             Type::Unit => "hampa".into(),
             Type::Struct(id) => format!("tipe#{}", id.0),
             Type::Enum(id) => format!("enum#{}", id.0),
+            Type::Array { elem, size } => format!("[{}; {}]", elem.display(), size),
             Type::Fn { params, ret } => {
                 let ps: Vec<String> = params.iter().map(|t| t.display()).collect();
                 format!("fungsi({}) -> {}", ps.join(", "), ret.display())

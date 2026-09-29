@@ -11,8 +11,14 @@ pub struct Ident {
 
 #[derive(Clone, Debug)]
 pub struct TypeExpr {
-    pub name: String,
+    pub kind: TypeExprKind,
     pub span: Span,
+}
+
+#[derive(Clone, Debug)]
+pub enum TypeExprKind {
+    Named(String),
+    Array { elem: Box<TypeExpr>, size: u64 },
 }
 
 #[derive(Debug)]
@@ -112,10 +118,19 @@ pub enum Stmt {
     If(IfStmt),
     While { cond: Expr, body: Block, span: Span },
     For(ForStmt),
+    ForEach(ForEachStmt),
     Return { value: Option<Expr>, span: Span },
     Break(Span),
     Continue(Span),
     Block(Block),
+}
+
+#[derive(Debug)]
+pub struct ForEachStmt {
+    pub var: Ident,
+    pub iterable: Expr,
+    pub body: Block,
+    pub span: Span,
 }
 
 #[derive(Debug)]
@@ -222,6 +237,9 @@ pub enum ExprKind {
     Field { base: Box<Expr>, field: Ident },
 
     StructLit { name: Ident, fields: Vec<StructLitField> },
+
+    ArrayLit(Vec<Expr>),
+    Index { base: Box<Expr>, index: Box<Expr> },
 }
 
 #[derive(Debug)]
@@ -233,6 +251,9 @@ pub struct StructLitField {
 
 impl Expr {
     pub fn is_lvalue(&self) -> bool {
-        matches!(self.kind, ExprKind::Name(_) | ExprKind::Field { .. })
+        matches!(
+            self.kind,
+            ExprKind::Name(_) | ExprKind::Field { .. } | ExprKind::Index { .. }
+        )
     }
 }

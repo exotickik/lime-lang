@@ -216,6 +216,40 @@ printing lowers to a `select` chain over the tag. Associated data per variant an
 `cocok` pattern matching are planned; the tagged representation is chosen so a
 payload union can be added later without changing the surface for tag-only enums.
 
+### 3.7 Arrays
+A fixed-size array type is written `[T; N]` where `T` is the element type and `N`
+is a compile-time length:
+```lime
+nilai angka: [i32; 4] = [10, 20, 30, 40]
+```
+An array literal `[e1, e2, ...]` has type `[T; k]` inferred from its elements
+(all of which must share the element type). Operations:
+
+- **Indexing** `xs[i]` reads element `i`; `i` is any integer expression.
+- **Mutation** `xs[i] = v` writes element `i`, allowed when the array's root
+  binding is `ubah`.
+- **Length** `panjang(xs)` returns the element count as `angka` (a compile-time
+  constant).
+- **Iteration** in two forms:
+  ```lime
+  untuk x pada xs { ... }               // for-each: x is a copy of each element
+  untuk i dari 0 sampai panjang(xs) { xs[i] }   // index-based
+  ```
+- **Bounds checking**: every index (in `xs[i]`, read or write) is checked at
+  runtime; an out-of-range index aborts the process (via libc `abort`) rather
+  than performing an out-of-bounds memory access. Compile-time-constant indices
+  are checked and the branch folds away.
+
+Arrays are value types: assignment, passing to a function, and returning copy the
+whole array. Element type checking is fully static — an array of `i32` cannot
+hold a `boolean`. Nested aggregates (arrays of structs, structs containing
+arrays) are supported.
+
+Representation: `[T; N]` lowers to the LLVM array type `[N x T]`. Element access
+uses `getelementptr` + `load`/`store`; array literals build the aggregate with
+`insertvalue`. Dynamically sized arrays / slices (`[T]` views with a runtime
+length) are planned and will build on this foundation.
+
 ---
 
 ## 4. Statements

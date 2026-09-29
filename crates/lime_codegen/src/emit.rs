@@ -28,10 +28,13 @@ pub fn emit_module(module: &Module, target: &Target) -> String {
     if module.needs_printf {
         writeln!(out, "declare i32 @printf(ptr, ...)").ok();
     }
+    if module.needs_abort {
+        writeln!(out, "declare void @abort()").ok();
+    }
     for e in &module.externs {
         emit_extern_decl(&mut out, e);
     }
-    if module.needs_printf || !module.externs.is_empty() {
+    if module.needs_printf || module.needs_abort || !module.externs.is_empty() {
         out.push('\n');
     }
 
@@ -264,6 +267,49 @@ fn emit_instr(
             )
             .ok();
         }
+        InstrKind::MakeArray { elem_ty, elems } => {
+            let arr_ty = format!("[{} x {}]", elems.len(), ty_str(elem_ty));
+            let d = dst.unwrap();
+            let n = elems.len();
+            if n == 0 {
+                writeln!(out, "  {} = freeze {} zeroinitializer", d, arr_ty).ok();
+            } else {
+                let mut cur = "undef".to_string();
+                for (i, e) in elems.iter().enumerate() {
+                    let name = if i + 1 == n { d.clone() } else { format!("{}.e{}", d, i) };
+                    writeln!(
+                        out,
+                        "  {} = insertvalue {} {}, {} {}, {}",
+                        name,
+                        arr_ty,
+                        cur,
+                        ty_str(elem_ty),
+                        val_str(e, vt),
+                        i
+                    )
+                    .ok();
+                    cur = name;
+                }
+            }
+        }
+        InstrKind::Gep { slot, agg_ty, indices } => {
+            let mut parts = vec![format!("{}, ptr %slot{}", ty_str(agg_ty), slot.0), "i64 0".to_string()];
+            for idx in indices {
+                match idx {
+                    GepIndex::Field(n) => parts.push(format!("i32 {}", n)),
+                    GepIndex::ArrayConst(n) => parts.push(format!("i64 {}", n)),
+                    GepIndex::ArrayVal(op) => parts.push(format!("i64 {}", val_str(op, vt))),
+                }
+            }
+            writeln!(out, "  {} = getelementptr {}", dst.unwrap(), parts.join(", ")).ok();
+        }
+        InstrKind::LoadPtr { ptr, ty } => {
+            writeln!(out, "  {} = load {}, ptr {}", dst.unwrap(), ty_str(ty), val_str(ptr, vt)).ok();
+        }
+        InstrKind::StorePtr { ptr, ty, value } => {
+            writeln!(out, "  store {} {}, ptr {}", ty_str(ty), val_str(value, vt), val_str(ptr, vt))
+                .ok();
+        }
     }
 }
 
@@ -314,6 +360,12 @@ fn collect_value_types(func: &Func) -> HashMap<u32, Type> {
                 InstrKind::MakeStruct { ty, .. } => ty.clone(),
                 InstrKind::ExtractField { field_ty, .. } => field_ty.clone(),
                 InstrKind::InsertField { agg_ty, .. } => agg_ty.clone(),
+                InstrKind::MakeArray { elem_ty, elems } => {
+                    Type::Array { elem: Box::new(elem_ty.clone()), size: elems.len() as u64 }
+                }
+                InstrKind::LoadPtr { ty, .. } => ty.clone(),
+                InstrKind::Gep { .. } => continue,
+                InstrKind::StorePtr { .. } => continue,
                 InstrKind::Store { .. } => continue,
             };
             m.insert(dst.0, ty);
@@ -338,6 +390,7 @@ fn ty_str(ty: &Type) -> String {
         Type::Unit => "void".to_string(),
         Type::Struct(id) => format!("%struct.{}", id.0),
         Type::Enum(_) => "i32".to_string(),
+        Type::Array { elem, size } => format!("[{} x {}]", size, ty_str(elem)),
         Type::Fn { .. } => "ptr".to_string(),
         Type::Error => "void".to_string(),
     }

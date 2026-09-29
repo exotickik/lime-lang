@@ -64,6 +64,17 @@ pub enum InstrKind {
     MakeStruct { ty: Type, fields: Vec<Operand> },
     ExtractField { agg: Operand, agg_ty: Type, index: u32, field_ty: Type },
     InsertField { agg: Operand, agg_ty: Type, indices: Vec<u32>, value: Operand, field_ty: Type },
+    MakeArray { elem_ty: Type, elems: Vec<Operand> },
+    Gep { slot: SlotId, agg_ty: Type, indices: Vec<GepIndex> },
+    LoadPtr { ptr: Operand, ty: Type },
+    StorePtr { ptr: Operand, ty: Type, value: Operand },
+}
+
+#[derive(Clone, Debug)]
+pub enum GepIndex {
+    Field(u32),
+    ArrayConst(u64),
+    ArrayVal(Operand),
 }
 
 #[derive(Clone, Debug)]
@@ -139,6 +150,7 @@ pub struct Module {
     pub globals: Vec<GlobalStr>,
     pub funcs: Vec<Func>,
     pub needs_printf: bool,
+    pub needs_abort: bool,
 }
 
 impl Module {

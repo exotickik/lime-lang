@@ -199,6 +199,7 @@ impl<'a> Checker<'a> {
             self.globals.insert(name.clone(), Res::Enum(*id));
         }
         self.globals.insert("tampilkan".to_string(), Res::Builtin(Builtin::Tampilkan));
+        self.globals.insert("panjang".to_string(), Res::Builtin(Builtin::Panjang));
     }
 
     fn check_bodies(&mut self, program: &Program) {
@@ -349,6 +350,7 @@ impl<'a> Checker<'a> {
                 self.loop_depth -= 1;
             }
             Stmt::For(for_stmt) => self.check_for(for_stmt),
+            Stmt::ForEach(fe) => self.check_foreach(fe),
             Stmt::Return { value, span } => {
                 let ret = self.current_ret.clone();
                 match value {
@@ -464,6 +466,32 @@ impl<'a> Checker<'a> {
         self.exit_scope();
     }
 
+    fn check_foreach(&mut self, fe: &ForEachStmt) {
+        let iter_ty = self.check_expr(&fe.iterable, None);
+        let elem_ty = match &iter_ty {
+            Type::Array { elem, .. } => (**elem).clone(),
+            Type::Error => Type::Error,
+            other => {
+                self.diags.emit(
+                    Diagnostic::error(
+                        codes::E_NOT_ITERABLE,
+                        format!("nilai bertipe '{}' tidak dapat diiterasi", other.display()),
+                    )
+                    .primary(fe.iterable.span, "hanya larik yang dapat diiterasi dengan 'pada'"),
+                );
+                Type::Error
+            }
+        };
+        self.enter_scope();
+        let id = self.alloc_local(fe.var.name.clone(), elem_ty, false);
+        self.declare(&fe.var.name, Res::Local(id), fe.var.span);
+        self.results.local_of_binding.insert(fe.var.span, id);
+        self.loop_depth += 1;
+        self.check_block(&fe.body);
+        self.loop_depth -= 1;
+        self.exit_scope();
+    }
+
     fn check_expr(&mut self, expr: &Expr, expected: Option<&Type>) -> Type {
         let ty = self.check_expr_inner(expr, expected);
         self.results.expr_types.insert(expr.id, ty.clone());
@@ -535,6 +563,76 @@ impl<'a> Checker<'a> {
                 self.check_field(base, field)
             }
             ExprKind::StructLit { name, fields } => self.check_struct_lit(name, fields),
+            ExprKind::ArrayLit(elems) => self.check_array_lit(elems, expected),
+            ExprKind::Index { base, index } => self.check_index(base, index),
+        }
+    }
+
+    fn check_array_lit(&mut self, elems: &[Expr], expected: Option<&Type>) -> Type {
+        let expected_elem = match expected {
+            Some(Type::Array { elem, .. }) => Some((**elem).clone()),
+            _ => None,
+        };
+        if elems.is_empty() {
+            match expected {
+                Some(Type::Array { elem, .. }) => {
+                    return Type::Array { elem: elem.clone(), size: 0 };
+                }
+                _ => {
+                    return Type::Array { elem: Box::new(Type::Error), size: 0 };
+                }
+            }
+        }
+        let first = self.check_expr(&elems[0], expected_elem.as_ref());
+        let elem_ty = if first.is_error() {
+            expected_elem.clone().unwrap_or(Type::Error)
+        } else {
+            first
+        };
+        for e in &elems[1..] {
+            let t = self.check_expr(e, Some(&elem_ty));
+            if !t.assignable_to(&elem_ty) {
+                self.diags.emit(
+                    Diagnostic::error(
+                        codes::E_TYPE_MISMATCH_ASSIGN,
+                        format!(
+                            "elemen larik bertipe '{}', diharapkan '{}'",
+                            t.display(),
+                            elem_ty.display()
+                        ),
+                    )
+                    .primary(e.span, format!("bertipe '{}'", t.display())),
+                );
+            }
+        }
+        Type::Array { elem: Box::new(elem_ty), size: elems.len() as u64 }
+    }
+
+    fn check_index(&mut self, base: &Expr, index: &Expr) -> Type {
+        let base_ty = self.check_expr(base, None);
+        let idx_ty = self.check_expr(index, Some(&Type::I64));
+        if !idx_ty.is_error() && !idx_ty.is_integer() {
+            self.diags.emit(
+                Diagnostic::error(
+                    codes::E_INVALID_OPERAND,
+                    format!("indeks larik harus bilangan bulat, bukan '{}'", idx_ty.display()),
+                )
+                .primary(index.span, "indeks tidak valid"),
+            );
+        }
+        match base_ty {
+            Type::Array { elem, .. } => (*elem).clone(),
+            Type::Error => Type::Error,
+            other => {
+                self.diags.emit(
+                    Diagnostic::error(
+                        codes::E_NOT_INDEXABLE,
+                        format!("nilai bertipe '{}' tidak dapat diindeks", other.display()),
+                    )
+                    .primary(base.span, "hanya larik yang dapat diindeks"),
+                );
+                Type::Error
+            }
         }
     }
 
@@ -724,6 +822,33 @@ impl<'a> Checker<'a> {
         };
 
         match self.lookup(name) {
+            Some(Res::Builtin(Builtin::Panjang)) => {
+                self.results.name_res.insert(callee.id, Res::Builtin(Builtin::Panjang));
+                if args.len() != 1 {
+                    self.diags.emit(
+                        Diagnostic::error(
+                            codes::E_ARITY_MISMATCH,
+                            format!("'panjang' butuh 1 argumen, diberi {}", args.len()),
+                        )
+                        .primary(call.span, "jumlah argumen salah"),
+                    );
+                    for a in args {
+                        self.check_expr(a, None);
+                    }
+                    return Type::I64;
+                }
+                let at = self.check_expr(&args[0], None);
+                if !at.is_error() && !matches!(at, Type::Array { .. }) {
+                    self.diags.emit(
+                        Diagnostic::error(
+                            codes::E_INVALID_OPERAND,
+                            format!("'panjang' butuh larik, bukan '{}'", at.display()),
+                        )
+                        .primary(args[0].span, "bukan larik"),
+                    );
+                }
+                Type::I64
+            }
             Some(Res::Builtin(Builtin::Tampilkan)) => {
                 self.results.name_res.insert(callee.id, Res::Builtin(Builtin::Tampilkan));
                 if args.len() != 1 {
@@ -905,25 +1030,37 @@ impl<'a> Checker<'a> {
                 None => {}
             },
             ExprKind::Field { base, .. } => self.check_assignable(base),
+            ExprKind::Index { base, .. } => self.check_assignable(base),
             _ => {}
         }
     }
 
     fn resolve_type(&mut self, ty: &TypeExpr) -> Type {
-        if let Some(t) = Type::from_builtin_name(&ty.name) {
-            return t;
+        match &ty.kind {
+            TypeExprKind::Named(name) => {
+                if let Some(t) = Type::from_builtin_name(name) {
+                    return t;
+                }
+                if let Some(&id) = self.struct_ids.get(name) {
+                    return Type::Struct(id);
+                }
+                if let Some(&id) = self.enum_ids.get(name) {
+                    return Type::Enum(id);
+                }
+                self.diags.emit(
+                    Diagnostic::error(
+                        codes::E_UNKNOWN_TYPE,
+                        format!("tipe '{}' tidak dikenal", name),
+                    )
+                    .primary(ty.span, "tipe tidak ditemukan"),
+                );
+                Type::Error
+            }
+            TypeExprKind::Array { elem, size } => {
+                let elem_ty = self.resolve_type(elem);
+                Type::Array { elem: Box::new(elem_ty), size: *size }
+            }
         }
-        if let Some(&id) = self.struct_ids.get(&ty.name) {
-            return Type::Struct(id);
-        }
-        if let Some(&id) = self.enum_ids.get(&ty.name) {
-            return Type::Enum(id);
-        }
-        self.diags.emit(
-            Diagnostic::error(codes::E_UNKNOWN_TYPE, format!("tipe '{}' tidak dikenal", ty.name))
-                .primary(ty.span, "tipe tidak ditemukan"),
-        );
-        Type::Error
     }
 
     fn expect_bool(&mut self, t: &Type, span: Span, ctx: &str) {
@@ -1025,6 +1162,7 @@ fn stmt_span(stmt: &Stmt) -> Span {
         Stmt::If(i) => i.span,
         Stmt::While { span, .. } => *span,
         Stmt::For(f) => f.span,
+        Stmt::ForEach(f) => f.span,
         Stmt::Return { span, .. } => *span,
         Stmt::Break(s) => *s,
         Stmt::Continue(s) => *s,

@@ -175,6 +175,7 @@ impl<'a> FnLowerer<'a> {
                     }
                 }
                 ExprKind::Field { .. } => self.lower_field_assign(target, value),
+                ExprKind::Index { .. } => self.lower_indexed_assign(target, value),
                 _ => self.unsupported(target.span, "target penugasan tidak didukung backend"),
             },
             Stmt::Expr(e) => {
@@ -183,6 +184,7 @@ impl<'a> FnLowerer<'a> {
             Stmt::If(if_stmt) => self.lower_if(if_stmt),
             Stmt::While { cond, body, .. } => self.lower_while(cond, body),
             Stmt::For(for_stmt) => self.lower_for(for_stmt),
+            Stmt::ForEach(fe) => self.lower_foreach(fe),
             Stmt::Return { value, .. } => {
                 let op = match value {
                     Some(e) => {
@@ -378,7 +380,235 @@ impl<'a> FnLowerer<'a> {
                 }
             }
             ExprKind::StructLit { .. } => self.lower_struct_lit(expr),
+            ExprKind::ArrayLit(elems) => self.lower_array_lit(elems, expr),
+            ExprKind::Index { base, index } => self.lower_index_read(base, index, expr),
         }
+    }
+
+    fn lower_array_lit(&mut self, elems: &[Expr], expr: &Expr) -> Operand {
+        let ty = self.results.expr_type(expr.id).clone();
+        let elem_ty = match &ty {
+            Type::Array { elem, .. } => (**elem).clone(),
+            _ => Type::I64,
+        };
+        let ops: Vec<Operand> = elems.iter().map(|e| self.lower_expr(e)).collect();
+        let dst = self.fresh_value();
+        self.emit(Some(dst), InstrKind::MakeArray { elem_ty, elems: ops });
+        Operand::Val(dst)
+    }
+
+    fn lower_index_read(&mut self, base: &Expr, index: &Expr, expr: &Expr) -> Operand {
+        let elem_ty = self.results.expr_type(expr.id).clone();
+        let ptr = self.elem_ptr(base, index);
+        let dst = self.fresh_value();
+        self.emit(Some(dst), InstrKind::LoadPtr { ptr, ty: elem_ty });
+        Operand::Val(dst)
+    }
+
+    fn lower_indexed_assign(&mut self, target: &Expr, value: &Expr) {
+        let ExprKind::Index { base, index } = &target.kind else {
+            return;
+        };
+        let elem_ty = self.results.expr_type(target.id).clone();
+        let val = self.lower_expr(value);
+        let ptr = self.elem_ptr(base, index);
+        self.emit(None, InstrKind::StorePtr { ptr, ty: elem_ty, value: val });
+    }
+
+    fn elem_ptr(&mut self, base: &Expr, index: &Expr) -> Operand {
+        let base_ty = self.results.expr_type(base.id).clone();
+        let size = match &base_ty {
+            Type::Array { size, .. } => *size,
+            _ => 0,
+        };
+        if let Some((slot, mut path)) = self.resolve_place(base) {
+            let idx = self.lower_index_value(index, size);
+            path.push(GepIndex::ArrayVal(idx));
+            let agg_ty = self.slots[slot.0 as usize].ty.clone();
+            let dst = self.fresh_value();
+            self.emit(Some(dst), InstrKind::Gep { slot, agg_ty, indices: path });
+            Operand::Val(dst)
+        } else {
+            let arr = self.lower_expr(base);
+            let tmp = self.new_slot(base_ty.clone());
+            self.emit(None, InstrKind::Store { slot: tmp, value: arr });
+            let idx = self.lower_index_value(index, size);
+            let dst = self.fresh_value();
+            self.emit(
+                Some(dst),
+                InstrKind::Gep {
+                    slot: tmp,
+                    agg_ty: base_ty,
+                    indices: vec![GepIndex::ArrayVal(idx)],
+                },
+            );
+            Operand::Val(dst)
+        }
+    }
+
+    fn lower_index_value(&mut self, index: &Expr, size: u64) -> Operand {
+        let idx_ty = self.results.expr_type(index.id).clone();
+        let raw = self.lower_expr(index);
+        let idx = self.cast(raw, idx_ty, Type::I64);
+        self.bounds_check(idx.clone(), size);
+        idx
+    }
+
+    fn bounds_check(&mut self, idx: Operand, len: u64) {
+        self.module.needs_abort = true;
+        let fail = self.new_block();
+        let cont = self.new_block();
+        let ok = self.new_block();
+
+        let lo = self.fresh_value();
+        self.emit(
+            Some(lo),
+            InstrKind::Cmp {
+                pred: CmpPred::Lt,
+                ty: Type::I64,
+                signed: true,
+                lhs: idx.clone(),
+                rhs: Operand::ConstInt(0, Type::I64),
+            },
+        );
+        self.set_term(Terminator::CondBr { cond: Operand::Val(lo), then_bb: fail, else_bb: cont });
+
+        self.current = cont;
+        let hi = self.fresh_value();
+        self.emit(
+            Some(hi),
+            InstrKind::Cmp {
+                pred: CmpPred::Ge,
+                ty: Type::I64,
+                signed: true,
+                lhs: idx,
+                rhs: Operand::ConstInt(len as u128, Type::I64),
+            },
+        );
+        self.set_term(Terminator::CondBr { cond: Operand::Val(hi), then_bb: fail, else_bb: ok });
+
+        self.current = fail;
+        self.emit(
+            None,
+            InstrKind::Call {
+                callee: "abort".to_string(),
+                args: Vec::new(),
+                ret: Type::Unit,
+                variadic_from: None,
+            },
+        );
+        self.set_term(Terminator::Unreachable);
+
+        self.current = ok;
+    }
+
+    fn resolve_place(&mut self, expr: &Expr) -> Option<(SlotId, Vec<GepIndex>)> {
+        match &expr.kind {
+            ExprKind::Name(_) => match self.results.name_res.get(&expr.id) {
+                Some(Res::Local(id)) => Some((self.slot_of_local[&id.0], Vec::new())),
+                _ => None,
+            },
+            ExprKind::Field { base, field } => {
+                let (slot, mut path) = self.resolve_place(base)?;
+                let base_ty = self.results.expr_type(base.id).clone();
+                if let Type::Struct(sid) = &base_ty {
+                    path.push(GepIndex::Field(self.field_index(*sid, &field.name)));
+                    Some((slot, path))
+                } else {
+                    None
+                }
+            }
+            ExprKind::Index { base, index } => {
+                let base_ty = self.results.expr_type(base.id).clone();
+                let size = match &base_ty {
+                    Type::Array { size, .. } => *size,
+                    _ => return None,
+                };
+                let (slot, mut path) = self.resolve_place(base)?;
+                let idx = self.lower_index_value(index, size);
+                path.push(GepIndex::ArrayVal(idx));
+                Some((slot, path))
+            }
+            _ => None,
+        }
+    }
+
+    fn lower_foreach(&mut self, fe: &lime_ast::ForEachStmt) {
+        let arr_ty = self.results.expr_type(fe.iterable.id).clone();
+        let (elem_ty, size) = match &arr_ty {
+            Type::Array { elem, size } => ((**elem).clone(), *size),
+            _ => return,
+        };
+        let arr_val = self.lower_expr(&fe.iterable);
+        let arr_slot = self.new_slot(arr_ty.clone());
+        self.emit(None, InstrKind::Store { slot: arr_slot, value: arr_val });
+
+        let idx_slot = self.new_slot(Type::I64);
+        self.emit(None, InstrKind::Store { slot: idx_slot, value: Operand::ConstInt(0, Type::I64) });
+
+        let local = self.results.local_of_binding[&fe.var.span];
+        let var_slot = self.new_slot(elem_ty.clone());
+        self.slot_of_local.insert(local.0, var_slot);
+
+        let head = self.new_block();
+        let body_bb = self.new_block();
+        let step_bb = self.new_block();
+        let end_bb = self.new_block();
+        self.set_term(Terminator::Br(head));
+
+        self.current = head;
+        let i = self.load_slot(idx_slot, Type::I64);
+        let cmp = self.fresh_value();
+        self.emit(
+            Some(cmp),
+            InstrKind::Cmp {
+                pred: CmpPred::Lt,
+                ty: Type::I64,
+                signed: true,
+                lhs: Operand::Val(i),
+                rhs: Operand::ConstInt(size as u128, Type::I64),
+            },
+        );
+        self.set_term(Terminator::CondBr { cond: Operand::Val(cmp), then_bb: body_bb, else_bb: end_bb });
+
+        self.current = body_bb;
+        let i_body = self.load_slot(idx_slot, Type::I64);
+        let elem_ptr = self.fresh_value();
+        self.emit(
+            Some(elem_ptr),
+            InstrKind::Gep {
+                slot: arr_slot,
+                agg_ty: arr_ty.clone(),
+                indices: vec![GepIndex::ArrayVal(Operand::Val(i_body))],
+            },
+        );
+        let elem = self.fresh_value();
+        self.emit(Some(elem), InstrKind::LoadPtr { ptr: Operand::Val(elem_ptr), ty: elem_ty });
+        self.emit(None, InstrKind::Store { slot: var_slot, value: Operand::Val(elem) });
+        self.loop_stack.push((step_bb, end_bb));
+        self.lower_block(&fe.body);
+        self.loop_stack.pop();
+        if self.block(self.current).term.is_none() {
+            self.set_term(Terminator::Br(step_bb));
+        }
+
+        self.current = step_bb;
+        let i2 = self.load_slot(idx_slot, Type::I64);
+        let next = self.fresh_value();
+        self.emit(
+            Some(next),
+            InstrKind::Bin {
+                op: ArithOp::Add,
+                ty: Type::I64,
+                signed: true,
+                lhs: Operand::Val(i2),
+                rhs: Operand::ConstInt(1, Type::I64),
+            },
+        );
+        self.emit(None, InstrKind::Store { slot: idx_slot, value: Operand::Val(next) });
+        self.set_term(Terminator::Br(head));
+
+        self.current = end_bb;
     }
 
     fn lower_struct_lit(&mut self, expr: &Expr) -> Operand {
@@ -570,6 +800,14 @@ impl<'a> FnLowerer<'a> {
             Some(Res::Builtin(Builtin::Tampilkan)) => {
                 self.lower_print(&args[0]);
                 Operand::Unit
+            }
+            Some(Res::Builtin(Builtin::Panjang)) => {
+                let size = match self.results.expr_type(args[0].id) {
+                    Type::Array { size, .. } => *size,
+                    _ => 0,
+                };
+                self.lower_expr(&args[0]);
+                Operand::ConstInt(size as u128, Type::I64)
             }
             Some(Res::Func(idx)) => {
                 let sig = self.results.functions[*idx].clone();

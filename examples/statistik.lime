@@ -1,0 +1,30 @@
+program Statistik
+
+fungsi jumlah(data: [i32; 6]) -> i32 {
+    ubah total: i32 = 0i32
+    untuk nilai_x pada data {
+        total = total + nilai_x
+    }
+    kembalikan total
+}
+
+fungsi maksimum(data: [i32; 6]) -> i32 {
+    ubah maks: i32 = data[0]
+    untuk i dari 1 sampai panjang(data) {
+        jika data[i] > maks {
+            maks = data[i]
+        }
+    }
+    kembalikan maks
+}
+
+utama {
+    nilai data: [i32; 6] = [23i32, 7i32, 42i32, 15i32, 8i32, 31i32]
+
+    tampilkan(jumlah(data))
+    tampilkan(maksimum(data))
+
+    untuk x pada data {
+        tampilkan(x)
+    }
+}

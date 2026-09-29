@@ -69,6 +69,27 @@ A struct whose fields are all stack values is itself a stack value; a struct tha
 will later contain heap-owning fields (e.g. an owned `teks`) will follow the
 deterministic-destruction rules once ownership lands.
 
+## Arrays
+
+Fixed-size arrays `[T; N]` are value types compiled to the LLVM array type
+`[N x T]`. They live inline — in a stack slot for a local, or inside their
+containing struct/array — with no header and no heap allocation. Assigning,
+passing, or returning an array copies all `N` elements by value.
+
+- **Indexing** computes an element address with `getelementptr` and then
+  `load`/`store`s a single element, so element access does not copy the array.
+- **Bounds checking**: each index is compared against `0` and the (compile-time
+  constant) length before the access; an out-of-range index calls libc `abort`,
+  turning a would-be memory-safety violation into a deterministic process abort.
+  When the index is a constant the check folds away at `-O2`.
+- **Iteration** (`untuk x pada xs`) copies each element into the loop binding;
+  index-based iteration over `panjang(xs)` avoids the copy when the element type
+  is large.
+
+Growable collections (a `daftar<T>` vector) will be a standard-library type built
+on explicit heap allocation, distinct from these inline fixed arrays; the array
+primitive is the zero-overhead building block beneath them.
+
 ## No hidden allocations
 
 The bootstrap performs **zero** heap allocations at runtime for the currently

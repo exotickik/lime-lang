@@ -16,6 +16,7 @@ Type =
   | Unit                                          // hampa
   | Struct(StructId)                              // named product type
   | Enum(EnumId)                                  // named tagged type (i32 tag)
+  | Array { elem: Type, size: u64 }               // fixed-size array [T; N]
   | Fn { params: [Type], ret: Type }              // function type
   | Error                                         // poison type (post-error)
 ```
@@ -57,6 +58,14 @@ are suppressed to avoid cascading diagnostics.
   variants; the result type is that enum. Unknown variant → `E0265`. Enum values
   support only `==`/`!=` against the same enum type, and print as the variant
   name; there is no implicit enum↔integer conversion.
+- **Array literal** `[e1, ..., ek]`: all elements must share one element type `T`
+  (element mismatch → `E0212`); result type `[T; k]`.
+- **Index** `e[i]`: `typeof(e)` must be an array (else `E0266`) and `typeof(i)` an
+  integer (else `E0211`); result is the element type. Indices are bounds-checked
+  at runtime.
+- **`panjang(e)`**: `e` must be an array; result is `angka`.
+- **`untuk x pada e`**: `e` must be an array (else `E0267`); `x` is bound to the
+  element type for the loop body.
 
 ## Assignability
 
@@ -100,3 +109,5 @@ This is designed but not implemented in the bootstrap.
 | E0262 | ada field struct yang belum diisi pada literal |
 | E0263 | field struct diisi lebih dari sekali pada literal |
 | E0265 | varian enum tidak dikenal |
+| E0266 | nilai bukan larik tidak dapat diindeks |
+| E0267 | nilai bukan larik tidak dapat diiterasi ('pada') |

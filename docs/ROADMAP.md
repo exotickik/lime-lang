@@ -27,7 +27,10 @@ Legend: ✅ done · 🟡 in progress · ⬜ planned
 - ✅ Control-flow / return checking
 - ✅ Structs: declaration, literals, field access, nested fields, field
   mutation, by-value params/returns, native aggregate codegen
-- ⬜ Arrays / slices
+- ✅ Fixed-size arrays `[T; N]`: literals, indexing, mutation, `panjang`,
+  for-each (`pada`) and index iteration, runtime bounds checking, arrays of
+  structs / arrays as params & returns
+- ⬜ Dynamically sized arrays / slices (`[T]` views)
 - ⬜ Ownership & borrow checking
 
 ## Phase 3 — Native backend

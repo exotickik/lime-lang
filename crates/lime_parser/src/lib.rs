@@ -109,13 +109,45 @@ impl<'a> Parser<'a> {
         }
     }
 
+    fn expect_array_size(&mut self) -> PResult<u64> {
+        match self.peek().clone() {
+            TokenKind::Literal(LitValue::Int { value, .. }) => {
+                self.bump();
+                Ok(value as u64)
+            }
+            other => {
+                let sp = self.peek_span();
+                self.diags.emit(
+                    Diagnostic::error(
+                        codes::E_EXPECTED_TOKEN,
+                        format!("diharapkan ukuran larik (bilangan bulat), ditemukan {}", other.describe()),
+                    )
+                    .primary(sp, "ukuran larik harus literal bilangan bulat"),
+                );
+                Err(Bail)
+            }
+        }
+    }
+
     fn expect_type(&mut self) -> PResult<TypeExpr> {
 
         match self.peek().clone() {
             TokenKind::Ident(name) => {
                 let sp = self.peek_span();
                 self.bump();
-                Ok(TypeExpr { name, span: sp })
+                Ok(TypeExpr { kind: TypeExprKind::Named(name), span: sp })
+            }
+            TokenKind::LBracket => {
+                let start = self.peek_span();
+                self.bump();
+                let elem = self.expect_type()?;
+                self.expect(&TokenKind::Semicolon)?;
+                let size = self.expect_array_size()?;
+                let rb = self.expect(&TokenKind::RBracket)?;
+                Ok(TypeExpr {
+                    kind: TypeExprKind::Array { elem: Box::new(elem), size },
+                    span: start.to(rb.span),
+                })
             }
             other => {
                 let sp = self.peek_span();
@@ -124,7 +156,7 @@ impl<'a> Parser<'a> {
                         codes::E_EXPECTED_TOKEN,
                         format!("diharapkan nama tipe, ditemukan {}", other.describe()),
                     )
-                    .primary(sp, "tipe ditulis sebagai nama, mis. 'i32' atau 'teks'"),
+                    .primary(sp, "tipe ditulis sebagai nama (mis. 'i32') atau larik '[T; N]'"),
                 );
                 Err(Bail)
             }
@@ -331,7 +363,7 @@ impl<'a> Parser<'a> {
             }
             TokenKind::Keyword(Keyword::Jika) => Ok(Stmt::If(self.parse_if()?)),
             TokenKind::Keyword(Keyword::Selama) => self.parse_while(),
-            TokenKind::Keyword(Keyword::Untuk) => Ok(Stmt::For(self.parse_for()?)),
+            TokenKind::Keyword(Keyword::Untuk) => self.parse_for_stmt(),
             TokenKind::Keyword(Keyword::Kembalikan) => self.parse_return(),
             TokenKind::Keyword(Keyword::Berhenti) => {
                 let sp = self.peek_span();
@@ -415,10 +447,20 @@ impl<'a> Parser<'a> {
         Ok(Stmt::While { cond, body, span })
     }
 
-    fn parse_for(&mut self) -> PResult<ForStmt> {
+    fn parse_for_stmt(&mut self) -> PResult<Stmt> {
         let start = self.peek_span();
         self.expect(&TokenKind::Keyword(Keyword::Untuk))?;
         let var = self.expect_ident()?;
+        if self.eat_kw(Keyword::Pada) {
+            let iterable = self.parse_cond_expr()?;
+            let body = self.parse_block()?;
+            return Ok(Stmt::ForEach(ForEachStmt {
+                var,
+                iterable,
+                span: start.to(body.span),
+                body,
+            }));
+        }
         self.expect(&TokenKind::Keyword(Keyword::Dari))?;
         let start_expr = self.parse_cond_expr()?;
         let inclusive = if self.eat_kw(Keyword::Hingga) {
@@ -439,14 +481,14 @@ impl<'a> Parser<'a> {
         };
         let end_expr = self.parse_cond_expr()?;
         let body = self.parse_block()?;
-        Ok(ForStmt {
+        Ok(Stmt::For(ForStmt {
             var,
             start: start_expr,
             end: end_expr,
             inclusive,
             span: start.to(body.span),
             body,
-        })
+        }))
     }
 
     fn parse_assign_or_expr(&mut self) -> PResult<Stmt> {
@@ -482,6 +524,30 @@ impl<'a> Parser<'a> {
         let result = self.parse_bin(0);
         self.allow_struct_lit = prev;
         result
+    }
+
+    fn parse_array_lit(&mut self) -> PResult<Expr> {
+        let start = self.peek_span();
+        self.expect(&TokenKind::LBracket)?;
+        let prev = self.allow_struct_lit;
+        self.allow_struct_lit = true;
+        let mut elems = Vec::new();
+        while !matches!(self.peek(), TokenKind::RBracket | TokenKind::Eof) {
+            match self.parse_expr() {
+                Ok(e) => elems.push(e),
+                Err(e) => {
+                    self.allow_struct_lit = prev;
+                    return Err(e);
+                }
+            }
+            if !self.eat(&TokenKind::Comma) {
+                break;
+            }
+        }
+        self.allow_struct_lit = prev;
+        let rb = self.expect(&TokenKind::RBracket)?;
+        let id = self.node_id();
+        Ok(Expr { id, kind: ExprKind::ArrayLit(elems), span: start.to(rb.span) })
     }
 
     fn parse_struct_lit(&mut self, name: Ident) -> PResult<Expr> {
@@ -604,6 +670,22 @@ impl<'a> Parser<'a> {
                     expr =
                         Expr { id, kind: ExprKind::Field { base: Box::new(expr), field }, span };
                 }
+                TokenKind::LBracket => {
+                    self.bump();
+                    let prev = self.allow_struct_lit;
+                    self.allow_struct_lit = true;
+                    let index = self.parse_expr();
+                    self.allow_struct_lit = prev;
+                    let index = index?;
+                    let rb = self.expect(&TokenKind::RBracket)?;
+                    let span = expr.span.to(rb.span);
+                    let id = self.node_id();
+                    expr = Expr {
+                        id,
+                        kind: ExprKind::Index { base: Box::new(expr), index: Box::new(index) },
+                        span,
+                    };
+                }
                 _ => break,
             }
         }
@@ -643,6 +725,9 @@ impl<'a> Parser<'a> {
                     return self.parse_struct_lit(Ident { name, span: sp });
                 }
                 ExprKind::Name(name)
+            }
+            TokenKind::LBracket => {
+                return self.parse_array_lit();
             }
             TokenKind::LParen => {
                 self.bump();
@@ -781,7 +866,10 @@ mod tests {
             Item::Function(f) => {
                 assert_eq!(f.name.name, "tambah");
                 assert_eq!(f.params.len(), 2);
-                assert_eq!(f.ret.as_ref().unwrap().name, "angka");
+                assert!(matches!(
+                    &f.ret.as_ref().unwrap().kind,
+                    TypeExprKind::Named(n) if n == "angka"
+                ));
             }
             _ => panic!("expected function"),
         }

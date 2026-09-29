@@ -74,7 +74,7 @@ impl Printer {
         let vis = if f.public { "publik " } else { "" };
         let params = self.params_str(&f.params);
         let ret = match &f.ret {
-            Some(t) => format!(" -> {}", t.name),
+            Some(t) => format!(" -> {}", type_str(t)),
             None => String::new(),
         };
         self.line(&format!("{}fungsi {}({}){} {{", vis, f.name.name, params, ret));
@@ -94,7 +94,7 @@ impl Printer {
             }
         }
         let ret = match &e.ret {
-            Some(t) => format!(" -> {}", t.name),
+            Some(t) => format!(" -> {}", type_str(t)),
             None => String::new(),
         };
         self.line(&format!("ekstern fungsi {}({}){}", e.name.name, params, ret));
@@ -106,7 +106,7 @@ impl Printer {
         self.indent += 1;
         for field in &s.fields {
             let fvis = if field.public { "publik " } else { "" };
-            self.line(&format!("{}{}: {}", fvis, field.name.name, field.ty.name));
+            self.line(&format!("{}{}: {}", fvis, field.name.name, type_str(&field.ty)));
         }
         self.indent -= 1;
         self.line("}");
@@ -126,7 +126,7 @@ impl Printer {
     fn params_str(&self, params: &[Param]) -> String {
         params
             .iter()
-            .map(|p| format!("{}: {}", p.name.name, p.ty.name))
+            .map(|p| format!("{}: {}", p.name.name, type_str(&p.ty)))
             .collect::<Vec<_>>()
             .join(", ")
     }
@@ -142,7 +142,7 @@ impl Printer {
             Stmt::Let { mutable, name, ty, init, .. } => {
                 let kw = if *mutable { "ubah" } else { "nilai" };
                 let annot = match ty {
-                    Some(t) => format!(": {}", t.name),
+                    Some(t) => format!(": {}", type_str(t)),
                     None => String::new(),
                 };
                 self.line(&format!("{} {}{} = {}", kw, name.name, annot, expr_str(init, 0)));
@@ -179,6 +179,17 @@ impl Printer {
                 self.indent -= 1;
                 self.line("}");
             }
+            Stmt::ForEach(f) => {
+                self.line(&format!(
+                    "untuk {} pada {} {{",
+                    f.var.name,
+                    expr_str(&f.iterable, 0)
+                ));
+                self.indent += 1;
+                self.print_stmts(&f.body.stmts);
+                self.indent -= 1;
+                self.line("}");
+            }
             Stmt::Block(b) => {
                 self.line("{");
                 self.indent += 1;
@@ -207,6 +218,13 @@ impl Printer {
             self.indent -= 1;
         }
         self.line("}");
+    }
+}
+
+fn type_str(t: &TypeExpr) -> String {
+    match &t.kind {
+        TypeExprKind::Named(name) => name.clone(),
+        TypeExprKind::Array { elem, size } => format!("[{}; {}]", type_str(elem), size),
     }
 }
 
@@ -270,6 +288,13 @@ fn expr_str(expr: &Expr, parent_prec: u8) -> String {
                     .collect();
                 format!("{} {{ {} }}", name.name, fs.join(", "))
             }
+        }
+        ExprKind::ArrayLit(elems) => {
+            let es: Vec<String> = elems.iter().map(|e| expr_str(e, 0)).collect();
+            format!("[{}]", es.join(", "))
+        }
+        ExprKind::Index { base, index } => {
+            format!("{}[{}]", expr_str(base, 8), expr_str(index, 0))
         }
     }
 }
