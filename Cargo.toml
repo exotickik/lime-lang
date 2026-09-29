@@ -1,0 +1,33 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/lime_span",
+    "crates/lime_diagnostics",
+    "crates/lime_lexer",
+    "crates/lime_ast",
+    "crates/lime_parser",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+license = "MIT OR Apache-2.0"
+authors = ["Lime contributors"]
+rust-version = "1.75"
+
+[workspace.dependencies]
+lime_span = { path = "crates/lime_span" }
+lime_diagnostics = { path = "crates/lime_diagnostics" }
+lime_lexer = { path = "crates/lime_lexer" }
+lime_ast = { path = "crates/lime_ast" }
+lime_parser = { path = "crates/lime_parser" }
+lime_types = { path = "crates/lime_types" }
+lime_sema = { path = "crates/lime_sema" }
+lime_ir = { path = "crates/lime_ir" }
+lime_codegen = { path = "crates/lime_codegen" }
+lime_fmt = { path = "crates/lime_fmt" }
+lime_driver = { path = "crates/lime_driver" }
+
+[profile.release]
+opt-level = 3
+lto = "thin"

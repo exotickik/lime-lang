@@ -1,0 +1,11 @@
+[package]
+name = "lime_diagnostics"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+lime_span.workspace = true
+
+[lib]
+path = "src/lib.rs"

@@ -1,0 +1,14 @@
+[package]
+name = "lime_parser"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+lime_span.workspace = true
+lime_diagnostics.workspace = true
+lime_lexer.workspace = true
+lime_ast.workspace = true
+
+[lib]
+path = "src/lib.rs"
