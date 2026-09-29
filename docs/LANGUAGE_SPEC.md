@@ -94,7 +94,9 @@ generator selects signed vs unsigned instructions (`sdiv`/`udiv`,
 - **Enum** (`enum`): a fixed set of named variants (see §3.6). Implemented as a
   C-style tagged type; associated data and pattern matching (`cocok`) are the
   next step and the representation is designed to accommodate them.
-- **Arrays / slices** **(planned)**: `[T; N]` fixed arrays, `iris<T>` slices.
+- **Array** `[T; N]`: fixed-size inline array (see §3.7). Slices (`[T]`) planned.
+- **`kotak<T>`**: an owned, heap-allocated cell holding one `T` (see §3.9). This
+  is Lime's first **owned (`milik`)** type; it moves rather than copies.
 
 ### 2.3 Strings
 
@@ -286,6 +288,39 @@ function (monomorphization), so generics cost nothing at runtime. A generic body
 is checked per instantiation, so operations like `a > b` are validated for each
 concrete `T`. See `docs/TYPE_SYSTEM.md` for the full rules and current limits
 (generic structs/enums, explicit type arguments, and trait bounds are planned).
+
+### 3.9 Ownership and `kotak<T>`
+Lime has no garbage collector. Every type is either **`salinan` (Copy)** — all
+the types above — or **`milik` (Owned)**. The category is decided by the
+compiler, not annotated. A type is Owned iff it is `kotak<T>` or an aggregate
+that transitively contains one.
+
+`kotak<T>` is an owned, heap-allocated cell:
+```lime
+nilai b = kotak(42)      // allocates a heap i64, owned by b
+tampilkan(isi(b))        // isi reads a copy of the contents: 42
+```
+- `kotak(x)` allocates and moves `x` into the box.
+- `isi(k)` reads a copy of the contents (the contents must be a Copy type).
+
+Owned values **move**: binding, passing, returning, or placing one into a
+literal transfers ownership and leaves the source moved-out. Using a moved-out
+binding is an error:
+```lime
+nilai b = kotak(5)
+nilai c = b              // b moved into c
+tampilkan(isi(b))        // error E0280: nilai digunakan setelah dipindahkan
+```
+An Owned value is **dropped** (its heap freed, recursively for nested owned
+values) when its owner goes out of scope or before an early `kembalikan` /
+`berhenti` / `lanjut`. Drops are inserted by the compiler; there is no runtime
+reference counting and no garbage collector.
+
+Additional rules: moves must be consistent across `jika` arms (`E0281`); a loop
+body may not move a binding declared outside it (`E0282`); Owned bindings are
+single-assignment (`E0284`); Owned types may not cross the FFI boundary
+(`E0283`). First-class references (`&`) are Phase 9. The full model is in
+`docs/MEMORY_MODEL.md`.
 
 ---
 

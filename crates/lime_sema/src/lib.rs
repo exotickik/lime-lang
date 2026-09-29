@@ -1,7 +1,9 @@
 pub mod check;
+pub mod ownership;
 pub mod results;
 
 pub use check::Checker;
+pub use ownership::is_copy;
 pub use results::{
     Builtin, EnumInfo, FieldInfo, FnSig, LocalId, LocalInfo, Res, StructInfo, TypeckResults,
 };
@@ -341,5 +343,87 @@ mod tests {
              utama { tampilkan(id(1)) tampilkan(id(\"a\")) tampilkan(id(benar)) }",
         );
         assert!(!d.has_errors(), "{:?}", d.diagnostics());
+    }
+
+    #[test]
+    fn valid_ownership_move_and_read() {
+        let d = check(
+            "program P\n\
+             fungsi ambil(k: kotak<i64>) -> i64 { kembalikan isi(k) }\n\
+             utama { nilai b = kotak(5) tampilkan(ambil(b)) }",
+        );
+        assert!(!d.has_errors(), "{:?}", d.diagnostics());
+    }
+
+    #[test]
+    fn use_after_move_rejected() {
+        let d = check(
+            "program P\n\
+             fungsi ambil(k: kotak<i64>) -> i64 { kembalikan isi(k) }\n\
+             utama { nilai b = kotak(5) nilai c = b tampilkan(ambil(b)) }",
+        );
+        assert!(has_code(&d, codes::E_USE_AFTER_MOVE));
+    }
+
+    #[test]
+    fn move_in_loop_rejected() {
+        let d = check(
+            "program P\n\
+             fungsi ambil(k: kotak<i64>) -> i64 { kembalikan isi(k) }\n\
+             utama { nilai b = kotak(5) untuk i dari 0 sampai 3 { tampilkan(ambil(b)) } }",
+        );
+        assert!(has_code(&d, codes::E_MOVE_IN_LOOP));
+    }
+
+    #[test]
+    fn inconsistent_move_rejected() {
+        let d = check(
+            "program P\n\
+             fungsi ambil(k: kotak<i64>) -> i64 { kembalikan isi(k) }\n\
+             utama { nilai b = kotak(5) nilai c = 1 jika c > 0 { tampilkan(ambil(b)) } }",
+        );
+        assert!(has_code(&d, codes::E_INCONSISTENT_MOVE));
+    }
+
+    #[test]
+    fn consistent_move_both_branches_ok() {
+        let d = check(
+            "program P\n\
+             fungsi ambil(k: kotak<i64>) -> i64 { kembalikan isi(k) }\n\
+             utama { nilai b = kotak(5) nilai c = 1 jika c > 0 { tampilkan(ambil(b)) } lain { tampilkan(ambil(b)) } }",
+        );
+        assert!(!d.has_errors(), "{:?}", d.diagnostics());
+    }
+
+    #[test]
+    fn owned_in_extern_rejected() {
+        let d = check(
+            "program P\nekstern fungsi pakai(k: kotak<i64>) -> i64\nutama { }",
+        );
+        assert!(has_code(&d, codes::E_OWNED_IN_FFI));
+    }
+
+    #[test]
+    fn owned_reassignment_rejected() {
+        let d = check(
+            "program P\nutama { ubah b = kotak(1) b = kotak(2) tampilkan(isi(b)) }",
+        );
+        assert!(has_code(&d, codes::E_OWNED_REASSIGN));
+    }
+
+    #[test]
+    fn isi_requires_copy_inner() {
+        let d = check("program P\nutama { nilai b = kotak(kotak(1)) tampilkan(isi(isi(b))) }");
+        assert!(d.has_errors());
+    }
+
+    #[test]
+    fn owned_struct_moves() {
+        let d = check(
+            "program P\ntipe Simpul { data: kotak<i64> }\n\
+             fungsi pakai(s: Simpul) -> i64 { kembalikan isi(s.data) }\n\
+             utama { nilai s = Simpul { data: kotak(9) } nilai t = s tampilkan(pakai(s)) }",
+        );
+        assert!(has_code(&d, codes::E_USE_AFTER_MOVE));
     }
 }

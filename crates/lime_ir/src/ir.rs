@@ -68,6 +68,8 @@ pub enum InstrKind {
     Gep { slot: SlotId, agg_ty: Type, indices: Vec<GepIndex> },
     LoadPtr { ptr: Operand, ty: Type },
     StorePtr { ptr: Operand, ty: Type, value: Operand },
+    KotakNew { inner_ty: Type, value: Operand },
+    Free { ptr: Operand },
 }
 
 #[derive(Clone, Debug)]
@@ -153,6 +155,8 @@ pub struct Module {
     pub needs_abort: bool,
     pub needs_strcmp: bool,
     pub needs_strlen: bool,
+    pub needs_malloc: bool,
+    pub needs_free: bool,
 }
 
 impl Module {

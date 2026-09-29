@@ -19,6 +19,7 @@ pub struct TypeExpr {
 pub enum TypeExprKind {
     Named(String),
     Array { elem: Box<TypeExpr>, size: u64 },
+    Applied { name: String, args: Vec<TypeExpr> },
 }
 
 #[derive(Clone, Debug)]

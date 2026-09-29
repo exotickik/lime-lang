@@ -135,6 +135,20 @@ impl<'a> Parser<'a> {
             TokenKind::Ident(name) => {
                 let sp = self.peek_span();
                 self.bump();
+                if self.eat(&TokenKind::Lt) {
+                    let mut args = Vec::new();
+                    while !matches!(self.peek(), TokenKind::Gt | TokenKind::Eof) {
+                        args.push(self.expect_type()?);
+                        if !self.eat(&TokenKind::Comma) {
+                            break;
+                        }
+                    }
+                    let end = self.expect(&TokenKind::Gt)?;
+                    return Ok(TypeExpr {
+                        kind: TypeExprKind::Applied { name, args },
+                        span: sp.to(end.span),
+                    });
+                }
                 Ok(TypeExpr { kind: TypeExprKind::Named(name), span: sp })
             }
             TokenKind::LBracket => {

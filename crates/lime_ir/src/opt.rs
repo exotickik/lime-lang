@@ -219,6 +219,8 @@ fn subst_kind(kind: &mut InstrKind, known: &HashMap<u32, Operand>) -> bool {
             changed |= subst_operand(ptr, known);
             changed |= subst_operand(value, known);
         }
+        InstrKind::KotakNew { value, .. } => changed |= subst_operand(value, known),
+        InstrKind::Free { ptr } => changed |= subst_operand(ptr, known),
         InstrKind::Load { .. } => {}
     }
     changed
@@ -329,6 +331,8 @@ fn collect_uses(kind: &InstrKind, used: &mut HashSet<u32>) {
             note_use(ptr, used);
             note_use(value, used);
         }
+        InstrKind::KotakNew { value, .. } => note_use(value, used),
+        InstrKind::Free { ptr } => note_use(ptr, used),
         InstrKind::Load { .. } => {}
     }
 }

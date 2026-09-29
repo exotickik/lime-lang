@@ -49,6 +49,7 @@ pub enum Type {
     Struct(StructId),
     Enum(EnumId),
     Array { elem: Box<Type>, size: u64 },
+    Kotak(Box<Type>),
     Fn { params: Vec<Type>, ret: Box<Type> },
     Param(String),
 
@@ -127,6 +128,7 @@ impl Type {
             Type::Struct(id) => format!("tipe#{}", id.0),
             Type::Enum(id) => format!("enum#{}", id.0),
             Type::Array { elem, size } => format!("[{}; {}]", elem.display(), size),
+            Type::Kotak(inner) => format!("kotak<{}>", inner.display()),
             Type::Param(name) => name.clone(),
             Type::Fn { params, ret } => {
                 let ps: Vec<String> = params.iter().map(|t| t.display()).collect();

@@ -31,7 +31,11 @@ Legend: ✅ done · 🟡 in progress · ⬜ planned
   for-each (`pada`) and index iteration, runtime bounds checking, arrays of
   structs / arrays as params & returns
 - ⬜ Dynamically sized arrays / slices (`[T]` views)
-- ⬜ Ownership & borrow checking
+- ✅ Ownership model (Phase 8): `salinan`/`milik` classification, `kotak<T>`
+  owned heap cell, move semantics, use-after-move detection, branch-consistent
+  moves, deterministic drop (malloc/free), recursive drop of nested owned
+  values, ownership through calls/returns, generics & FFI boundaries
+- 🟡 References `&`/`&ubah` with borrow checking (Phase 9)
 
 ## Phase 3 — Native backend
 - ✅ Lime IR (SSA) + lowering (`lime_ir`)

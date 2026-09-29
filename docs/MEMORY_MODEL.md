@@ -6,34 +6,87 @@ and, where possible, resolved at compile time.
 
 ## Principles
 
-1. **Value semantics by default.** Primitives and small structs are values.
-   Assignment and argument passing copy the value unless a reference is taken.
-2. **Stack-first.** Locals live on the stack. The compiler places a value on the
-   stack whenever escape analysis (planned) proves it does not outlive its frame.
-   The bootstrap places all scalars and fixed-size locals on the stack.
-3. **Explicit heap.** Heap allocation is never implicit. Growable containers and
-   owned strings allocate through explicit standard-library APIs.
-4. **Deterministic destruction (planned).** Owned resources are released at the
-   end of their scope (RAII-style `hancurkan`/drop), in reverse construction
-   order. No finalizer thread, no nondeterminism.
-5. **Ownership & borrowing (planned).** Each owned value has a single owner.
-   Borrows (`&`) are non-owning views checked so they never outlive the owner.
-   Moves transfer ownership and invalidate the source binding.
+1. **No garbage collector.** Cleanup is decided entirely at compile time and
+   happens at deterministic points; there is no background collector and no
+   finalizer thread.
+2. **Two value categories, inferred by the compiler.** Every type is either
+   **`salinan` (Copy)** or **`milik` (Owned)**. The category is a property of the
+   type — there is no `Copy` opt-in trait and no move/copy sigil at use sites.
+3. **Stack-first, explicit heap.** Copy values and fixed aggregates live inline
+   (stack / registers, promoted by `llc -O2`). The heap is entered only through
+   an Owned type; there are no hidden allocations.
+4. **Compile-time enforcement, zero runtime ownership cost.** Move validity and
+   drop points are proven statically. There are **no runtime drop flags** and no
+   reference counts.
 
-## Ownership model (design, phased)
+## The `salinan` / `milik` split
 
-| Concept | Keyword/notation | Status |
-|---|---|---|
-| Owned value | default | value copies today; move semantics planned |
-| Shared borrow | `&T` | planned |
-| Mutable borrow | `&ubah T` | planned |
-| Move | assignment of a non-`Copy` type | planned |
-| Drop | `fungsi hancurkan(sendiri)` | planned |
+A type is **Owned (`milik`)** iff it is `kotak<T>` (see below) or an aggregate
+(struct or array) that transitively contains an Owned type. Every other type —
+all integers, floats, `boolean`, `karakter`, `teks`, `hampa`, enums, and
+aggregates built only from these — is **Copy (`salinan`)**.
 
-The borrow checker is specified to run in `lime_sema` after type checking,
-operating on the same typed AST, before IR lowering. Until it lands, the
-bootstrap only compiles programs whose values are trivially copyable
-(primitives, and structs of primitives), so no unsound aliasing is possible.
+- **Copy values** behave exactly as before this phase: assignment, argument
+  passing, and return **copy** them; they own no resource and are never dropped.
+- **Owned values** **move**: assignment, argument passing, returning, and placing
+  one into a struct/array literal or a `kotak(...)` transfer ownership and leave
+  the source binding **moved-out**. Using a moved-out binding is a compile error
+  (`E0280`, *nilai digunakan setelah dipindahkan*).
+
+## `kotak<T>` — the owned heap cell
+
+`kotak<T>` is the primitive Owned type: a single `T` on the heap, owned by
+exactly one binding.
+
+- `kotak(x)` allocates (libc `malloc`), moves `x` in, and yields a `kotak<T>`.
+- `isi(k)` reads a **copy** of the contents (requires `T` to be Copy); it borrows
+  `k` without consuming it — the read path while first-class references are
+  pending (Phase 9).
+- When a `kotak<T>` goes out of scope while still owning, it is dropped: if `T`
+  is itself Owned its contents are dropped first, then the allocation is released
+  (libc `free`). Structs/arrays containing Owned fields drop those fields
+  recursively.
+
+## Move rules
+
+- **Whole-value moves only.** Moving an Owned field *out of* a struct/array (a
+  partial move) is not allowed; read Copy fields freely, move the aggregate whole.
+- **Branch-consistent moves.** Within a scope a binding must have the same
+  moved/live status on every path that rejoins. Moving in one `jika` arm but not
+  another is `E0281` (*nilai dipindahkan pada sebagian cabang saja*). This is why
+  drops need no runtime flags — liveness at each program point is statically
+  definite.
+- **No moves out of a loop.** A loop body may not move a binding declared outside
+  the loop (`E0282`); it would be moved on the next iteration. Owned values
+  created inside the loop are dropped at the end of each iteration.
+- **Single assignment for Owned.** Reassigning an Owned binding is `E0284` for
+  now; an Owned value is created once and then moved.
+
+## Deterministic drop
+
+Drops are inserted by the IR lowerer using the move information from
+`lime_sema`. At every scope exit and before every `kembalikan` / `berhenti` /
+`lanjut`, each still-owning Owned local in the relevant scopes is dropped in
+reverse declaration order. A moved-out binding is skipped, and dropping a binding
+marks it dropped, so no value is ever freed twice. A returned Owned value is
+moved out first, so it is not dropped by the returning frame.
+
+## Ownership, generics, and FFI
+
+- **Generics.** Ownership is enforced per monomorphized instance, where each type
+  parameter is concrete and its category is known; a generic body is checked for
+  ownership once per instantiation.
+- **FFI.** Owned types may not appear in an `ekstern` signature or be passed to
+  an extern function (`E0283`): the C ABI has no knowledge of Lime ownership.
+
+## References (Phase 9)
+
+First-class borrows (`&T` shared, `&ubah T` mutable) with aliasing rules are a
+separate subsystem and are scheduled for Phase 9. The Phase 8 model is coherent
+without them: Owned values move, are read with `isi`, and are handed back by
+returning them. The planned reference rules — a shared borrow may alias freely
+but not coexist with a mutable borrow, a mutable borrow is unique, and no borrow
+may outlive its owner — will be checked in `lime_sema` on the same typed AST.
 
 ## Strings
 
@@ -92,10 +145,12 @@ primitive is the zero-overhead building block beneath them.
 
 ## No hidden allocations
 
-The bootstrap performs **zero** heap allocations at runtime for the currently
-supported language subset: every program compiles to code that uses only the
-stack plus static data. `tampilkan` calls libc `printf` with static format
-strings and stack/register arguments.
+The **only** source of heap allocation is an explicit Owned value (`kotak(...)`).
+A program that uses no Owned type performs **zero** heap allocations at runtime —
+it compiles to code that uses only the stack plus static data. When Owned values
+are used, every `malloc` has a matching compiler-inserted `free` at the owner's
+drop point; there are no hidden allocations and no leaks. `tampilkan` calls libc
+`printf` with static format strings and stack/register arguments.
 
 ## Layout & ABI
 

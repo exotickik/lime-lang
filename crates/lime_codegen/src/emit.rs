@@ -37,6 +37,12 @@ pub fn emit_module(module: &Module, target: &Target) -> String {
     if module.needs_strlen {
         writeln!(out, "declare i64 @strlen(ptr)").ok();
     }
+    if module.needs_malloc {
+        writeln!(out, "declare ptr @malloc(i64)").ok();
+    }
+    if module.needs_free {
+        writeln!(out, "declare void @free(ptr)").ok();
+    }
     for e in &module.externs {
         emit_extern_decl(&mut out, e);
     }
@@ -44,6 +50,8 @@ pub fn emit_module(module: &Module, target: &Target) -> String {
         || module.needs_abort
         || module.needs_strcmp
         || module.needs_strlen
+        || module.needs_malloc
+        || module.needs_free
         || !module.externs.is_empty()
     {
         out.push('\n');
@@ -321,6 +329,17 @@ fn emit_instr(
             writeln!(out, "  store {} {}, ptr {}", ty_str(ty), val_str(value, vt), val_str(ptr, vt))
                 .ok();
         }
+        InstrKind::KotakNew { inner_ty, value } => {
+            let d = dst.unwrap();
+            let t = ty_str(inner_ty);
+            writeln!(out, "  {}.g = getelementptr {}, ptr null, i64 1", d, t).ok();
+            writeln!(out, "  {}.z = ptrtoint ptr {}.g to i64", d, d).ok();
+            writeln!(out, "  {} = call ptr @malloc(i64 {}.z)", d, d).ok();
+            writeln!(out, "  store {} {}, ptr {}", t, val_str(value, vt), d).ok();
+        }
+        InstrKind::Free { ptr } => {
+            writeln!(out, "  call void @free(ptr {})", val_str(ptr, vt)).ok();
+        }
     }
 }
 
@@ -375,8 +394,10 @@ fn collect_value_types(func: &Func) -> HashMap<u32, Type> {
                     Type::Array { elem: Box::new(elem_ty.clone()), size: elems.len() as u64 }
                 }
                 InstrKind::LoadPtr { ty, .. } => ty.clone(),
+                InstrKind::KotakNew { inner_ty, .. } => Type::Kotak(Box::new(inner_ty.clone())),
                 InstrKind::Gep { .. } => continue,
                 InstrKind::StorePtr { .. } => continue,
+                InstrKind::Free { .. } => continue,
                 InstrKind::Store { .. } => continue,
             };
             m.insert(dst.0, ty);
@@ -402,6 +423,7 @@ fn ty_str(ty: &Type) -> String {
         Type::Struct(id) => format!("%struct.{}", id.0),
         Type::Enum(_) => "i32".to_string(),
         Type::Array { elem, size } => format!("[{} x {}]", size, ty_str(elem)),
+        Type::Kotak(_) => "ptr".to_string(),
         Type::Param(_) => "void".to_string(),
         Type::Fn { .. } => "ptr".to_string(),
         Type::Error => "void".to_string(),

@@ -10,6 +10,8 @@ pub struct LocalId(pub u32);
 pub enum Builtin {
     Tampilkan,
     Panjang,
+    Kotak,
+    Isi,
 }
 
 #[derive(Clone, Debug)]
@@ -93,6 +95,7 @@ pub struct TypeckResults {
     pub local_of_binding: HashMap<NodeId, LocalId>,
     pub locals: HashMap<LocalId, LocalInfo>,
     pub mono_functions: Vec<lime_ast::Function>,
+    pub moved_uses: std::collections::HashSet<NodeId>,
     pub main_present: bool,
 }
 

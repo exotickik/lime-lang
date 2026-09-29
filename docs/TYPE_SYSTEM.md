@@ -17,9 +17,21 @@ Type =
   | Struct(StructId)                              // named product type
   | Enum(EnumId)                                  // named tagged type (i32 tag)
   | Array { elem: Type, size: u64 }               // fixed-size array [T; N]
+  | Kotak(Type)                                   // owned heap cell kotak<T>
   | Fn { params: [Type], ret: Type }              // function type
+  | Param(String)                                 // generic type variable
   | Error                                         // poison type (post-error)
 ```
+
+## Copy vs Owned (`salinan` / `milik`)
+
+Every type is classified **Copy** or **Owned**. A type is Owned iff it is
+`Kotak(T)` or an aggregate (`Struct`/`Array`) that transitively contains an Owned
+type; everything else is Copy. Copy types are copied on assignment/pass/return
+and never dropped; Owned types move and are dropped deterministically. See
+`docs/MEMORY_MODEL.md` for the full ownership rules. `kotak(x)` builds a
+`Kotak(typeof x)`; `isi(k)` reads `T` from a `Kotak(T)` and requires `T` to be
+Copy.
 
 `angka` = `Int{64,signed}`, `bita` = `Int{8,unsigned}`, `bool`/`char`/`string`
 alias `Bool`/`Char`/`Str`.
@@ -137,3 +149,8 @@ generic calls (a generic calling another generic) are supported.
 | E0266 | nilai bukan larik tidak dapat diindeks |
 | E0267 | nilai bukan larik tidak dapat diiterasi ('pada') |
 | E0270 | parameter tipe generik tidak dapat disimpulkan |
+| E0280 | nilai digunakan setelah dipindahkan |
+| E0281 | nilai dipindahkan pada sebagian cabang saja |
+| E0282 | nilai luar dipindahkan di dalam perulangan |
+| E0283 | tipe milik melewati batas FFI |
+| E0284 | penetapan ulang nilai bertipe milik |

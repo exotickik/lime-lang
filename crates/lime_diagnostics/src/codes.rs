@@ -40,6 +40,11 @@ pub const E_UNKNOWN_VARIANT: Code = Code("E0265");
 pub const E_NOT_INDEXABLE: Code = Code("E0266");
 pub const E_NOT_ITERABLE: Code = Code("E0267");
 pub const E_CANNOT_INFER: Code = Code("E0270");
+pub const E_USE_AFTER_MOVE: Code = Code("E0280");
+pub const E_INCONSISTENT_MOVE: Code = Code("E0281");
+pub const E_MOVE_IN_LOOP: Code = Code("E0282");
+pub const E_OWNED_IN_FFI: Code = Code("E0283");
+pub const E_OWNED_REASSIGN: Code = Code("E0284");
 
 pub const E_INVALID_ASSIGN_TARGET: Code = Code("E0301");
 

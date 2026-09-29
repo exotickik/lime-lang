@@ -64,7 +64,9 @@ struct FnLowerer<'a> {
     current: BlockId,
     next_value: u32,
     slot_of_local: HashMap<u32, SlotId>,
-    loop_stack: Vec<(BlockId, BlockId)>,
+    loop_stack: Vec<(BlockId, BlockId, usize)>,
+    owned_scopes: Vec<Vec<lime_sema::LocalId>>,
+    live: HashMap<u32, bool>,
     ret_ty: Type,
     is_main: bool,
 }
@@ -85,8 +87,124 @@ impl<'a> FnLowerer<'a> {
             next_value: 0,
             slot_of_local: HashMap::new(),
             loop_stack: Vec::new(),
+            owned_scopes: Vec::new(),
+            live: HashMap::new(),
             ret_ty: Type::Unit,
             is_main: false,
+        }
+    }
+
+    fn is_copy_ty(&self, ty: &Type) -> bool {
+        lime_sema::is_copy(ty, self.results)
+    }
+
+    fn enter_owned_scope(&mut self) {
+        self.owned_scopes.push(Vec::new());
+    }
+
+    fn exit_owned_scope(&mut self) {
+        if let Some(scope) = self.owned_scopes.pop() {
+            for local in scope.iter().rev() {
+                if *self.live.get(&local.0).unwrap_or(&false) {
+                    self.emit_drop_local(*local);
+                }
+            }
+        }
+    }
+
+    fn declare_owned(&mut self, local: lime_sema::LocalId, ty: &Type) {
+        if !self.is_copy_ty(ty) {
+            if let Some(scope) = self.owned_scopes.last_mut() {
+                scope.push(local);
+            }
+            self.live.insert(local.0, true);
+        }
+    }
+
+    fn drop_all_live(&mut self) {
+        let scopes: Vec<Vec<lime_sema::LocalId>> = self.owned_scopes.clone();
+        for scope in scopes.iter().rev() {
+            for local in scope.iter().rev() {
+                if *self.live.get(&local.0).unwrap_or(&false) {
+                    self.emit_drop_local(*local);
+                }
+            }
+        }
+    }
+
+    fn drop_loop_scopes(&mut self, depth: usize) {
+        let scopes: Vec<Vec<lime_sema::LocalId>> = self.owned_scopes[depth..].to_vec();
+        for scope in scopes.iter().rev() {
+            for local in scope.iter().rev() {
+                if *self.live.get(&local.0).unwrap_or(&false) {
+                    self.emit_drop_local(*local);
+                }
+            }
+        }
+    }
+
+    fn emit_drop_local(&mut self, local: lime_sema::LocalId) {
+        self.live.insert(local.0, false);
+        let slot = self.slot_of_local[&local.0];
+        let ty = self.slots[slot.0 as usize].ty.clone();
+        let val = self.load_slot(slot, ty.clone());
+        self.emit_drop_value(Operand::Val(val), &ty);
+    }
+
+    fn emit_drop_value(&mut self, value: Operand, ty: &Type) {
+        match ty {
+            Type::Kotak(inner) => {
+                if !self.is_copy_ty(inner) {
+                    let iv = self.fresh_value();
+                    self.emit(
+                        Some(iv),
+                        InstrKind::LoadPtr { ptr: value.clone(), ty: (**inner).clone() },
+                    );
+                    self.emit_drop_value(Operand::Val(iv), inner);
+                }
+                self.module.needs_free = true;
+                self.emit(None, InstrKind::Free { ptr: value });
+            }
+            Type::Struct(id) => {
+                let fields: Vec<(u32, Type)> = self.results.structs[id.0 as usize]
+                    .fields
+                    .iter()
+                    .enumerate()
+                    .filter(|(_, f)| !self.is_copy_ty(&f.ty))
+                    .map(|(i, f)| (i as u32, f.ty.clone()))
+                    .collect();
+                for (i, fty) in fields {
+                    let fv = self.fresh_value();
+                    self.emit(
+                        Some(fv),
+                        InstrKind::ExtractField {
+                            agg: value.clone(),
+                            agg_ty: ty.clone(),
+                            index: i,
+                            field_ty: fty.clone(),
+                        },
+                    );
+                    self.emit_drop_value(Operand::Val(fv), &fty);
+                }
+            }
+            Type::Array { elem, size } => {
+                if !self.is_copy_ty(elem) {
+                    for i in 0..*size {
+                        let ev = self.fresh_value();
+                        self.emit(
+                            Some(ev),
+                            InstrKind::ExtractField {
+                                agg: value.clone(),
+                                agg_ty: ty.clone(),
+                                index: i as u32,
+                                field_ty: (**elem).clone(),
+                            },
+                        );
+                        self.emit_drop_value(Operand::Val(ev), elem);
+                    }
+                }
+            }
+            _ => {}
         }
     }
 
@@ -97,6 +215,7 @@ impl<'a> FnLowerer<'a> {
         let entry = self.new_block();
         self.current = entry;
 
+        self.enter_owned_scope();
         let mut params = Vec::new();
         for (p, (_, pty)) in f.params.iter().zip(sig.params.iter()) {
             let val = self.fresh_value();
@@ -105,6 +224,7 @@ impl<'a> FnLowerer<'a> {
             let slot = self.new_slot(pty.clone());
             self.slot_of_local.insert(local.0, slot);
             self.emit(None, InstrKind::Store { slot, value: Operand::Val(val) });
+            self.declare_owned(local, pty);
         }
 
         self.lower_block(&f.body);
@@ -141,6 +261,7 @@ impl<'a> FnLowerer<'a> {
 
     fn finish_fallthrough(&mut self) {
         if self.block(self.current).term.is_none() {
+            self.drop_all_live();
             if self.is_main {
                 self.set_term(Terminator::Ret(Some(Operand::ConstInt(0, Type::I32))));
             } else if self.ret_ty == Type::Unit {
@@ -152,6 +273,7 @@ impl<'a> FnLowerer<'a> {
     }
 
     fn lower_block(&mut self, block: &AstBlock) {
+        self.enter_owned_scope();
         for stmt in &block.stmts {
             if self.block(self.current).term.is_some() {
                 let dead = self.new_block();
@@ -159,6 +281,7 @@ impl<'a> FnLowerer<'a> {
             }
             self.lower_stmt(stmt);
         }
+        self.exit_owned_scope();
     }
 
     fn lower_stmt(&mut self, stmt: &Stmt) {
@@ -167,9 +290,10 @@ impl<'a> FnLowerer<'a> {
                 let local = self.results.local_of_binding[let_id];
                 let ty = self.results.locals[&local].ty.clone();
                 let op = self.lower_expr(init);
-                let slot = self.new_slot(ty);
+                let slot = self.new_slot(ty.clone());
                 self.slot_of_local.insert(local.0, slot);
                 self.emit(None, InstrKind::Store { slot, value: op });
+                self.declare_owned(local, &ty);
             }
             Stmt::Assign { target, value, .. } => match &target.kind {
                 ExprKind::Name(_) => {
@@ -209,15 +333,18 @@ impl<'a> FnLowerer<'a> {
                         }
                     }
                 };
+                self.drop_all_live();
                 self.set_term(Terminator::Ret(op));
             }
             Stmt::Break(_) => {
-                if let Some(&(_, brk)) = self.loop_stack.last() {
+                if let Some(&(_, brk, depth)) = self.loop_stack.last() {
+                    self.drop_loop_scopes(depth);
                     self.set_term(Terminator::Br(brk));
                 }
             }
             Stmt::Continue(_) => {
-                if let Some(&(cont, _)) = self.loop_stack.last() {
+                if let Some(&(cont, _, depth)) = self.loop_stack.last() {
+                    self.drop_loop_scopes(depth);
                     self.set_term(Terminator::Br(cont));
                 }
             }
@@ -276,7 +403,8 @@ impl<'a> FnLowerer<'a> {
         self.set_term(Terminator::CondBr { cond: c, then_bb: body_bb, else_bb: end_bb });
 
         self.current = body_bb;
-        self.loop_stack.push((head, end_bb));
+        let depth = self.owned_scopes.len();
+        self.loop_stack.push((head, end_bb, depth));
         self.lower_block(body);
         self.loop_stack.pop();
         if self.block(self.current).term.is_none() {
@@ -318,7 +446,8 @@ impl<'a> FnLowerer<'a> {
         });
 
         self.current = body_bb;
-        self.loop_stack.push((step_bb, end_bb));
+        let depth = self.owned_scopes.len();
+        self.loop_stack.push((step_bb, end_bb, depth));
         self.lower_block(&for_stmt.body);
         self.loop_stack.pop();
         if self.block(self.current).term.is_none() {
@@ -367,7 +496,11 @@ impl<'a> FnLowerer<'a> {
                 Some(Res::Local(id)) => {
                     let slot = self.slot_of_local[&id.0];
                     let ty = self.results.locals[id].ty.clone();
-                    Operand::Val(self.load_slot(slot, ty))
+                    let val = self.load_slot(slot, ty);
+                    if self.results.moved_uses.contains(&expr.id) {
+                        self.live.insert(id.0, false);
+                    }
+                    Operand::Val(val)
                 }
                 _ => {
                     self.unsupported(expr.span, "referensi nilai ini belum didukung backend");
@@ -590,7 +723,8 @@ impl<'a> FnLowerer<'a> {
         let elem = self.fresh_value();
         self.emit(Some(elem), InstrKind::LoadPtr { ptr: Operand::Val(elem_ptr), ty: elem_ty });
         self.emit(None, InstrKind::Store { slot: var_slot, value: Operand::Val(elem) });
-        self.loop_stack.push((step_bb, end_bb));
+        let depth = self.owned_scopes.len();
+        self.loop_stack.push((step_bb, end_bb, depth));
         self.lower_block(&fe.body);
         self.loop_stack.pop();
         if self.block(self.current).term.is_none() {
@@ -837,6 +971,21 @@ impl<'a> FnLowerer<'a> {
             Some(Res::Builtin(Builtin::Tampilkan)) => {
                 self.lower_print(&args[0]);
                 Operand::Unit
+            }
+            Some(Res::Builtin(Builtin::Kotak)) => {
+                let inner_ty = self.results.expr_type(args[0].id).clone();
+                let value = self.lower_expr(&args[0]);
+                self.module.needs_malloc = true;
+                let dst = self.fresh_value();
+                self.emit(Some(dst), InstrKind::KotakNew { inner_ty, value });
+                Operand::Val(dst)
+            }
+            Some(Res::Builtin(Builtin::Isi)) => {
+                let inner_ty = self.results.expr_type(expr.id).clone();
+                let ptr = self.lower_expr(&args[0]);
+                let dst = self.fresh_value();
+                self.emit(Some(dst), InstrKind::LoadPtr { ptr, ty: inner_ty });
+                Operand::Val(dst)
             }
             Some(Res::Builtin(Builtin::Panjang)) => {
                 let arg_ty = self.results.expr_type(args[0].id).clone();

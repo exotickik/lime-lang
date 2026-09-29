@@ -49,6 +49,10 @@ impl<'a> Checker<'a> {
         self.check_bodies(program);
         self.process_mono_worklist();
         self.check_main_presence(program);
+        if !self.diags.has_errors() {
+            let moved = crate::ownership::check_program(program, &self.results, self.diags);
+            self.results.moved_uses = moved;
+        }
         self.results
     }
 
@@ -234,6 +238,8 @@ impl<'a> Checker<'a> {
         }
         self.globals.insert("tampilkan".to_string(), Res::Builtin(Builtin::Tampilkan));
         self.globals.insert("panjang".to_string(), Res::Builtin(Builtin::Panjang));
+        self.globals.insert("kotak".to_string(), Res::Builtin(Builtin::Kotak));
+        self.globals.insert("isi".to_string(), Res::Builtin(Builtin::Isi));
     }
 
     fn check_bodies(&mut self, program: &Program) {
@@ -858,6 +864,73 @@ impl<'a> Checker<'a> {
 
         match self.lookup(name) {
             Some(Res::GenericFn(gidx)) => self.check_generic_call(gidx, call, callee, args),
+            Some(Res::Builtin(Builtin::Kotak)) => {
+                self.results.name_res.insert(callee.id, Res::Builtin(Builtin::Kotak));
+                if args.len() != 1 {
+                    self.diags.emit(
+                        Diagnostic::error(
+                            codes::E_ARITY_MISMATCH,
+                            format!("'kotak' butuh 1 argumen, diberi {}", args.len()),
+                        )
+                        .primary(call.span, "jumlah argumen salah"),
+                    );
+                    for a in args {
+                        self.check_expr(a, None);
+                    }
+                    return Type::Error;
+                }
+                let at = self.check_expr(&args[0], None);
+                if at.is_error() {
+                    return Type::Error;
+                }
+                Type::Kotak(Box::new(at))
+            }
+            Some(Res::Builtin(Builtin::Isi)) => {
+                self.results.name_res.insert(callee.id, Res::Builtin(Builtin::Isi));
+                if args.len() != 1 {
+                    self.diags.emit(
+                        Diagnostic::error(
+                            codes::E_ARITY_MISMATCH,
+                            format!("'isi' butuh 1 argumen, diberi {}", args.len()),
+                        )
+                        .primary(call.span, "jumlah argumen salah"),
+                    );
+                    for a in args {
+                        self.check_expr(a, None);
+                    }
+                    return Type::Error;
+                }
+                let at = self.check_expr(&args[0], None);
+                match at {
+                    Type::Kotak(inner) => {
+                        if !self.is_copy(&inner) {
+                            self.diags.emit(
+                                Diagnostic::error(
+                                    codes::E_INVALID_OPERAND,
+                                    format!(
+                                        "'isi' hanya untuk kotak berisi tipe salinan, bukan '{}'",
+                                        inner.display()
+                                    ),
+                                )
+                                .primary(args[0].span, "isi kotak bertipe milik")
+                                .help("nilai bertipe milik harus dipindahkan, bukan disalin keluar"),
+                            );
+                        }
+                        (*inner).clone()
+                    }
+                    Type::Error => Type::Error,
+                    other => {
+                        self.diags.emit(
+                            Diagnostic::error(
+                                codes::E_INVALID_OPERAND,
+                                format!("'isi' butuh 'kotak<T>', bukan '{}'", other.display()),
+                            )
+                            .primary(args[0].span, "bukan kotak"),
+                        );
+                        Type::Error
+                    }
+                }
+            }
             Some(Res::Builtin(Builtin::Panjang)) => {
                 self.results.name_res.insert(callee.id, Res::Builtin(Builtin::Panjang));
                 if args.len() != 1 {
@@ -1128,6 +1201,10 @@ impl<'a> Checker<'a> {
                 elem: Box::new(self.resolve_type_generic(elem, type_params)),
                 size: *size,
             },
+            TypeExprKind::Applied { name, args } if name == "kotak" && args.len() == 1 => {
+                Type::Kotak(Box::new(self.resolve_type_generic(&args[0], type_params)))
+            }
+            TypeExprKind::Applied { .. } => Type::Error,
         }
     }
 
@@ -1253,6 +1330,32 @@ impl<'a> Checker<'a> {
                 let elem_ty = self.resolve_type(elem);
                 Type::Array { elem: Box::new(elem_ty), size: *size }
             }
+            TypeExprKind::Applied { name, args } => {
+                if name == "kotak" && args.len() == 1 {
+                    let inner = self.resolve_type(&args[0]);
+                    return Type::Kotak(Box::new(inner));
+                }
+                self.diags.emit(
+                    Diagnostic::error(
+                        codes::E_UNKNOWN_TYPE,
+                        format!("tipe generik '{}' dengan {} argumen tidak dikenal", name, args.len()),
+                    )
+                    .primary(ty.span, "hanya 'kotak<T>' yang didukung saat ini"),
+                );
+                Type::Error
+            }
+        }
+    }
+
+    fn is_copy(&self, ty: &Type) -> bool {
+        match ty {
+            Type::Kotak(_) => false,
+            Type::Struct(id) => {
+                self.results.structs[id.0 as usize].fields.iter().all(|f| self.is_copy(&f.ty))
+            }
+            Type::Array { elem, .. } => self.is_copy(elem),
+            Type::Param(_) => true,
+            _ => true,
         }
     }
 
@@ -1347,6 +1450,10 @@ fn mangle_name(base: &str, type_args: &[Type]) -> String {
     format!("{}${}", base, parts.join("_"))
 }
 
+fn dummy_span() -> Span {
+    Span::point(lime_span::FileId(0), 0)
+}
+
 fn type_to_type_expr_kind(ty: &Type, results: &TypeckResults) -> TypeExprKind {
     match ty {
         Type::Struct(id) => TypeExprKind::Named(results.structs[id.0 as usize].name.clone()),
@@ -1354,9 +1461,16 @@ fn type_to_type_expr_kind(ty: &Type, results: &TypeckResults) -> TypeExprKind {
         Type::Array { elem, size } => TypeExprKind::Array {
             elem: Box::new(TypeExpr {
                 kind: type_to_type_expr_kind(elem, results),
-                span: Span::point(lime_span::FileId(0), 0),
+                span: dummy_span(),
             }),
             size: *size,
+        },
+        Type::Kotak(inner) => TypeExprKind::Applied {
+            name: "kotak".to_string(),
+            args: vec![TypeExpr {
+                kind: type_to_type_expr_kind(inner, results),
+                span: dummy_span(),
+            }],
         },
         other => TypeExprKind::Named(other.display()),
     }
@@ -1372,8 +1486,14 @@ fn substitute_type_expr(te: &mut TypeExpr, subst: &HashMap<String, Type>, result
         te.kind = kind;
         return;
     }
-    if let TypeExprKind::Array { elem, .. } = &mut te.kind {
-        substitute_type_expr(elem, subst, results);
+    match &mut te.kind {
+        TypeExprKind::Array { elem, .. } => substitute_type_expr(elem, subst, results),
+        TypeExprKind::Applied { args, .. } => {
+            for a in args {
+                substitute_type_expr(a, subst, results);
+            }
+        }
+        TypeExprKind::Named(_) => {}
     }
 }
 

@@ -21,6 +21,17 @@ claims to exist before it does.
   a `teks` returns the UTF-8 **byte** length (via libc `strlen`). Result type
   `angka`.
 
+### Owned heap cell
+- `kotak(x)` — allocate a `kotak<T>` on the heap (libc `malloc`) and move `x`
+  into it. The box is an owned value: it moves rather than copies and is freed
+  (libc `free`) at its owner's drop point. See `docs/MEMORY_MODEL.md`.
+- `isi(k)` — read a copy of the contents of a `kotak<T>` (requires `T` to be a
+  Copy type). Borrows `k` without consuming it.
+
+The heap runtime for owned values is libc `malloc`/`free`, reached through Lime's
+own C-ABI FFI path — no separate allocator library. Growable containers
+(`daftar<T>`) will be standard-library types built on `kotak` and this runtime.
+
 ### Strings
 - Content comparison with `==` / `!=` (via libc `strcmp`). See
   `docs/LANGUAGE_SPEC.md` §2.3 for the full string model. Concatenation, slicing

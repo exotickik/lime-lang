@@ -23,15 +23,16 @@ extern_decl    = "ekstern" "fungsi" Ident "(" [ param_list [ "," "..." ] ] ")"
 
 main_block     = "utama" block ;
 
-function       = [ "publik" ] "fungsi" Ident "(" [ param_list ] ")"
-                 [ "->" type ] block ;
+function       = [ "publik" ] "fungsi" Ident [ "<" Ident { "," Ident } ">" ]
+                 "(" [ param_list ] ")" [ "->" type ] block ;
 param_list     = param { "," param } ;
 param          = Ident ":" type ;
 
 struct         = [ "publik" ] "tipe" Ident "{" { field } "}" ;
 field          = [ "publik" ] Ident ":" type ;
 
-type           = Ident ;                        (* named type; generics planned *)
+type           = Ident [ "<" type { "," type } ">" ]   (* named or applied, e.g. kotak<i64> *)
+               | "[" type ";" IntLit "]" ;              (* fixed array [T; N] *)
 
 block          = "{" { statement } "}" ;
 

@@ -231,6 +231,10 @@ fn type_str(t: &TypeExpr) -> String {
     match &t.kind {
         TypeExprKind::Named(name) => name.clone(),
         TypeExprKind::Array { elem, size } => format!("[{}; {}]", type_str(elem), size),
+        TypeExprKind::Applied { name, args } => {
+            let a: Vec<String> = args.iter().map(type_str).collect();
+            format!("{}<{}>", name, a.join(", "))
+        }
     }
 }
 
