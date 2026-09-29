@@ -1,0 +1,19 @@
+program FfiLibc
+
+ekstern fungsi abs(x: i32) -> i32
+ekstern fungsi putchar(c: i32) -> i32
+ekstern fungsi printf(fmt: teks, ...) -> i32
+
+fungsi cetak_baris(nilai_a: i32, nilai_b: i32) {
+    printf("a=%d b=%d selisih=%d\n", nilai_a, nilai_b, abs(nilai_a - nilai_b))
+}
+
+utama {
+    cetak_baris(10i32, 25i32)
+    cetak_baris(100i32, 40i32)
+
+    untuk kode dari 65i32 sampai 70i32 {
+        putchar(kode)
+    }
+    putchar(10i32)
+}

@@ -54,7 +54,9 @@ Legend: ✅ done · 🟡 in progress · ⬜ planned
 - ⬜ Enum associated data + pattern matching (`cocok`)
 - ⬜ Generics (monomorphization)
 - ⬜ Error handling model
-- ⬜ Modules across files, FFI surface (`ekstern`)
+- ⬜ Modules across files
+- ✅ C-ABI FFI (`ekstern fungsi`, including variadic; links against libc) —
+  see `docs/FFI.md`
 - ⬜ Concurrency
 
 ## Phase 6 — Developer tooling

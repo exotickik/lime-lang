@@ -862,6 +862,7 @@ impl<'a> FnLowerer<'a> {
                 let sig = self.results.functions[*idx].clone();
                 let arg_ops: Vec<Operand> = args.iter().map(|a| self.lower_expr(a)).collect();
                 let ret = sig.ret.clone();
+                let variadic_from = if sig.variadic { Some(sig.params.len()) } else { None };
                 if ret == Type::Unit {
                     self.emit(
                         None,
@@ -869,7 +870,7 @@ impl<'a> FnLowerer<'a> {
                             callee: sig.name.clone(),
                             args: arg_ops,
                             ret: Type::Unit,
-                            variadic_from: None,
+                            variadic_from,
                         },
                     );
                     Operand::Unit
@@ -881,7 +882,7 @@ impl<'a> FnLowerer<'a> {
                             callee: sig.name.clone(),
                             args: arg_ops,
                             ret: ret.clone(),
-                            variadic_from: None,
+                            variadic_from,
                         },
                     );
                     Operand::Val(dst)
