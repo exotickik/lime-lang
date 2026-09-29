@@ -1,0 +1,15 @@
+program Faktorial
+
+fungsi faktorial(n: angka) -> angka {
+    ubah hasil: angka = 1
+    untuk i dari 1 hingga n {
+        hasil = hasil * i
+    }
+    kembalikan hasil
+}
+
+utama {
+    untuk n dari 1 hingga 6 {
+        tampilkan(faktorial(n))
+    }
+}

@@ -1,0 +1,18 @@
+program Maksimum
+
+fungsi maksimum(a: angka, b: angka) -> angka {
+    jika a > b {
+        kembalikan a
+    }
+    kembalikan b
+}
+
+utama {
+    nilai x = maksimum(37, 42)
+    tampilkan(x)
+    jika x >= 40 {
+        tampilkan("besar")
+    } lain {
+        tampilkan("kecil")
+    }
+}

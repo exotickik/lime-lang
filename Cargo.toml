@@ -10,6 +10,9 @@ members = [
     "crates/lime_sema",
     "crates/lime_ir",
     "crates/lime_codegen",
+    "crates/lime_fmt",
+    "crates/lime_driver",
+    "cli",
 ]
 
 [workspace.package]

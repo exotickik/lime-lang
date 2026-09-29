@@ -1,0 +1,14 @@
+program Fibonacci
+
+fungsi fib(n: angka) -> angka {
+    jika n < 2 {
+        kembalikan n
+    }
+    kembalikan fib(n - 1) + fib(n - 2)
+}
+
+utama {
+    untuk i dari 0 sampai 10 {
+        tampilkan(fib(i))
+    }
+}

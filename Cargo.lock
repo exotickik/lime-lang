@@ -10,6 +10,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "lime_cli"
+version = "0.1.0"
+dependencies = [
+ "lime_codegen",
+ "lime_driver",
+ "lime_fmt",
+]
+
+[[package]]
 name = "lime_codegen"
 version = "0.1.0"
 dependencies = [
@@ -26,6 +35,33 @@ dependencies = [
 name = "lime_diagnostics"
 version = "0.1.0"
 dependencies = [
+ "lime_span",
+]
+
+[[package]]
+name = "lime_driver"
+version = "0.1.0"
+dependencies = [
+ "lime_ast",
+ "lime_codegen",
+ "lime_diagnostics",
+ "lime_fmt",
+ "lime_ir",
+ "lime_lexer",
+ "lime_parser",
+ "lime_sema",
+ "lime_span",
+ "lime_types",
+]
+
+[[package]]
+name = "lime_fmt"
+version = "0.1.0"
+dependencies = [
+ "lime_ast",
+ "lime_diagnostics",
+ "lime_lexer",
+ "lime_parser",
  "lime_span",
 ]
 
