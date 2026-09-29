@@ -56,6 +56,7 @@ impl Printer {
         match item {
             Item::Function(f) => self.print_function(f),
             Item::Struct(s) => self.print_struct(s),
+            Item::Enum(e) => self.print_enum(e),
             Item::Main(m) => {
                 self.line("utama {");
                 self.indent += 1;
@@ -106,6 +107,17 @@ impl Printer {
         for field in &s.fields {
             let fvis = if field.public { "publik " } else { "" };
             self.line(&format!("{}{}: {}", fvis, field.name.name, field.ty.name));
+        }
+        self.indent -= 1;
+        self.line("}");
+    }
+
+    fn print_enum(&mut self, e: &EnumDecl) {
+        let vis = if e.public { "publik " } else { "" };
+        self.line(&format!("{}enum {} {{", vis, e.name.name));
+        self.indent += 1;
+        for variant in &e.variants {
+            self.line(&format!("{},", variant.name));
         }
         self.indent -= 1;
         self.line("}");

@@ -175,6 +175,7 @@ impl<'a> Parser<'a> {
         match self.peek() {
             TokenKind::Keyword(Keyword::Fungsi) => Ok(Item::Function(self.parse_function(public)?)),
             TokenKind::Keyword(Keyword::Tipe) => Ok(Item::Struct(self.parse_struct(public)?)),
+            TokenKind::Keyword(Keyword::Enum) => Ok(Item::Enum(self.parse_enum(public)?)),
             TokenKind::Keyword(Keyword::Utama) if !public => Ok(Item::Main(self.parse_main()?)),
             TokenKind::Keyword(Keyword::Ekstern) if !public => {
                 Ok(Item::Extern(self.parse_extern()?))
@@ -281,6 +282,21 @@ impl<'a> Parser<'a> {
         }
         let rb = self.expect(&TokenKind::RBrace)?;
         Ok(StructDecl { public, name, fields, span: start.to(rb.span) })
+    }
+
+    fn parse_enum(&mut self, public: bool) -> PResult<EnumDecl> {
+        let start = self.peek_span();
+        self.expect(&TokenKind::Keyword(Keyword::Enum))?;
+        let name = self.expect_ident()?;
+        self.expect(&TokenKind::LBrace)?;
+        let mut variants = Vec::new();
+        while !matches!(self.peek(), TokenKind::RBrace | TokenKind::Eof) {
+            let variant = self.expect_ident()?;
+            variants.push(variant);
+            self.eat(&TokenKind::Comma);
+        }
+        let rb = self.expect(&TokenKind::RBrace)?;
+        Ok(EnumDecl { public, name, variants, span: start.to(rb.span) })
     }
 
     fn parse_main(&mut self) -> PResult<MainBlock> {
@@ -661,6 +677,7 @@ impl<'a> Parser<'a> {
                 TokenKind::Keyword(
                     Keyword::Fungsi
                         | Keyword::Tipe
+                        | Keyword::Enum
                         | Keyword::Utama
                         | Keyword::Ekstern
                         | Keyword::Gunakan

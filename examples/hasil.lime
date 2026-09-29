@@ -1,0 +1,24 @@
+program Hasil
+
+enum Status {
+    Berhasil,
+    Gagal,
+    Menunggu
+}
+
+fungsi proses(kode: angka) -> Status {
+    jika kode == 0 {
+        kembalikan Status.Berhasil
+    }
+    jika kode == 1 {
+        kembalikan Status.Menunggu
+    }
+    kembalikan Status.Gagal
+}
+
+utama {
+    untuk kode dari 0 sampai 3 {
+        nilai s = proses(kode)
+        tampilkan(s)
+    }
+}

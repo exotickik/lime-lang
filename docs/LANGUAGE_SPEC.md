@@ -91,7 +91,9 @@ generator selects signed vs unsigned instructions (`sdiv`/`udiv`,
 - **Struct** (`tipe`): named product type with named fields. Fully implemented
   through native code generation (see §3.5). Structs are compiled to real LLVM
   aggregate types, passed and returned by value, and support nested fields.
-- **Enum** (`enum`) **(planned)**: tagged union with pattern matching (`cocok`).
+- **Enum** (`enum`): a fixed set of named variants (see §3.6). Implemented as a
+  C-style tagged type; associated data and pattern matching (`cocok`) are the
+  next step and the representation is designed to accommodate them.
 - **Arrays / slices** **(planned)**: `[T; N]` fixed arrays, `iris<T>` slices.
 
 ### 2.3 Strings
@@ -184,6 +186,35 @@ force a struct literal in those positions.
 Representation: each struct becomes an LLVM aggregate type; construction lowers
 to `insertvalue`, reads to `extractvalue`, and mutation to a load / nested
 `insertvalue` / store. See `docs/MEMORY_MODEL.md`.
+
+### 3.6 Enums
+An enum declares a fixed set of named variants:
+```lime
+enum Hasil {
+    Berhasil,
+    Gagal,
+    Menunggu
+}
+```
+A variant is referred to as `Enum.Variant`:
+```lime
+nilai s = Hasil.Berhasil
+```
+Enums are value types. Supported operations:
+- construction of a variant (`Hasil.Gagal`),
+- equality and inequality (`==`, `!=`) between values of the same enum,
+- use as a binding, function parameter, return value, and struct field,
+- `tampilkan(e)` prints the **variant name** (e.g. `Berhasil`).
+
+Ordering comparisons (`<`, `>`) and arithmetic are not defined on enums, and an
+enum value is not interchangeable with an integer — comparing an enum to an
+integer is a type error.
+
+Representation: each enum is a distinct type carried as an `i32` tag whose value
+is the variant's declaration index (the first variant is `0`). Variant-name
+printing lowers to a `select` chain over the tag. Associated data per variant and
+`cocok` pattern matching are planned; the tagged representation is chosen so a
+payload union can be added later without changing the surface for tag-only enums.
 
 ---
 

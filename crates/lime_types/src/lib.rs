@@ -2,6 +2,9 @@
 pub struct StructId(pub u32);
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
+pub struct EnumId(pub u32);
+
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
 pub enum IntWidth {
     W8,
     W16,
@@ -44,6 +47,7 @@ pub enum Type {
     Str,
     Unit,
     Struct(StructId),
+    Enum(EnumId),
     Fn { params: Vec<Type>, ret: Box<Type> },
 
     Error,
@@ -119,6 +123,7 @@ impl Type {
             Type::Str => "teks".into(),
             Type::Unit => "hampa".into(),
             Type::Struct(id) => format!("tipe#{}", id.0),
+            Type::Enum(id) => format!("enum#{}", id.0),
             Type::Fn { params, ret } => {
                 let ps: Vec<String> = params.iter().map(|t| t.display()).collect();
                 format!("fungsi({}) -> {}", ps.join(", "), ret.display())

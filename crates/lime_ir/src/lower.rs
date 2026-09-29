@@ -18,6 +18,10 @@ pub fn lower(program: &Program, results: &TypeckResults, diags: &mut DiagnosticE
         });
     }
 
+    for info in &results.enums {
+        module.enums.push(IrEnum { name: info.name.clone(), variants: info.variants.clone() });
+    }
+
     for sig in &results.functions {
         if sig.is_extern {
             module.externs.push(ExternSig {
@@ -366,7 +370,13 @@ impl<'a> FnLowerer<'a> {
             ExprKind::Binary { op, lhs, rhs } => self.lower_binary(*op, lhs, rhs, expr),
             ExprKind::Unary { op, operand } => self.lower_unary(*op, operand, expr),
             ExprKind::Call { callee, args } => self.lower_call(callee, args, expr),
-            ExprKind::Field { base, field } => self.lower_field_read(base, field, expr),
+            ExprKind::Field { base, field } => {
+                if let Some(&(eid, tag)) = self.results.enum_variant.get(&expr.id) {
+                    Operand::ConstInt(tag as u128, Type::Enum(eid))
+                } else {
+                    self.lower_field_read(base, field, expr)
+                }
+            }
             ExprKind::StructLit { .. } => self.lower_struct_lit(expr),
         }
     }
@@ -646,8 +656,47 @@ impl<'a> FnLowerer<'a> {
                 let val = self.lower_expr(arg);
                 self.call_printf(fmt, vec![val]);
             }
+            Type::Enum(eid) => {
+                let tag = self.lower_expr(arg);
+                let name_op = self.enum_name_operand(eid, tag);
+                let fmt = self.fmt_global("%s\n");
+                self.call_printf(fmt, vec![name_op]);
+            }
             _ => self.unsupported(arg.span, "tipe ini tidak dapat dicetak backend"),
         }
+    }
+
+    fn enum_name_operand(&mut self, eid: lime_types::EnumId, tag: Operand) -> Operand {
+        let variants = self.module.enums[eid.0 as usize].variants.clone();
+        let globals: Vec<GlobalId> =
+            variants.iter().map(|v| self.module.intern_str(v.clone().into_bytes())).collect();
+        let n = globals.len();
+        let mut acc = Operand::Str(globals[n - 1]);
+        for i in (0..n - 1).rev() {
+            let cmp = self.fresh_value();
+            self.emit(
+                Some(cmp),
+                InstrKind::Cmp {
+                    pred: CmpPred::Eq,
+                    ty: Type::Enum(eid),
+                    signed: false,
+                    lhs: tag.clone(),
+                    rhs: Operand::ConstInt(i as u128, Type::Enum(eid)),
+                },
+            );
+            let sel = self.fresh_value();
+            self.emit(
+                Some(sel),
+                InstrKind::Select {
+                    cond: Operand::Val(cmp),
+                    then_val: Operand::Str(globals[i]),
+                    else_val: acc,
+                    ty: Type::Str,
+                },
+            );
+            acc = Operand::Val(sel);
+        }
+        acc
     }
 
     fn call_printf(&mut self, fmt: GlobalId, mut extra: Vec<Operand>) {

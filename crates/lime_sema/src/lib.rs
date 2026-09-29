@@ -3,7 +3,7 @@ pub mod results;
 
 pub use check::Checker;
 pub use results::{
-    Builtin, FieldInfo, FnSig, LocalId, LocalInfo, Res, StructInfo, TypeckResults,
+    Builtin, EnumInfo, FieldInfo, FnSig, LocalId, LocalInfo, Res, StructInfo, TypeckResults,
 };
 
 use lime_ast::Program;
@@ -190,5 +190,46 @@ mod tests {
              utama { nilai t = Titik { x: 1i32 } t.x = 5i32 }",
         );
         assert!(has_code(&d, codes::E_ASSIGN_IMMUTABLE));
+    }
+
+    #[test]
+    fn valid_enum_usage() {
+        let d = check(
+            "program P\nenum Warna { Merah, Hijau, Biru }\n\
+             utama { nilai w = Warna.Hijau tampilkan(w) jika w == Warna.Hijau { tampilkan(\"ya\") } }",
+        );
+        assert!(!d.has_errors(), "{:?}", d.diagnostics());
+    }
+
+    #[test]
+    fn unknown_enum_variant() {
+        let d = check(
+            "program P\nenum Warna { Merah }\nutama { nilai w = Warna.Ungu }",
+        );
+        assert!(has_code(&d, codes::E_UNKNOWN_VARIANT));
+    }
+
+    #[test]
+    fn enum_from_function_return() {
+        let d = check(
+            "program P\nenum Arah { Kiri, Kanan }\n\
+             fungsi balik(a: Arah) -> Arah { kembalikan Arah.Kiri }\n\
+             utama { tampilkan(balik(Arah.Kanan)) }",
+        );
+        assert!(!d.has_errors(), "{:?}", d.diagnostics());
+    }
+
+    #[test]
+    fn enum_compared_to_int_is_error() {
+        let d = check(
+            "program P\nenum Arah { Kiri, Kanan }\nutama { jika Arah.Kiri == 0 { } }",
+        );
+        assert!(has_code(&d, codes::E_TYPE_MISMATCH_BINOP));
+    }
+
+    #[test]
+    fn duplicate_enum_variant_rejected() {
+        let d = check("program P\nenum E { A, A }\nutama { }");
+        assert!(has_code(&d, codes::E_REDEFINITION));
     }
 }

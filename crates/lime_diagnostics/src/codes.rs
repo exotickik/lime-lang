@@ -36,6 +36,7 @@ pub const E_UNKNOWN_FIELD: Code = Code("E0260");
 pub const E_NOT_A_STRUCT: Code = Code("E0261");
 pub const E_MISSING_FIELD: Code = Code("E0262");
 pub const E_DUPLICATE_FIELD: Code = Code("E0263");
+pub const E_UNKNOWN_VARIANT: Code = Code("E0265");
 
 pub const E_INVALID_ASSIGN_TARGET: Code = Code("E0301");
 

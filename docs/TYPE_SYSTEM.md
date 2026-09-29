@@ -15,6 +15,7 @@ Type =
   | Str                                           // teks
   | Unit                                          // hampa
   | Struct(StructId)                              // named product type
+  | Enum(EnumId)                                  // named tagged type (i32 tag)
   | Fn { params: [Type], ret: Type }              // function type
   | Error                                         // poison type (post-error)
 ```
@@ -52,6 +53,10 @@ are suppressed to avoid cascading diagnostics.
   be assignable to the declared field type. Every declared field must be present.
   The result type is that struct. Missing fields → `E0262`, unknown fields →
   `E0260`, duplicates → `E0263`, a non-struct name → `E0261`.
+- **Enum variant** `Enum.Var`: `Enum` must name an enum type and `Var` one of its
+  variants; the result type is that enum. Unknown variant → `E0265`. Enum values
+  support only `==`/`!=` against the same enum type, and print as the variant
+  name; there is no implicit enum↔integer conversion.
 
 ## Assignability
 
@@ -94,3 +99,4 @@ This is designed but not implemented in the bootstrap.
 | E0261 | nilai yang diakses/dibangun bukan struct |
 | E0262 | ada field struct yang belum diisi pada literal |
 | E0263 | field struct diisi lebih dari sekali pada literal |
+| E0265 | varian enum tidak dikenal |

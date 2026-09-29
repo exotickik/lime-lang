@@ -26,10 +26,19 @@ pub struct Program {
 pub enum Item {
     Function(Function),
     Struct(StructDecl),
+    Enum(EnumDecl),
     Main(MainBlock),
     Extern(ExternDecl),
     Use(Ident),
     Import(Ident),
+}
+
+#[derive(Debug)]
+pub struct EnumDecl {
+    pub public: bool,
+    pub name: Ident,
+    pub variants: Vec<Ident>,
+    pub span: Span,
 }
 
 #[derive(Debug)]

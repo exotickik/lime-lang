@@ -124,10 +124,17 @@ pub struct IrStruct {
     pub fields: Vec<Type>,
 }
 
+#[derive(Clone, Debug)]
+pub struct IrEnum {
+    pub name: String,
+    pub variants: Vec<String>,
+}
+
 #[derive(Clone, Debug, Default)]
 pub struct Module {
     pub name: String,
     pub structs: Vec<IrStruct>,
+    pub enums: Vec<IrEnum>,
     pub externs: Vec<ExternSig>,
     pub globals: Vec<GlobalStr>,
     pub funcs: Vec<Func>,

@@ -2,7 +2,7 @@ use crate::results::*;
 use lime_ast::*;
 use lime_diagnostics::{codes, Diagnostic, DiagnosticEngine};
 use lime_span::Span;
-use lime_types::{StructId, Type};
+use lime_types::{EnumId, StructId, Type};
 use std::collections::HashMap;
 
 pub struct Checker<'a> {
@@ -11,6 +11,7 @@ pub struct Checker<'a> {
     scopes: Vec<HashMap<String, Res>>,
     globals: HashMap<String, Res>,
     struct_ids: HashMap<String, StructId>,
+    enum_ids: HashMap<String, EnumId>,
     next_local: u32,
     current_ret: Type,
     loop_depth: u32,
@@ -24,6 +25,7 @@ impl<'a> Checker<'a> {
             scopes: Vec::new(),
             globals: HashMap::new(),
             struct_ids: HashMap::new(),
+            enum_ids: HashMap::new(),
             next_local: 0,
             current_ret: Type::Unit,
             loop_depth: 0,
@@ -31,6 +33,7 @@ impl<'a> Checker<'a> {
     }
 
     pub fn analyze(mut self, program: &Program) -> TypeckResults {
+        self.collect_enums(program);
         self.collect_structs(program);
         self.resolve_struct_fields(program);
         self.collect_functions(program);
@@ -38,6 +41,47 @@ impl<'a> Checker<'a> {
         self.check_bodies(program);
         self.check_main_presence(program);
         self.results
+    }
+
+    fn collect_enums(&mut self, program: &Program) {
+        for item in &program.items {
+            if let Item::Enum(e) = item {
+                if self.enum_ids.contains_key(&e.name.name)
+                    || self.struct_ids.contains_key(&e.name.name)
+                {
+                    self.diags.emit(
+                        Diagnostic::error(
+                            codes::E_REDEFINITION,
+                            format!("tipe '{}' didefinisikan lebih dari sekali", e.name.name),
+                        )
+                        .primary(e.name.span, "definisi ulang di sini"),
+                    );
+                    continue;
+                }
+                let mut seen: HashMap<String, ()> = HashMap::new();
+                let mut variants = Vec::new();
+                for v in &e.variants {
+                    if seen.insert(v.name.clone(), ()).is_some() {
+                        self.diags.emit(
+                            Diagnostic::error(
+                                codes::E_REDEFINITION,
+                                format!("varian '{}' didefinisikan lebih dari sekali", v.name),
+                            )
+                            .primary(v.span, "varian ganda"),
+                        );
+                        continue;
+                    }
+                    variants.push(v.name.clone());
+                }
+                let id = EnumId(self.results.enums.len() as u32);
+                self.enum_ids.insert(e.name.name.clone(), id);
+                self.results.enums.push(EnumInfo {
+                    name: e.name.name.clone(),
+                    variants,
+                    def_span: e.name.span,
+                });
+            }
+        }
     }
 
     fn collect_structs(&mut self, program: &Program) {
@@ -150,6 +194,9 @@ impl<'a> Checker<'a> {
         }
         for (name, id) in &self.struct_ids {
             self.globals.insert(name.clone(), Res::Struct(*id));
+        }
+        for (name, id) in &self.enum_ids {
+            self.globals.insert(name.clone(), Res::Enum(*id));
         }
         self.globals.insert("tampilkan".to_string(), Res::Builtin(Builtin::Tampilkan));
     }
@@ -462,6 +509,7 @@ impl<'a> Checker<'a> {
                         Res::Func(idx) => self.results.functions[idx].fn_type(),
                         Res::Builtin(_) => Type::Error,
                         Res::Struct(_) => Type::Error,
+                        Res::Enum(_) => Type::Error,
                     }
                 }
                 None => {
@@ -478,7 +526,14 @@ impl<'a> Checker<'a> {
             ExprKind::Binary { op, lhs, rhs } => self.check_binary(*op, lhs, rhs, expected),
             ExprKind::Unary { op, operand } => self.check_unary(*op, operand),
             ExprKind::Call { callee, args } => self.check_call(expr, callee, args),
-            ExprKind::Field { base, field } => self.check_field(base, field),
+            ExprKind::Field { base, field } => {
+                if let ExprKind::Name(n) = &base.kind {
+                    if let Some(&eid) = self.enum_ids.get(n) {
+                        return self.check_enum_variant(expr.id, eid, field);
+                    }
+                }
+                self.check_field(base, field)
+            }
             ExprKind::StructLit { name, fields } => self.check_struct_lit(name, fields),
         }
     }
@@ -603,8 +658,15 @@ impl<'a> Checker<'a> {
 
         if op.is_comparison() {
             if op == BinOp::Eq || op == BinOp::Ne {
-                if !matches!(lt, Type::Int { .. } | Type::Float(_) | Type::Bool | Type::Char | Type::Str)
-                {
+                if !matches!(
+                    lt,
+                    Type::Int { .. }
+                        | Type::Float(_)
+                        | Type::Bool
+                        | Type::Char
+                        | Type::Str
+                        | Type::Enum(_)
+                ) {
                     self.invalid_operand(op, lhs.span.to(rhs.span), &lt);
                     return Type::Bool;
                 }
@@ -681,7 +743,12 @@ impl<'a> Checker<'a> {
                 if !at.is_error()
                     && !matches!(
                         at,
-                        Type::Int { .. } | Type::Float(_) | Type::Bool | Type::Char | Type::Str
+                        Type::Int { .. }
+                            | Type::Float(_)
+                            | Type::Bool
+                            | Type::Char
+                            | Type::Str
+                            | Type::Enum(_)
                     )
                 {
                     self.diags.emit(
@@ -749,6 +816,27 @@ impl<'a> Checker<'a> {
                 for a in args {
                     self.check_expr(a, None);
                 }
+                Type::Error
+            }
+        }
+    }
+
+    fn check_enum_variant(&mut self, node: NodeId, eid: EnumId, variant: &Ident) -> Type {
+        let info = self.results.enum_info(eid);
+        match info.variant_tag(&variant.name) {
+            Some(tag) => {
+                self.results.enum_variant.insert(node, (eid, tag));
+                Type::Enum(eid)
+            }
+            None => {
+                let ename = info.name.clone();
+                self.diags.emit(
+                    Diagnostic::error(
+                        codes::E_UNKNOWN_VARIANT,
+                        format!("enum '{}' tidak memiliki varian '{}'", ename, variant.name),
+                    )
+                    .primary(variant.span, "varian tidak dikenal"),
+                );
                 Type::Error
             }
         }
@@ -827,6 +915,9 @@ impl<'a> Checker<'a> {
         }
         if let Some(&id) = self.struct_ids.get(&ty.name) {
             return Type::Struct(id);
+        }
+        if let Some(&id) = self.enum_ids.get(&ty.name) {
+            return Type::Enum(id);
         }
         self.diags.emit(
             Diagnostic::error(codes::E_UNKNOWN_TYPE, format!("tipe '{}' tidak dikenal", ty.name))

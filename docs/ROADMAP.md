@@ -43,7 +43,10 @@ Legend: ✅ done · 🟡 in progress · ⬜ planned
 - ⬜ `lime/std`: io, string, collections, filesystem, process, math, time
 
 ## Phase 5 — Advanced language
-- ⬜ Generics (monomorphization), enums, pattern matching (`cocok`)
+- ✅ Enums (C-style tagged variants: construction, equality, print, params,
+  returns, struct fields; native i32-tag codegen)
+- ⬜ Enum associated data + pattern matching (`cocok`)
+- ⬜ Generics (monomorphization)
 - ⬜ Error handling model
 - ⬜ Modules across files, FFI surface (`ekstern`)
 - ⬜ Concurrency

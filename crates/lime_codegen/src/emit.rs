@@ -337,6 +337,7 @@ fn ty_str(ty: &Type) -> String {
         Type::Str => "ptr".to_string(),
         Type::Unit => "void".to_string(),
         Type::Struct(id) => format!("%struct.{}", id.0),
+        Type::Enum(_) => "i32".to_string(),
         Type::Fn { .. } => "ptr".to_string(),
         Type::Error => "void".to_string(),
     }
@@ -375,6 +376,7 @@ fn const_int_str(v: u128, ty: &Type) -> String {
             }
         }
         Type::Char => format!("{}", mask(v, 32)),
+        Type::Enum(_) => format!("{}", mask(v, 32)),
         Type::Bool => if v != 0 { "true".to_string() } else { "false".to_string() },
         _ => format!("{}", v),
     }

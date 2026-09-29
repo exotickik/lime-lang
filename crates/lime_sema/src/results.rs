@@ -1,6 +1,6 @@
 use lime_ast::NodeId;
 use lime_span::Span;
-use lime_types::{StructId, Type};
+use lime_types::{EnumId, StructId, Type};
 use std::collections::HashMap;
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
@@ -17,6 +17,7 @@ pub enum Res {
     Func(usize),
     Builtin(Builtin),
     Struct(StructId),
+    Enum(EnumId),
 }
 
 #[derive(Clone, Debug)]
@@ -60,6 +61,19 @@ impl StructInfo {
 }
 
 #[derive(Clone, Debug)]
+pub struct EnumInfo {
+    pub name: String,
+    pub variants: Vec<String>,
+    pub def_span: Span,
+}
+
+impl EnumInfo {
+    pub fn variant_tag(&self, name: &str) -> Option<u32> {
+        self.variants.iter().position(|v| v == name).map(|i| i as u32)
+    }
+}
+
+#[derive(Clone, Debug)]
 pub struct LocalInfo {
     pub name: String,
     pub ty: Type,
@@ -70,8 +84,10 @@ pub struct LocalInfo {
 pub struct TypeckResults {
     pub functions: Vec<FnSig>,
     pub structs: Vec<StructInfo>,
+    pub enums: Vec<EnumInfo>,
     pub expr_types: HashMap<NodeId, Type>,
     pub name_res: HashMap<NodeId, Res>,
+    pub enum_variant: HashMap<NodeId, (EnumId, u32)>,
     pub local_of_binding: HashMap<Span, LocalId>,
     pub locals: HashMap<LocalId, LocalInfo>,
     pub main_present: bool,
@@ -84,6 +100,10 @@ impl TypeckResults {
 
     pub fn struct_info(&self, id: StructId) -> &StructInfo {
         &self.structs[id.0 as usize]
+    }
+
+    pub fn enum_info(&self, id: EnumId) -> &EnumInfo {
+        &self.enums[id.0 as usize]
     }
 
     pub fn func_by_name(&self, name: &str) -> Option<(usize, &FnSig)> {
