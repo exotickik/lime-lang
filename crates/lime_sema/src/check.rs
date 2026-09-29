@@ -12,6 +12,10 @@ pub struct Checker<'a> {
     globals: HashMap<String, Res>,
     struct_ids: HashMap<String, StructId>,
     enum_ids: HashMap<String, EnumId>,
+    generic_fns: Vec<Function>,
+    instantiations: HashMap<(usize, Vec<Type>), usize>,
+    mono_worklist: Vec<usize>,
+    next_mono_node: u32,
     next_local: u32,
     current_ret: Type,
     loop_depth: u32,
@@ -26,6 +30,10 @@ impl<'a> Checker<'a> {
             globals: HashMap::new(),
             struct_ids: HashMap::new(),
             enum_ids: HashMap::new(),
+            generic_fns: Vec::new(),
+            instantiations: HashMap::new(),
+            mono_worklist: Vec::new(),
+            next_mono_node: 1_000_000_000,
             next_local: 0,
             current_ret: Type::Unit,
             loop_depth: 0,
@@ -39,8 +47,16 @@ impl<'a> Checker<'a> {
         self.collect_functions(program);
         self.register_globals();
         self.check_bodies(program);
+        self.process_mono_worklist();
         self.check_main_presence(program);
         self.results
+    }
+
+    fn process_mono_worklist(&mut self) {
+        while let Some(idx) = self.mono_worklist.pop() {
+            let f = self.results.mono_functions[idx].clone();
+            self.check_function(&f);
+        }
     }
 
     fn collect_enums(&mut self, program: &Program) {
@@ -135,6 +151,21 @@ impl<'a> Checker<'a> {
     fn collect_functions(&mut self, program: &Program) {
         for item in &program.items {
             match item {
+                Item::Function(f) if !f.type_params.is_empty() => {
+                    if self.globals.contains_key(&f.name.name)
+                        || self.generic_fns.iter().any(|g| g.name.name == f.name.name)
+                    {
+                        self.diags.emit(
+                            Diagnostic::error(
+                                codes::E_REDEFINITION,
+                                format!("fungsi '{}' didefinisikan lebih dari sekali", f.name.name),
+                            )
+                            .primary(f.name.span, "definisi ulang di sini"),
+                        );
+                        continue;
+                    }
+                    self.generic_fns.push(f.clone());
+                }
                 Item::Function(f) => {
                     let params = f
                         .params
@@ -192,6 +223,9 @@ impl<'a> Checker<'a> {
         for (idx, f) in self.results.functions.iter().enumerate() {
             self.globals.insert(f.name.clone(), Res::Func(idx));
         }
+        for (gidx, f) in self.generic_fns.iter().enumerate() {
+            self.globals.insert(f.name.name.clone(), Res::GenericFn(gidx));
+        }
         for (name, id) in &self.struct_ids {
             self.globals.insert(name.clone(), Res::Struct(*id));
         }
@@ -205,7 +239,7 @@ impl<'a> Checker<'a> {
     fn check_bodies(&mut self, program: &Program) {
         for item in &program.items {
             match item {
-                Item::Function(f) => self.check_function(f),
+                Item::Function(f) if f.type_params.is_empty() => self.check_function(f),
                 Item::Main(m) => self.check_main(m),
                 _ => {}
             }
@@ -221,7 +255,7 @@ impl<'a> Checker<'a> {
         for (p, (pname, pty)) in f.params.iter().zip(sig.params.iter()) {
             let id = self.alloc_local(pname.clone(), pty.clone(), false);
             self.declare(&p.name.name, Res::Local(id), p.name.span);
-            self.results.local_of_binding.insert(p.name.span, id);
+            self.results.local_of_binding.insert(p.id, id);
         }
         self.check_block(&f.body);
         self.exit_scope();
@@ -296,7 +330,7 @@ impl<'a> Checker<'a> {
 
     fn check_stmt(&mut self, stmt: &Stmt) {
         match stmt {
-            Stmt::Let { mutable, name, ty, init, .. } => {
+            Stmt::Let { mutable, name, ty, init, id: let_id, .. } => {
                 let annotated = ty.as_ref().map(|t| self.resolve_type(t));
                 let init_ty = self.check_expr(init, annotated.as_ref());
                 let decl_ty = annotated.clone().unwrap_or_else(|| init_ty.clone());
@@ -318,7 +352,7 @@ impl<'a> Checker<'a> {
                 }
                 let id = self.alloc_local(name.name.clone(), decl_ty, *mutable);
                 self.declare(&name.name, Res::Local(id), name.span);
-                self.results.local_of_binding.insert(name.span, id);
+                self.results.local_of_binding.insert(*let_id, id);
             }
             Stmt::Assign { target, value, .. } => {
                 let target_ty = self.check_expr(target, None);
@@ -459,7 +493,7 @@ impl<'a> Checker<'a> {
         self.enter_scope();
         let id = self.alloc_local(for_stmt.var.name.clone(), var_ty, false);
         self.declare(&for_stmt.var.name, Res::Local(id), for_stmt.var.span);
-        self.results.local_of_binding.insert(for_stmt.var.span, id);
+        self.results.local_of_binding.insert(for_stmt.var_id, id);
         self.loop_depth += 1;
         self.check_block(&for_stmt.body);
         self.loop_depth -= 1;
@@ -485,7 +519,7 @@ impl<'a> Checker<'a> {
         self.enter_scope();
         let id = self.alloc_local(fe.var.name.clone(), elem_ty, false);
         self.declare(&fe.var.name, Res::Local(id), fe.var.span);
-        self.results.local_of_binding.insert(fe.var.span, id);
+        self.results.local_of_binding.insert(fe.var_id, id);
         self.loop_depth += 1;
         self.check_block(&fe.body);
         self.loop_depth -= 1;
@@ -538,6 +572,7 @@ impl<'a> Checker<'a> {
                         Res::Builtin(_) => Type::Error,
                         Res::Struct(_) => Type::Error,
                         Res::Enum(_) => Type::Error,
+                        Res::GenericFn(_) => Type::Error,
                     }
                 }
                 None => {
@@ -822,6 +857,7 @@ impl<'a> Checker<'a> {
         };
 
         match self.lookup(name) {
+            Some(Res::GenericFn(gidx)) => self.check_generic_call(gidx, call, callee, args),
             Some(Res::Builtin(Builtin::Panjang)) => {
                 self.results.name_res.insert(callee.id, Res::Builtin(Builtin::Panjang));
                 if args.len() != 1 {
@@ -943,6 +979,163 @@ impl<'a> Checker<'a> {
                 }
                 Type::Error
             }
+        }
+    }
+
+    fn check_generic_call(
+        &mut self,
+        gidx: usize,
+        call: &Expr,
+        callee: &Expr,
+        args: &[Expr],
+    ) -> Type {
+        let template = self.generic_fns[gidx].clone();
+        let type_params: Vec<String> =
+            template.type_params.iter().map(|p| p.name.clone()).collect();
+
+        if args.len() != template.params.len() {
+            self.diags.emit(
+                Diagnostic::error(
+                    codes::E_ARITY_MISMATCH,
+                    format!(
+                        "fungsi '{}' butuh {} argumen, diberi {}",
+                        template.name.name,
+                        template.params.len(),
+                        args.len()
+                    ),
+                )
+                .primary(call.span, "jumlah argumen salah"),
+            );
+            for a in args {
+                self.check_expr(a, None);
+            }
+            return Type::Error;
+        }
+
+        let arg_types: Vec<Type> = args.iter().map(|a| self.check_expr(a, None)).collect();
+        if arg_types.iter().any(|t| t.is_error()) {
+            return Type::Error;
+        }
+
+        let mut subst: HashMap<String, Type> = HashMap::new();
+        for (p, at) in template.params.iter().zip(arg_types.iter()) {
+            let pat = self.resolve_type_generic(&p.ty, &type_params);
+            if !unify(&pat, at, &mut subst) {
+                self.diags.emit(
+                    Diagnostic::error(
+                        codes::E_TYPE_MISMATCH_ASSIGN,
+                        format!(
+                            "argumen bertipe '{}' tidak cocok dengan parameter '{}'",
+                            at.display(),
+                            pat.display()
+                        ),
+                    )
+                    .primary(p.ty.span, "tipe parameter")
+                    .secondary(call.span, "pada pemanggilan ini"),
+                );
+                return Type::Error;
+            }
+        }
+
+        let type_args: Vec<Type> = match type_params
+            .iter()
+            .map(|name| subst.get(name).cloned())
+            .collect::<Option<Vec<_>>>()
+        {
+            Some(v) => v,
+            None => {
+                self.diags.emit(
+                    Diagnostic::error(
+                        codes::E_CANNOT_INFER,
+                        format!(
+                            "tidak dapat menyimpulkan parameter tipe untuk '{}'",
+                            template.name.name
+                        ),
+                    )
+                    .primary(call.span, "parameter tipe tidak tersimpulkan dari argumen"),
+                );
+                return Type::Error;
+            }
+        };
+
+        let instance_idx = self.instantiate(gidx, &type_args);
+        self.results.name_res.insert(callee.id, Res::Func(instance_idx));
+        self.results.functions[instance_idx].ret.clone()
+    }
+
+    fn instantiate(&mut self, gidx: usize, type_args: &[Type]) -> usize {
+        let key = (gidx, type_args.to_vec());
+        if let Some(&idx) = self.instantiations.get(&key) {
+            return idx;
+        }
+        let template = self.generic_fns[gidx].clone();
+        let type_params: Vec<String> =
+            template.type_params.iter().map(|p| p.name.clone()).collect();
+        let subst: HashMap<String, Type> =
+            type_params.iter().cloned().zip(type_args.iter().cloned()).collect();
+
+        let mut inst = template.clone();
+        inst.type_params.clear();
+        inst.name.name = mangle_name(&template.name.name, type_args);
+        substitute_fn_types(&mut inst, &subst, &self.struct_ids, &self.enum_ids, &self.results);
+        self.renumber_fn(&mut inst);
+
+        let params: Vec<(String, Type)> = inst
+            .params
+            .iter()
+            .map(|p| (p.name.name.clone(), self.resolve_type(&p.ty)))
+            .collect();
+        let ret = inst.ret.as_ref().map(|t| self.resolve_type(t)).unwrap_or(Type::Unit);
+        let sig = FnSig {
+            name: inst.name.name.clone(),
+            params,
+            ret,
+            is_extern: false,
+            variadic: false,
+            public: false,
+            def_span: template.name.span,
+        };
+
+        let instance_idx = self.results.functions.len();
+        self.results.functions.push(sig);
+        self.globals.insert(inst.name.name.clone(), Res::Func(instance_idx));
+
+        let mono_idx = self.results.mono_functions.len();
+        self.results.mono_functions.push(inst);
+        self.mono_worklist.push(mono_idx);
+        self.instantiations.insert(key, instance_idx);
+        instance_idx
+    }
+
+    fn resolve_type_generic(&self, ty: &TypeExpr, type_params: &[String]) -> Type {
+        match &ty.kind {
+            TypeExprKind::Named(name) => {
+                if type_params.iter().any(|p| p == name) {
+                    return Type::Param(name.clone());
+                }
+                if let Some(t) = Type::from_builtin_name(name) {
+                    return t;
+                }
+                if let Some(&id) = self.struct_ids.get(name) {
+                    return Type::Struct(id);
+                }
+                if let Some(&id) = self.enum_ids.get(name) {
+                    return Type::Enum(id);
+                }
+                Type::Error
+            }
+            TypeExprKind::Array { elem, size } => Type::Array {
+                elem: Box::new(self.resolve_type_generic(elem, type_params)),
+                size: *size,
+            },
+        }
+    }
+
+    fn renumber_fn(&mut self, f: &mut Function) {
+        renumber_block(&mut f.body, &mut self.next_mono_node);
+        for p in &mut f.params {
+            p.id = NodeId(self.next_mono_node);
+            self.next_mono_node += 1;
         }
     }
 
@@ -1123,6 +1316,197 @@ impl<'a> Checker<'a> {
         self.next_local += 1;
         self.results.locals.insert(id, LocalInfo { name, ty, mutable });
         id
+    }
+}
+
+fn unify(pat: &Type, actual: &Type, subst: &mut HashMap<String, Type>) -> bool {
+    match pat {
+        Type::Param(name) => match subst.get(name) {
+            Some(bound) => bound == actual,
+            None => {
+                subst.insert(name.clone(), actual.clone());
+                true
+            }
+        },
+        Type::Array { elem, size } => {
+            if let Type::Array { elem: e2, size: s2 } = actual {
+                size == s2 && unify(elem, e2, subst)
+            } else {
+                false
+            }
+        }
+        other => other == actual,
+    }
+}
+
+fn mangle_name(base: &str, type_args: &[Type]) -> String {
+    let parts: Vec<String> = type_args
+        .iter()
+        .map(|t| t.display().chars().map(|c| if c.is_alphanumeric() { c } else { '_' }).collect())
+        .collect();
+    format!("{}${}", base, parts.join("_"))
+}
+
+fn type_to_type_expr_kind(ty: &Type, results: &TypeckResults) -> TypeExprKind {
+    match ty {
+        Type::Struct(id) => TypeExprKind::Named(results.structs[id.0 as usize].name.clone()),
+        Type::Enum(id) => TypeExprKind::Named(results.enums[id.0 as usize].name.clone()),
+        Type::Array { elem, size } => TypeExprKind::Array {
+            elem: Box::new(TypeExpr {
+                kind: type_to_type_expr_kind(elem, results),
+                span: Span::point(lime_span::FileId(0), 0),
+            }),
+            size: *size,
+        },
+        other => TypeExprKind::Named(other.display()),
+    }
+}
+
+fn substitute_type_expr(te: &mut TypeExpr, subst: &HashMap<String, Type>, results: &TypeckResults) {
+    let replacement = if let TypeExprKind::Named(name) = &te.kind {
+        subst.get(name).map(|c| type_to_type_expr_kind(c, results))
+    } else {
+        None
+    };
+    if let Some(kind) = replacement {
+        te.kind = kind;
+        return;
+    }
+    if let TypeExprKind::Array { elem, .. } = &mut te.kind {
+        substitute_type_expr(elem, subst, results);
+    }
+}
+
+fn substitute_fn_types(
+    f: &mut Function,
+    subst: &HashMap<String, Type>,
+    _struct_ids: &HashMap<String, StructId>,
+    _enum_ids: &HashMap<String, EnumId>,
+    results: &TypeckResults,
+) {
+    for p in &mut f.params {
+        substitute_type_expr(&mut p.ty, subst, results);
+    }
+    if let Some(ret) = &mut f.ret {
+        substitute_type_expr(ret, subst, results);
+    }
+    substitute_block_lets(&mut f.body, subst, results);
+}
+
+fn substitute_block_lets(
+    block: &mut Block,
+    subst: &HashMap<String, Type>,
+    results: &TypeckResults,
+) {
+    for stmt in &mut block.stmts {
+        match stmt {
+            Stmt::Let { ty: Some(t), .. } => substitute_type_expr(t, subst, results),
+            Stmt::If(i) => {
+                substitute_block_lets(&mut i.then_block, subst, results);
+                for (_, b) in &mut i.else_ifs {
+                    substitute_block_lets(b, subst, results);
+                }
+                if let Some(b) = &mut i.else_block {
+                    substitute_block_lets(b, subst, results);
+                }
+            }
+            Stmt::While { body, .. } => substitute_block_lets(body, subst, results),
+            Stmt::For(f) => substitute_block_lets(&mut f.body, subst, results),
+            Stmt::ForEach(f) => substitute_block_lets(&mut f.body, subst, results),
+            Stmt::Block(b) => substitute_block_lets(b, subst, results),
+            _ => {}
+        }
+    }
+}
+
+fn renumber_block(block: &mut Block, counter: &mut u32) {
+    for stmt in &mut block.stmts {
+        renumber_stmt(stmt, counter);
+    }
+}
+
+fn renumber_stmt(stmt: &mut Stmt, counter: &mut u32) {
+    match stmt {
+        Stmt::Let { init, id, .. } => {
+            renumber_expr(init, counter);
+            *id = NodeId(*counter);
+            *counter += 1;
+        }
+        Stmt::Assign { target, value, .. } => {
+            renumber_expr(target, counter);
+            renumber_expr(value, counter);
+        }
+        Stmt::Expr(e) => renumber_expr(e, counter),
+        Stmt::If(i) => {
+            renumber_expr(&mut i.cond, counter);
+            renumber_block(&mut i.then_block, counter);
+            for (c, b) in &mut i.else_ifs {
+                renumber_expr(c, counter);
+                renumber_block(b, counter);
+            }
+            if let Some(b) = &mut i.else_block {
+                renumber_block(b, counter);
+            }
+        }
+        Stmt::While { cond, body, .. } => {
+            renumber_expr(cond, counter);
+            renumber_block(body, counter);
+        }
+        Stmt::For(f) => {
+            renumber_expr(&mut f.start, counter);
+            renumber_expr(&mut f.end, counter);
+            f.var_id = NodeId(*counter);
+            *counter += 1;
+            renumber_block(&mut f.body, counter);
+        }
+        Stmt::ForEach(f) => {
+            renumber_expr(&mut f.iterable, counter);
+            f.var_id = NodeId(*counter);
+            *counter += 1;
+            renumber_block(&mut f.body, counter);
+        }
+        Stmt::Return { value: Some(e), .. } => renumber_expr(e, counter),
+        Stmt::Return { .. } | Stmt::Break(_) | Stmt::Continue(_) => {}
+        Stmt::Block(b) => renumber_block(b, counter),
+    }
+}
+
+fn renumber_expr(e: &mut Expr, counter: &mut u32) {
+    e.id = NodeId(*counter);
+    *counter += 1;
+    match &mut e.kind {
+        ExprKind::Binary { lhs, rhs, .. } => {
+            renumber_expr(lhs, counter);
+            renumber_expr(rhs, counter);
+        }
+        ExprKind::Unary { operand, .. } => renumber_expr(operand, counter),
+        ExprKind::Call { callee, args } => {
+            renumber_expr(callee, counter);
+            for a in args {
+                renumber_expr(a, counter);
+            }
+        }
+        ExprKind::Field { base, .. } => renumber_expr(base, counter),
+        ExprKind::StructLit { fields, .. } => {
+            for f in fields {
+                renumber_expr(&mut f.value, counter);
+            }
+        }
+        ExprKind::ArrayLit(elems) => {
+            for a in elems {
+                renumber_expr(a, counter);
+            }
+        }
+        ExprKind::Index { base, index } => {
+            renumber_expr(base, counter);
+            renumber_expr(index, counter);
+        }
+        ExprKind::Int { .. }
+        | ExprKind::Float { .. }
+        | ExprKind::Str(_)
+        | ExprKind::Char(_)
+        | ExprKind::Bool(_)
+        | ExprKind::Name(_) => {}
     }
 }
 

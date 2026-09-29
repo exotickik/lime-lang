@@ -38,7 +38,7 @@ impl FloatWidth {
     }
 }
 
-#[derive(Clone, PartialEq, Eq, Debug)]
+#[derive(Clone, PartialEq, Eq, Hash, Debug)]
 pub enum Type {
     Int { width: IntWidth, signed: bool },
     Float(FloatWidth),
@@ -50,6 +50,7 @@ pub enum Type {
     Enum(EnumId),
     Array { elem: Box<Type>, size: u64 },
     Fn { params: Vec<Type>, ret: Box<Type> },
+    Param(String),
 
     Error,
 }
@@ -126,6 +127,7 @@ impl Type {
             Type::Struct(id) => format!("tipe#{}", id.0),
             Type::Enum(id) => format!("enum#{}", id.0),
             Type::Array { elem, size } => format!("[{}; {}]", elem.display(), size),
+            Type::Param(name) => name.clone(),
             Type::Fn { params, ret } => {
                 let ps: Vec<String> = params.iter().map(|t| t.display()).collect();
                 format!("fungsi({}) -> {}", ps.join(", "), ret.display())

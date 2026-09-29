@@ -16,6 +16,7 @@ pub enum Builtin {
 pub enum Res {
     Local(LocalId),
     Func(usize),
+    GenericFn(usize),
     Builtin(Builtin),
     Struct(StructId),
     Enum(EnumId),
@@ -89,8 +90,9 @@ pub struct TypeckResults {
     pub expr_types: HashMap<NodeId, Type>,
     pub name_res: HashMap<NodeId, Res>,
     pub enum_variant: HashMap<NodeId, (EnumId, u32)>,
-    pub local_of_binding: HashMap<Span, LocalId>,
+    pub local_of_binding: HashMap<NodeId, LocalId>,
     pub locals: HashMap<LocalId, LocalInfo>,
+    pub mono_functions: Vec<lime_ast::Function>,
     pub main_present: bool,
 }
 

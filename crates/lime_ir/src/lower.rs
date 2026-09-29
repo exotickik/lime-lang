@@ -35,7 +35,7 @@ pub fn lower(program: &Program, results: &TypeckResults, diags: &mut DiagnosticE
 
     for item in &program.items {
         match item {
-            Item::Function(f) => {
+            Item::Function(f) if f.type_params.is_empty() => {
                 let func = FnLowerer::new(&mut module, results, diags).lower_fn(f);
                 module.funcs.push(func);
             }
@@ -45,6 +45,11 @@ pub fn lower(program: &Program, results: &TypeckResults, diags: &mut DiagnosticE
             }
             _ => {}
         }
+    }
+
+    for f in &results.mono_functions {
+        let func = FnLowerer::new(&mut module, results, diags).lower_fn(f);
+        module.funcs.push(func);
     }
 
     module
@@ -96,7 +101,7 @@ impl<'a> FnLowerer<'a> {
         for (p, (_, pty)) in f.params.iter().zip(sig.params.iter()) {
             let val = self.fresh_value();
             params.push((val, pty.clone()));
-            let local = self.results.local_of_binding[&p.name.span];
+            let local = self.results.local_of_binding[&p.id];
             let slot = self.new_slot(pty.clone());
             self.slot_of_local.insert(local.0, slot);
             self.emit(None, InstrKind::Store { slot, value: Operand::Val(val) });
@@ -158,8 +163,8 @@ impl<'a> FnLowerer<'a> {
 
     fn lower_stmt(&mut self, stmt: &Stmt) {
         match stmt {
-            Stmt::Let { name, init, .. } => {
-                let local = self.results.local_of_binding[&name.span];
+            Stmt::Let { init, id: let_id, .. } => {
+                let local = self.results.local_of_binding[let_id];
                 let ty = self.results.locals[&local].ty.clone();
                 let op = self.lower_expr(init);
                 let slot = self.new_slot(ty);
@@ -282,7 +287,7 @@ impl<'a> FnLowerer<'a> {
     }
 
     fn lower_for(&mut self, for_stmt: &ForStmt) {
-        let local = self.results.local_of_binding[&for_stmt.var.span];
+        let local = self.results.local_of_binding[&for_stmt.var_id];
         let ty = self.results.locals[&local].ty.clone();
         let signed = ty.is_signed_int();
 
@@ -546,7 +551,7 @@ impl<'a> FnLowerer<'a> {
         let idx_slot = self.new_slot(Type::I64);
         self.emit(None, InstrKind::Store { slot: idx_slot, value: Operand::ConstInt(0, Type::I64) });
 
-        let local = self.results.local_of_binding[&fe.var.span];
+        let local = self.results.local_of_binding[&fe.var_id];
         let var_slot = self.new_slot(elem_ty.clone());
         self.slot_of_local.insert(local.0, var_slot);
 

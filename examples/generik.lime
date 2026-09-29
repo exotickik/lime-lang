@@ -1,0 +1,31 @@
+program Generik
+
+fungsi maksimum<T>(a: T, b: T) -> T {
+    jika a > b {
+        kembalikan a
+    }
+    kembalikan b
+}
+
+fungsi minimum<T>(a: T, b: T) -> T {
+    jika a < b {
+        kembalikan a
+    }
+    kembalikan b
+}
+
+fungsi tukar_pertama<A, B>(a: A, b: B) -> A {
+    kembalikan a
+}
+
+utama {
+    tampilkan(maksimum(3, 9))
+    tampilkan(minimum(3, 9))
+
+    nilai x: i32 = 15i32
+    nilai y: i32 = 42i32
+    tampilkan(maksimum(x, y))
+
+    tampilkan(maksimum(2.5, 7.25))
+    tampilkan(tukar_pertama("terpilih", 999))
+}

@@ -402,6 +402,7 @@ fn ty_str(ty: &Type) -> String {
         Type::Struct(id) => format!("%struct.{}", id.0),
         Type::Enum(_) => "i32".to_string(),
         Type::Array { elem, size } => format!("[{} x {}]", size, ty_str(elem)),
+        Type::Param(_) => "void".to_string(),
         Type::Fn { .. } => "ptr".to_string(),
         Type::Error => "void".to_string(),
     }

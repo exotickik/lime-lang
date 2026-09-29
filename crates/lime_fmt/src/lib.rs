@@ -72,12 +72,18 @@ impl Printer {
 
     fn print_function(&mut self, f: &Function) {
         let vis = if f.public { "publik " } else { "" };
+        let generics = if f.type_params.is_empty() {
+            String::new()
+        } else {
+            let ps: Vec<String> = f.type_params.iter().map(|p| p.name.clone()).collect();
+            format!("<{}>", ps.join(", "))
+        };
         let params = self.params_str(&f.params);
         let ret = match &f.ret {
             Some(t) => format!(" -> {}", type_str(t)),
             None => String::new(),
         };
-        self.line(&format!("{}fungsi {}({}){} {{", vis, f.name.name, params, ret));
+        self.line(&format!("{}fungsi {}{}({}){} {{", vis, f.name.name, generics, params, ret));
         self.indent += 1;
         self.print_stmts(&f.body.stmts);
         self.indent -= 1;

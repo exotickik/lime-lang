@@ -82,12 +82,37 @@ After type checking, `lime_sema` runs a control-flow pass:
 - Unreachable statements after `kembalikan`/`berhenti`/`lanjut` produce warning
   `W0010`.
 
-## Generics **(planned)**
+## Generics
 
-`fungsi maksimum<T>(a: T, b: T) -> T` will be checked with type parameters and a
-constraint system, then **monomorphized** at IR-lowering time (one specialized
-function per concrete instantiation) so there is no boxing or runtime dispatch.
-This is designed but not implemented in the bootstrap.
+Generic **functions** are supported:
+```lime
+fungsi maksimum<T>(a: T, b: T) -> T {
+    jika a > b { kembalikan a }
+    kembalikan b
+}
+```
+- **Type parameters** are listed in `<...>` after the function name and may be
+  used anywhere a type is written in the signature or body.
+- **Type-argument inference**: a call carries no explicit type arguments; each
+  type parameter is inferred by unifying the declared parameter types against the
+  concrete argument types. Unbound parameters → `E0270`; conflicting bindings for
+  one parameter (e.g. calling `maksimum` with an `i32` and an `i64`) → a type
+  error. Because literal arguments take their default type (`angka`/`f64`) during
+  inference, arguments bound to the same type parameter must already share a
+  concrete type; there is no cross-argument literal coercion yet.
+- **Monomorphization**: each distinct set of type arguments produces one
+  specialized function (mangled `name$T1_T2…`), compiled to native code with no
+  boxing and no runtime dispatch. Specialized functions are cached, so recursive
+  and repeated instantiations reuse one copy.
+- **Instantiation-time checking**: a generic body is type-checked once per
+  concrete instantiation, so `a > b` is accepted for numeric `T` and rejected for
+  a `T` that has no `>` (reported against the definition, with the call site as a
+  secondary note). This is real type checking over a shared, type-substituted
+  AST — not textual substitution.
+
+**Not yet:** generic structs/enums, explicit type arguments at the call site
+(turbofish), and trait/constraint bounds (planned as the traits phase). Nested
+generic calls (a generic calling another generic) are supported.
 
 ## Error codes (type system excerpt)
 
@@ -111,3 +136,4 @@ This is designed but not implemented in the bootstrap.
 | E0265 | varian enum tidak dikenal |
 | E0266 | nilai bukan larik tidak dapat diindeks |
 | E0267 | nilai bukan larik tidak dapat diiterasi ('pada') |
+| E0270 | parameter tipe generik tidak dapat disimpulkan |

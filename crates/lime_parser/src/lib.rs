@@ -239,13 +239,28 @@ impl<'a> Parser<'a> {
         let start = self.peek_span();
         self.expect(&TokenKind::Keyword(Keyword::Fungsi))?;
         let name = self.expect_ident()?;
+        let type_params = self.parse_type_params()?;
         self.expect(&TokenKind::LParen)?;
         let params = self.parse_params()?;
         self.expect(&TokenKind::RParen)?;
         let ret = if self.eat(&TokenKind::Arrow) { Some(self.expect_type()?) } else { None };
         let body = self.parse_block()?;
         let span = start.to(body.span);
-        Ok(Function { public, name, params, ret, body, span })
+        Ok(Function { public, name, type_params, params, ret, body, span })
+    }
+
+    fn parse_type_params(&mut self) -> PResult<Vec<Ident>> {
+        let mut params = Vec::new();
+        if self.eat(&TokenKind::Lt) {
+            while !matches!(self.peek(), TokenKind::Gt | TokenKind::Eof) {
+                params.push(self.expect_ident()?);
+                if !self.eat(&TokenKind::Comma) {
+                    break;
+                }
+            }
+            self.expect(&TokenKind::Gt)?;
+        }
+        Ok(params)
     }
 
     fn parse_params(&mut self) -> PResult<Vec<Param>> {
@@ -255,7 +270,8 @@ impl<'a> Parser<'a> {
             self.expect(&TokenKind::Colon)?;
             let ty = self.expect_type()?;
             let span = name.span.to(ty.span);
-            params.push(Param { name, ty, span });
+            let id = self.node_id();
+            params.push(Param { name, ty, span, id });
             if !self.eat(&TokenKind::Comma) {
                 break;
             }
@@ -286,7 +302,8 @@ impl<'a> Parser<'a> {
             self.expect(&TokenKind::Colon)?;
             let ty = self.expect_type()?;
             let span = pname.span.to(ty.span);
-            params.push(Param { name: pname, ty, span });
+            let id = self.node_id();
+            params.push(Param { name: pname, ty, span, id });
             if !self.eat(&TokenKind::Comma) {
                 break;
             }
@@ -391,8 +408,9 @@ impl<'a> Parser<'a> {
         self.expect(&TokenKind::Eq)?;
         let init = self.parse_expr()?;
         let span = start.to(init.span);
+        let id = self.node_id();
         self.eat(&TokenKind::Semicolon);
-        Ok(Stmt::Let { mutable, name, ty, init, span })
+        Ok(Stmt::Let { mutable, name, ty, init, span, id })
     }
 
     fn parse_return(&mut self) -> PResult<Stmt> {
@@ -451,11 +469,13 @@ impl<'a> Parser<'a> {
         let start = self.peek_span();
         self.expect(&TokenKind::Keyword(Keyword::Untuk))?;
         let var = self.expect_ident()?;
+        let var_id = self.node_id();
         if self.eat_kw(Keyword::Pada) {
             let iterable = self.parse_cond_expr()?;
             let body = self.parse_block()?;
             return Ok(Stmt::ForEach(ForEachStmt {
                 var,
+                var_id,
                 iterable,
                 span: start.to(body.span),
                 body,
@@ -483,6 +503,7 @@ impl<'a> Parser<'a> {
         let body = self.parse_block()?;
         Ok(Stmt::For(ForStmt {
             var,
+            var_id,
             start: start_expr,
             end: end_expr,
             inclusive,

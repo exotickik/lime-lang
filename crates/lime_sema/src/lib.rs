@@ -302,4 +302,44 @@ mod tests {
         let d = check("program P\nutama { jika \"a\" == 1 { } }");
         assert!(has_code(&d, codes::E_TYPE_MISMATCH_BINOP));
     }
+
+    #[test]
+    fn generic_function_valid() {
+        let d = check(
+            "program P\n\
+             fungsi maksimum<T>(a: T, b: T) -> T { jika a > b { kembalikan a } kembalikan b }\n\
+             utama { tampilkan(maksimum(3, 9)) tampilkan(maksimum(2.5, 1.0)) }",
+        );
+        assert!(!d.has_errors(), "{:?}", d.diagnostics());
+    }
+
+    #[test]
+    fn generic_instantiation_type_error() {
+        let d = check(
+            "program P\n\
+             fungsi maksimum<T>(a: T, b: T) -> T { jika a > b { kembalikan a } kembalikan b }\n\
+             utama { tampilkan(maksimum(\"a\", \"b\")) }",
+        );
+        assert!(has_code(&d, codes::E_INVALID_OPERAND));
+    }
+
+    #[test]
+    fn generic_arg_type_conflict() {
+        let d = check(
+            "program P\n\
+             fungsi pasangan<T>(a: T, b: T) -> T { kembalikan a }\n\
+             utama { nilai x: i32 = 1i32 tampilkan(pasangan(x, 2)) }",
+        );
+        assert!(d.has_errors());
+    }
+
+    #[test]
+    fn generic_identity_multiple_types() {
+        let d = check(
+            "program P\n\
+             fungsi id<T>(x: T) -> T { kembalikan x }\n\
+             utama { tampilkan(id(1)) tampilkan(id(\"a\")) tampilkan(id(benar)) }",
+        );
+        assert!(!d.has_errors(), "{:?}", d.diagnostics());
+    }
 }

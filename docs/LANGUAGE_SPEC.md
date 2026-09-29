@@ -270,6 +270,23 @@ uses `getelementptr` + `load`/`store`; array literals build the aggregate with
 `insertvalue`. Dynamically sized arrays / slices (`[T]` views with a runtime
 length) are planned and will build on this foundation.
 
+### 3.8 Generic functions
+A function may declare type parameters in `<...>` after its name:
+```lime
+fungsi maksimum<T>(a: T, b: T) -> T {
+    jika a > b { kembalikan a }
+    kembalikan b
+}
+```
+Type parameters may appear anywhere a type is written in the signature or body.
+Calls carry no explicit type arguments — each type parameter is inferred from the
+argument types (`maksimum(3, 9)` infers `T = angka`; `maksimum(2.5, 1.5)` infers
+`T = f64`). Every distinct instantiation is compiled to a separate specialized
+function (monomorphization), so generics cost nothing at runtime. A generic body
+is checked per instantiation, so operations like `a > b` are validated for each
+concrete `T`. See `docs/TYPE_SYSTEM.md` for the full rules and current limits
+(generic structs/enums, explicit type arguments, and trait bounds are planned).
+
 ---
 
 ## 4. Statements

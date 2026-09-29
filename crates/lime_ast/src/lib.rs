@@ -21,14 +21,14 @@ pub enum TypeExprKind {
     Array { elem: Box<TypeExpr>, size: u64 },
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct Program {
     pub name: Ident,
     pub header_span: Span,
     pub items: Vec<Item>,
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub enum Item {
     Function(Function),
     Struct(StructDecl),
@@ -39,7 +39,7 @@ pub enum Item {
     Import(Ident),
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct EnumDecl {
     pub public: bool,
     pub name: Ident,
@@ -47,23 +47,24 @@ pub struct EnumDecl {
     pub span: Span,
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct Function {
     pub public: bool,
     pub name: Ident,
+    pub type_params: Vec<Ident>,
     pub params: Vec<Param>,
     pub ret: Option<TypeExpr>,
     pub body: Block,
     pub span: Span,
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct MainBlock {
     pub body: Block,
     pub span: Span,
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct ExternDecl {
     pub name: Ident,
     pub params: Vec<Param>,
@@ -77,9 +78,10 @@ pub struct Param {
     pub name: Ident,
     pub ty: TypeExpr,
     pub span: Span,
+    pub id: NodeId,
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct StructDecl {
     pub public: bool,
     pub name: Ident,
@@ -87,7 +89,7 @@ pub struct StructDecl {
     pub span: Span,
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct Field {
     pub public: bool,
     pub name: Ident,
@@ -95,13 +97,13 @@ pub struct Field {
     pub span: Span,
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct Block {
     pub stmts: Vec<Stmt>,
     pub span: Span,
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub enum Stmt {
 
     Let {
@@ -110,6 +112,7 @@ pub enum Stmt {
         ty: Option<TypeExpr>,
         init: Expr,
         span: Span,
+        id: NodeId,
     },
 
     Assign { target: Expr, value: Expr, span: Span },
@@ -125,15 +128,16 @@ pub enum Stmt {
     Block(Block),
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct ForEachStmt {
     pub var: Ident,
+    pub var_id: NodeId,
     pub iterable: Expr,
     pub body: Block,
     pub span: Span,
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct IfStmt {
     pub cond: Expr,
     pub then_block: Block,
@@ -143,9 +147,10 @@ pub struct IfStmt {
     pub span: Span,
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct ForStmt {
     pub var: Ident,
+    pub var_id: NodeId,
     pub start: Expr,
     pub end: Expr,
 
@@ -212,14 +217,14 @@ pub enum UnOp {
     Not,
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct Expr {
     pub id: NodeId,
     pub kind: ExprKind,
     pub span: Span,
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub enum ExprKind {
 
     Int { value: u128, suffix: Option<String> },
@@ -242,7 +247,7 @@ pub enum ExprKind {
     Index { base: Box<Expr>, index: Box<Expr> },
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct StructLitField {
     pub name: Ident,
     pub value: Expr,

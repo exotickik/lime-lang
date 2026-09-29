@@ -52,7 +52,9 @@ Legend: ✅ done · 🟡 in progress · ⬜ planned
 - ✅ Enums (C-style tagged variants: construction, equality, print, params,
   returns, struct fields; native i32-tag codegen)
 - ⬜ Enum associated data + pattern matching (`cocok`)
-- ⬜ Generics (monomorphization)
+- ✅ Generic functions with type inference and monomorphization (native
+  specialization, instantiation-time checking, nested generic calls)
+- ⬜ Generic structs/enums, explicit type args, trait/constraint bounds
 - ⬜ Error handling model
 - ⬜ Modules across files
 - ✅ C-ABI FFI (`ekstern fungsi`, including variadic; links against libc) —
