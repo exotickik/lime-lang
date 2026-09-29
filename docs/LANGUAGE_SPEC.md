@@ -87,10 +87,10 @@ Signedness is part of the Lime type but not of the LLVM integer type; the code
 generator selects signed vs unsigned instructions (`sdiv`/`udiv`,
 `icmp slt`/`icmp ult`, `sext`/`zext`) from the Lime type.
 
-### 2.2 Composite types **(partial)**
-- **Struct** (`tipe`): named product type with named fields. Parsed and
-  type-checked in the bootstrap; scalar codegen implemented, aggregate codegen
-  is being expanded.
+### 2.2 Composite types
+- **Struct** (`tipe`): named product type with named fields. Fully implemented
+  through native code generation (see §3.5). Structs are compiled to real LLVM
+  aggregate types, passed and returned by value, and support nested fields.
 - **Enum** (`enum`) **(planned)**: tagged union with pattern matching (`cocok`).
 - **Arrays / slices** **(planned)**: `[T; N]` fixed arrays, `iris<T>` slices.
 
@@ -149,16 +149,41 @@ fungsi sapa(nama: teks) {          // no `-> T` => returns hampa
 All paths through a function with a non-`hampa` return type must return a value
 (checked by control-flow analysis).
 
-### 3.5 Structs **(partial)**
+### 3.5 Structs
+Declaration:
 ```lime
 tipe Pemain {
-    publik nama: teks
+    posisi: Titik
     skor: i32
 }
 ```
-Fields are private to the module by default; `publik` exposes them. Methods,
-constructors and composition are specified in `docs/TYPE_SYSTEM.md` and are being
-implemented incrementally.
+Construction uses a struct literal — the type name followed by a brace list of
+`field: nilai` pairs (trailing comma allowed). Every field must be supplied
+exactly once, with a value assignable to the field's type:
+```lime
+nilai p = Pemain {
+    posisi: Titik { x: 3, y: 4 },
+    skor: 100
+}
+```
+Field access reads a field (`p.skor`); nested access chains (`p.posisi.x`).
+Field mutation (`p.skor = 150`, `p.posisi.y = 12`) is allowed only when the
+root binding is `ubah` (mutable); the whole aggregate is treated as one owned
+value, so mutating any field requires the owner to be mutable.
+
+Structs are values: they are copied on binding, passed to functions by value,
+and returned by value. Nested structs are supported. Field visibility (`publik`)
+is parsed and reserved for cross-module access checking (module system, planned);
+within a single module all fields are accessible.
+
+**Struct-literal disambiguation.** A struct literal is not recognised directly
+in the condition of `jika`/`selama` or the bounds of `untuk`, because `Nama {`
+there would be ambiguous with the block that follows. Wrap it in parentheses to
+force a struct literal in those positions.
+
+Representation: each struct becomes an LLVM aggregate type; construction lowers
+to `insertvalue`, reads to `extractvalue`, and mutation to a load / nested
+`insertvalue` / store. See `docs/MEMORY_MODEL.md`.
 
 ---
 

@@ -1,0 +1,38 @@
+program Pemain
+
+tipe Titik {
+    x: i32
+    y: i32
+}
+
+tipe Pemain {
+    posisi: Titik
+    skor: i32
+}
+
+fungsi jarak_kuadrat(p: Titik) -> i32 {
+    kembalikan p.x * p.x + p.y * p.y
+}
+
+fungsi naik_level(p: Pemain, tambahan: i32) -> Pemain {
+    kembalikan Pemain {
+        posisi: p.posisi,
+        skor: p.skor + tambahan
+    }
+}
+
+utama {
+    ubah pemain = Pemain {
+        posisi: Titik { x: 3, y: 4 },
+        skor: 100
+    }
+
+    tampilkan(pemain.skor)
+    tampilkan(jarak_kuadrat(pemain.posisi))
+
+    pemain = naik_level(pemain, 50)
+    tampilkan(pemain.skor)
+
+    pemain.posisi.y = 12
+    tampilkan(jarak_kuadrat(pemain.posisi))
+}

@@ -211,6 +211,15 @@ pub enum ExprKind {
     Call { callee: Box<Expr>, args: Vec<Expr> },
 
     Field { base: Box<Expr>, field: Ident },
+
+    StructLit { name: Ident, fields: Vec<StructLitField> },
+}
+
+#[derive(Debug)]
+pub struct StructLitField {
+    pub name: Ident,
+    pub value: Expr,
+    pub span: Span,
 }
 
 impl Expr {

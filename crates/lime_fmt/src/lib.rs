@@ -248,6 +248,17 @@ fn expr_str(expr: &Expr, parent_prec: u8) -> String {
         ExprKind::Field { base, field } => {
             format!("{}.{}", expr_str(base, 8), field.name)
         }
+        ExprKind::StructLit { name, fields } => {
+            if fields.is_empty() {
+                format!("{} {{}}", name.name)
+            } else {
+                let fs: Vec<String> = fields
+                    .iter()
+                    .map(|f| format!("{}: {}", f.name.name, expr_str(&f.value, 0)))
+                    .collect();
+                format!("{} {{ {} }}", name.name, fs.join(", "))
+            }
+        }
     }
 }
 

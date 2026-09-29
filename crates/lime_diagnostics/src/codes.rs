@@ -34,6 +34,8 @@ pub const E_LOOP_CTRL_OUTSIDE_LOOP: Code = Code("E0240");
 pub const E_ASSIGN_IMMUTABLE: Code = Code("E0250");
 pub const E_UNKNOWN_FIELD: Code = Code("E0260");
 pub const E_NOT_A_STRUCT: Code = Code("E0261");
+pub const E_MISSING_FIELD: Code = Code("E0262");
+pub const E_DUPLICATE_FIELD: Code = Code("E0263");
 
 pub const E_INVALID_ASSIGN_TARGET: Code = Code("E0301");
 

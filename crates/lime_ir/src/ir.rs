@@ -61,6 +61,9 @@ pub enum InstrKind {
     Cast { kind: CastKind, from: Type, to: Type, operand: Operand },
     Select { cond: Operand, then_val: Operand, else_val: Operand, ty: Type },
     Call { callee: String, args: Vec<Operand>, ret: Type, variadic_from: Option<usize> },
+    MakeStruct { ty: Type, fields: Vec<Operand> },
+    ExtractField { agg: Operand, agg_ty: Type, index: u32, field_ty: Type },
+    InsertField { agg: Operand, agg_ty: Type, indices: Vec<u32>, value: Operand, field_ty: Type },
 }
 
 #[derive(Clone, Debug)]
@@ -115,9 +118,16 @@ pub struct GlobalStr {
     pub bytes: Vec<u8>,
 }
 
+#[derive(Clone, Debug)]
+pub struct IrStruct {
+    pub name: String,
+    pub fields: Vec<Type>,
+}
+
 #[derive(Clone, Debug, Default)]
 pub struct Module {
     pub name: String,
+    pub structs: Vec<IrStruct>,
     pub externs: Vec<ExternSig>,
     pub globals: Vec<GlobalStr>,
     pub funcs: Vec<Func>,

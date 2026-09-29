@@ -1,7 +1,7 @@
 use crate::ir::*;
 use lime_ast::{
-    BinOp, Block as AstBlock, Expr, ExprKind, ForStmt, Function, IfStmt, Item, MainBlock, Program,
-    Stmt, UnOp,
+    BinOp, Block as AstBlock, Expr, ExprKind, ForStmt, Function, Ident, IfStmt, Item, MainBlock,
+    Program, Stmt, UnOp,
 };
 use lime_diagnostics::{codes, Diagnostic, DiagnosticEngine};
 use lime_sema::{Builtin, Res, TypeckResults};
@@ -10,6 +10,13 @@ use std::collections::HashMap;
 
 pub fn lower(program: &Program, results: &TypeckResults, diags: &mut DiagnosticEngine) -> Module {
     let mut module = Module { name: program.name.name.clone(), ..Module::default() };
+
+    for info in &results.structs {
+        module.structs.push(IrStruct {
+            name: info.name.clone(),
+            fields: info.fields.iter().map(|f| f.ty.clone()).collect(),
+        });
+    }
 
     for sig in &results.functions {
         if sig.is_extern {
@@ -163,7 +170,8 @@ impl<'a> FnLowerer<'a> {
                         self.emit(None, InstrKind::Store { slot, value: op });
                     }
                 }
-                _ => self.unsupported(target.span, "penugasan ke field belum didukung backend"),
+                ExprKind::Field { .. } => self.lower_field_assign(target, value),
+                _ => self.unsupported(target.span, "target penugasan tidak didukung backend"),
             },
             Stmt::Expr(e) => {
                 self.lower_expr(e);
@@ -358,11 +366,112 @@ impl<'a> FnLowerer<'a> {
             ExprKind::Binary { op, lhs, rhs } => self.lower_binary(*op, lhs, rhs, expr),
             ExprKind::Unary { op, operand } => self.lower_unary(*op, operand, expr),
             ExprKind::Call { callee, args } => self.lower_call(callee, args, expr),
-            ExprKind::Field { .. } => {
-                self.unsupported(expr.span, "akses field belum didukung backend");
-                Operand::ConstInt(0, Type::I64)
+            ExprKind::Field { base, field } => self.lower_field_read(base, field, expr),
+            ExprKind::StructLit { .. } => self.lower_struct_lit(expr),
+        }
+    }
+
+    fn lower_struct_lit(&mut self, expr: &Expr) -> Operand {
+        let ty = self.results.expr_type(expr.id).clone();
+        let Type::Struct(sid) = ty else {
+            return Operand::ConstInt(0, Type::I64);
+        };
+        let ExprKind::StructLit { fields, .. } = &expr.kind else {
+            return Operand::ConstInt(0, Type::I64);
+        };
+        let info = &self.results.structs[sid.0 as usize];
+        let order: Vec<(usize, Type)> =
+            info.fields.iter().enumerate().map(|(i, f)| (i, f.ty.clone())).collect();
+        let field_names: Vec<String> = info.fields.iter().map(|f| f.name.clone()).collect();
+
+        let mut ordered_ops: Vec<Operand> = vec![Operand::Unit; order.len()];
+        for lit in fields {
+            if let Some(idx) = field_names.iter().position(|n| *n == lit.name.name) {
+                ordered_ops[idx] = self.lower_expr(&lit.value);
             }
         }
+        let dst = self.fresh_value();
+        self.emit(Some(dst), InstrKind::MakeStruct { ty: ty.clone(), fields: ordered_ops });
+        Operand::Val(dst)
+    }
+
+    fn lower_field_read(&mut self, base: &Expr, field: &Ident, expr: &Expr) -> Operand {
+        let base_ty = self.results.expr_type(base.id).clone();
+        let field_ty = self.results.expr_type(expr.id).clone();
+        let Type::Struct(sid) = &base_ty else {
+            self.unsupported(expr.span, "akses field pada nilai bukan struct");
+            return Operand::ConstInt(0, Type::I64);
+        };
+        let index = self.field_index(*sid, &field.name);
+        let agg = self.lower_expr(base);
+        let dst = self.fresh_value();
+        self.emit(
+            Some(dst),
+            InstrKind::ExtractField { agg, agg_ty: base_ty.clone(), index, field_ty },
+        );
+        Operand::Val(dst)
+    }
+
+    fn lower_field_assign(&mut self, target: &Expr, value: &Expr) {
+        let mut indices = Vec::new();
+        let mut node = target;
+        let root_slot;
+        loop {
+            match &node.kind {
+                ExprKind::Field { base, field } => {
+                    let base_ty = self.results.expr_type(base.id).clone();
+                    if let Type::Struct(sid) = &base_ty {
+                        indices.push(self.field_index(*sid, &field.name));
+                    } else {
+                        self.unsupported(target.span, "target field pada nilai bukan struct");
+                        return;
+                    }
+                    node = base;
+                }
+                ExprKind::Name(_) => {
+                    match self.results.name_res.get(&node.id) {
+                        Some(Res::Local(id)) => {
+                            root_slot = self.slot_of_local[&id.0];
+                        }
+                        _ => {
+                            self.unsupported(target.span, "akar penugasan field bukan variabel");
+                            return;
+                        }
+                    }
+                    break;
+                }
+                _ => {
+                    self.unsupported(target.span, "target penugasan field tidak didukung");
+                    return;
+                }
+            }
+        }
+        indices.reverse();
+        let root_ty = self.slots[root_slot.0 as usize].ty.clone();
+        let field_ty = self.results.expr_type(target.id).clone();
+        let val = self.lower_expr(value);
+        let agg = self.load_slot(root_slot, root_ty.clone());
+        let updated = self.fresh_value();
+        self.emit(
+            Some(updated),
+            InstrKind::InsertField {
+                agg: Operand::Val(agg),
+                agg_ty: root_ty,
+                indices,
+                value: val,
+                field_ty,
+            },
+        );
+        self.emit(None, InstrKind::Store { slot: root_slot, value: Operand::Val(updated) });
+    }
+
+    fn field_index(&self, sid: lime_types::StructId, name: &str) -> u32 {
+        self.results.structs[sid.0 as usize]
+            .fields
+            .iter()
+            .position(|f| f.name == name)
+            .map(|i| i as u32)
+            .unwrap_or(0)
     }
 
     fn lower_binary(&mut self, op: BinOp, lhs: &Expr, rhs: &Expr, expr: &Expr) -> Operand {

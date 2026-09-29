@@ -479,7 +479,92 @@ impl<'a> Checker<'a> {
             ExprKind::Unary { op, operand } => self.check_unary(*op, operand),
             ExprKind::Call { callee, args } => self.check_call(expr, callee, args),
             ExprKind::Field { base, field } => self.check_field(base, field),
+            ExprKind::StructLit { name, fields } => self.check_struct_lit(name, fields),
         }
+    }
+
+    fn check_struct_lit(&mut self, name: &Ident, fields: &[StructLitField]) -> Type {
+        let id = match self.struct_ids.get(&name.name) {
+            Some(&id) => id,
+            None => {
+                let msg = if Type::from_builtin_name(&name.name).is_some() {
+                    format!("tipe bawaan '{}' tidak dapat dibangun dengan '{{ }}'", name.name)
+                } else {
+                    format!("'{}' bukan tipe struct", name.name)
+                };
+                self.diags.emit(
+                    Diagnostic::error(codes::E_NOT_A_STRUCT, msg)
+                        .primary(name.span, "bukan struct yang dikenal"),
+                );
+                for f in fields {
+                    self.check_expr(&f.value, None);
+                }
+                return Type::Error;
+            }
+        };
+
+        let info = self.results.struct_info(id).clone();
+        let mut seen: HashMap<String, Span> = HashMap::new();
+
+        for f in fields {
+            if let Some(prev) = seen.insert(f.name.name.clone(), f.name.span) {
+                self.diags.emit(
+                    Diagnostic::error(
+                        codes::E_DUPLICATE_FIELD,
+                        format!("field '{}' diisi lebih dari sekali", f.name.name),
+                    )
+                    .primary(f.name.span, "pengisian ganda")
+                    .secondary(prev, "pertama kali di sini"),
+                );
+            }
+            match info.field(&f.name.name) {
+                Some((_, field_info)) => {
+                    let vty = self.check_expr(&f.value, Some(&field_info.ty));
+                    if !vty.assignable_to(&field_info.ty) {
+                        self.diags.emit(
+                            Diagnostic::error(
+                                codes::E_TYPE_MISMATCH_ASSIGN,
+                                format!(
+                                    "field '{}' bertipe '{}', diberi '{}'",
+                                    f.name.name,
+                                    field_info.ty.display(),
+                                    vty.display()
+                                ),
+                            )
+                            .primary(f.value.span, format!("bertipe '{}'", vty.display())),
+                        );
+                    }
+                }
+                None => {
+                    self.check_expr(&f.value, None);
+                    self.diags.emit(
+                        Diagnostic::error(
+                            codes::E_UNKNOWN_FIELD,
+                            format!("tipe '{}' tidak memiliki field '{}'", info.name, f.name.name),
+                        )
+                        .primary(f.name.span, "field tidak dikenal"),
+                    );
+                }
+            }
+        }
+
+        let missing: Vec<String> = info
+            .fields
+            .iter()
+            .filter(|fi| !seen.contains_key(&fi.name))
+            .map(|fi| fi.name.clone())
+            .collect();
+        if !missing.is_empty() {
+            self.diags.emit(
+                Diagnostic::error(
+                    codes::E_MISSING_FIELD,
+                    format!("field belum diisi: {}", missing.join(", ")),
+                )
+                .primary(name.span, format!("struct '{}' butuh semua field", info.name)),
+            );
+        }
+
+        Type::Struct(id)
     }
 
     fn check_binary(&mut self, op: BinOp, lhs: &Expr, rhs: &Expr, expected: Option<&Type>) -> Type {

@@ -47,6 +47,11 @@ are suppressed to avoid cascading diagnostics.
   `ubah`; `typeof(rhs)` assignable to `typeof(lhs)`; result type `hampa`.
 - **Field access** `e.f`: `typeof(e)` must be a struct with a field `f` visible
   in the current module; result is the field type.
+- **Struct literal** `Nama { f1: e1, ... }`: `Nama` must name a struct type. Each
+  named field must exist on that struct, appear exactly once, and its value must
+  be assignable to the declared field type. Every declared field must be present.
+  The result type is that struct. Missing fields → `E0262`, unknown fields →
+  `E0260`, duplicates → `E0263`, a non-struct name → `E0261`.
 
 ## Assignability
 
@@ -85,3 +90,7 @@ This is designed but not implemented in the bootstrap.
 | E0231 | tipe nilai kembalian tidak sesuai |
 | E0240 | 'berhenti'/'lanjut' di luar loop |
 | E0250 | penetapan ke binding immutable ('nilai') |
+| E0260 | akses field yang tidak ada pada struct |
+| E0261 | nilai yang diakses/dibangun bukan struct |
+| E0262 | ada field struct yang belum diisi pada literal |
+| E0263 | field struct diisi lebih dari sekali pada literal |

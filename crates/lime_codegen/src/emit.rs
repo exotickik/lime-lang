@@ -10,6 +10,14 @@ pub fn emit_module(module: &Module, target: &Target) -> String {
     writeln!(out, "target triple = \"{}\"", target.triple).ok();
     out.push('\n');
 
+    for (i, s) in module.structs.iter().enumerate() {
+        let ftys: Vec<String> = s.fields.iter().map(ty_str).collect();
+        writeln!(out, "%struct.{} = type {{ {} }}", i, ftys.join(", ")).ok();
+    }
+    if !module.structs.is_empty() {
+        out.push('\n');
+    }
+
     for g in &module.globals {
         emit_global(&mut out, g);
     }
@@ -28,7 +36,7 @@ pub fn emit_module(module: &Module, target: &Target) -> String {
     }
 
     for func in &module.funcs {
-        emit_func(&mut out, func);
+        emit_func(&mut out, func, &module.structs);
         out.push('\n');
     }
 
@@ -63,7 +71,7 @@ fn emit_extern_decl(out: &mut String, e: &ExternSig) {
     writeln!(out, "declare {} @{}({})", ret, e.name, params.join(", ")).ok();
 }
 
-fn emit_func(out: &mut String, func: &Func) {
+fn emit_func(out: &mut String, func: &Func, structs: &[IrStruct]) {
     let value_types = collect_value_types(func);
     let ret = ty_str(&func.ret);
     let params: Vec<String> =
@@ -78,7 +86,7 @@ fn emit_func(out: &mut String, func: &Func) {
             }
         }
         for instr in &block.instrs {
-            emit_instr(out, instr, func, &value_types);
+            emit_instr(out, instr, func, &value_types, structs);
         }
         match &block.term {
             Some(t) => emit_term(out, t, &value_types),
@@ -95,7 +103,13 @@ fn slot_ty<'a>(func: &'a Func, slot: SlotId) -> &'a Type {
     &func.slots[slot.0 as usize].ty
 }
 
-fn emit_instr(out: &mut String, instr: &Instr, func: &Func, vt: &HashMap<u32, Type>) {
+fn emit_instr(
+    out: &mut String,
+    instr: &Instr,
+    func: &Func,
+    vt: &HashMap<u32, Type>,
+    structs: &[IrStruct],
+) {
     let dst = instr.dst.map(|d| format!("%v{}", d.0));
     match &instr.kind {
         InstrKind::Load { slot } => {
@@ -195,6 +209,61 @@ fn emit_instr(out: &mut String, instr: &Instr, func: &Func, vt: &HashMap<u32, Ty
                 }
             }
         }
+        InstrKind::MakeStruct { ty, fields } => {
+            let struct_ty = ty_str(ty);
+            let field_types: &[Type] = match ty {
+                Type::Struct(id) => &structs[id.0 as usize].fields,
+                _ => &[],
+            };
+            let d = dst.unwrap();
+            let n = fields.len();
+            if n == 0 {
+                writeln!(out, "  {} = freeze {} zeroinitializer", d, struct_ty).ok();
+            } else {
+                let mut cur = "undef".to_string();
+                for (i, f) in fields.iter().enumerate() {
+                    let fty = field_types.get(i).cloned().unwrap_or(Type::I64);
+                    let name = if i + 1 == n { d.clone() } else { format!("{}.f{}", d, i) };
+                    writeln!(
+                        out,
+                        "  {} = insertvalue {} {}, {} {}, {}",
+                        name,
+                        struct_ty,
+                        cur,
+                        ty_str(&fty),
+                        val_str(f, vt),
+                        i
+                    )
+                    .ok();
+                    cur = name;
+                }
+            }
+        }
+        InstrKind::ExtractField { agg, agg_ty, index, .. } => {
+            writeln!(
+                out,
+                "  {} = extractvalue {} {}, {}",
+                dst.unwrap(),
+                ty_str(agg_ty),
+                val_str(agg, vt),
+                index
+            )
+            .ok();
+        }
+        InstrKind::InsertField { agg, agg_ty, indices, value, field_ty } => {
+            let idxs: Vec<String> = indices.iter().map(|i| i.to_string()).collect();
+            writeln!(
+                out,
+                "  {} = insertvalue {} {}, {} {}, {}",
+                dst.unwrap(),
+                ty_str(agg_ty),
+                val_str(agg, vt),
+                ty_str(field_ty),
+                val_str(value, vt),
+                idxs.join(", ")
+            )
+            .ok();
+        }
     }
 }
 
@@ -242,6 +311,9 @@ fn collect_value_types(func: &Func) -> HashMap<u32, Type> {
                 InstrKind::Cast { to, .. } => to.clone(),
                 InstrKind::Select { ty, .. } => ty.clone(),
                 InstrKind::Call { ret, .. } => ret.clone(),
+                InstrKind::MakeStruct { ty, .. } => ty.clone(),
+                InstrKind::ExtractField { field_ty, .. } => field_ty.clone(),
+                InstrKind::InsertField { agg_ty, .. } => agg_ty.clone(),
                 InstrKind::Store { .. } => continue,
             };
             m.insert(dst.0, ty);
@@ -264,7 +336,7 @@ fn ty_str(ty: &Type) -> String {
         Type::Char => "i32".to_string(),
         Type::Str => "ptr".to_string(),
         Type::Unit => "void".to_string(),
-        Type::Struct(_) => "ptr".to_string(),
+        Type::Struct(id) => format!("%struct.{}", id.0),
         Type::Fn { .. } => "ptr".to_string(),
         Type::Error => "void".to_string(),
     }

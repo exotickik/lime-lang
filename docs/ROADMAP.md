@@ -25,7 +25,8 @@ Legend: ✅ done · 🟡 in progress · ⬜ planned
 - ✅ Type system core (`lime_types`)
 - ✅ Type checking: functions, bindings, expressions, calls, control flow
 - ✅ Control-flow / return checking
-- 🟡 Structs (parse ✅, typecheck ✅, aggregate codegen 🟡)
+- ✅ Structs: declaration, literals, field access, nested fields, field
+  mutation, by-value params/returns, native aggregate codegen
 - ⬜ Arrays / slices
 - ⬜ Ownership & borrow checking
 

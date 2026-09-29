@@ -8,6 +8,7 @@ pub struct Parser<'a> {
     pos: usize,
     diags: &'a mut DiagnosticEngine,
     next_node: u32,
+    allow_struct_lit: bool,
 }
 
 struct Bail;
@@ -15,7 +16,7 @@ type PResult<T> = Result<T, Bail>;
 
 impl<'a> Parser<'a> {
     pub fn new(_file: FileId, tokens: Vec<Token>, diags: &'a mut DiagnosticEngine) -> Parser<'a> {
-        Parser { tokens, pos: 0, diags, next_node: 0 }
+        Parser { tokens, pos: 0, diags, next_node: 0, allow_struct_lit: true }
     }
 
     fn node_id(&mut self) -> NodeId {
@@ -366,7 +367,7 @@ impl<'a> Parser<'a> {
     fn parse_if(&mut self) -> PResult<IfStmt> {
         let start = self.peek_span();
         self.expect(&TokenKind::Keyword(Keyword::Jika))?;
-        let cond = self.parse_expr()?;
+        let cond = self.parse_cond_expr()?;
         let then_block = self.parse_block()?;
         let mut else_ifs = Vec::new();
         let mut else_block = None;
@@ -375,7 +376,7 @@ impl<'a> Parser<'a> {
             self.bump();
             if self.is_kw(Keyword::Jika) {
                 self.bump();
-                let c = self.parse_expr()?;
+                let c = self.parse_cond_expr()?;
                 let b = self.parse_block()?;
                 end = b.span;
                 else_ifs.push((c, b));
@@ -392,7 +393,7 @@ impl<'a> Parser<'a> {
     fn parse_while(&mut self) -> PResult<Stmt> {
         let start = self.peek_span();
         self.expect(&TokenKind::Keyword(Keyword::Selama))?;
-        let cond = self.parse_expr()?;
+        let cond = self.parse_cond_expr()?;
         let body = self.parse_block()?;
         let span = start.to(body.span);
         Ok(Stmt::While { cond, body, span })
@@ -403,7 +404,7 @@ impl<'a> Parser<'a> {
         self.expect(&TokenKind::Keyword(Keyword::Untuk))?;
         let var = self.expect_ident()?;
         self.expect(&TokenKind::Keyword(Keyword::Dari))?;
-        let start_expr = self.parse_expr()?;
+        let start_expr = self.parse_cond_expr()?;
         let inclusive = if self.eat_kw(Keyword::Hingga) {
             true
         } else if self.eat_kw(Keyword::Sampai) {
@@ -420,7 +421,7 @@ impl<'a> Parser<'a> {
             );
             return Err(Bail);
         };
-        let end_expr = self.parse_expr()?;
+        let end_expr = self.parse_cond_expr()?;
         let body = self.parse_block()?;
         Ok(ForStmt {
             var,
@@ -457,6 +458,36 @@ impl<'a> Parser<'a> {
 
     fn parse_expr(&mut self) -> PResult<Expr> {
         self.parse_bin(0)
+    }
+
+    fn parse_cond_expr(&mut self) -> PResult<Expr> {
+        let prev = self.allow_struct_lit;
+        self.allow_struct_lit = false;
+        let result = self.parse_bin(0);
+        self.allow_struct_lit = prev;
+        result
+    }
+
+    fn parse_struct_lit(&mut self, name: Ident) -> PResult<Expr> {
+        self.expect(&TokenKind::LBrace)?;
+        let prev = self.allow_struct_lit;
+        self.allow_struct_lit = true;
+        let mut fields = Vec::new();
+        while !matches!(self.peek(), TokenKind::RBrace | TokenKind::Eof) {
+            let fname = self.expect_ident()?;
+            self.expect(&TokenKind::Colon)?;
+            let value = self.parse_expr()?;
+            let fspan = fname.span.to(value.span);
+            fields.push(StructLitField { name: fname, value, span: fspan });
+            if !self.eat(&TokenKind::Comma) {
+                break;
+            }
+        }
+        self.allow_struct_lit = prev;
+        let rb = self.expect(&TokenKind::RBrace)?;
+        let span = name.span.to(rb.span);
+        let id = self.node_id();
+        Ok(Expr { id, kind: ExprKind::StructLit { name, fields }, span })
     }
 
     fn bin_prec(kind: &TokenKind) -> Option<(BinOp, u8)> {
@@ -524,13 +555,22 @@ impl<'a> Parser<'a> {
             match self.peek() {
                 TokenKind::LParen => {
                     self.bump();
+                    let prev = self.allow_struct_lit;
+                    self.allow_struct_lit = true;
                     let mut args = Vec::new();
                     while !matches!(self.peek(), TokenKind::RParen | TokenKind::Eof) {
-                        args.push(self.parse_expr()?);
+                        match self.parse_expr() {
+                            Ok(e) => args.push(e),
+                            Err(e) => {
+                                self.allow_struct_lit = prev;
+                                return Err(e);
+                            }
+                        }
                         if !self.eat(&TokenKind::Comma) {
                             break;
                         }
                     }
+                    self.allow_struct_lit = prev;
                     let rp = self.expect(&TokenKind::RParen)?;
                     let span = expr.span.to(rp.span);
                     let id = self.node_id();
@@ -583,11 +623,18 @@ impl<'a> Parser<'a> {
             }
             TokenKind::Ident(name) => {
                 self.bump();
+                if self.allow_struct_lit && matches!(self.peek(), TokenKind::LBrace) {
+                    return self.parse_struct_lit(Ident { name, span: sp });
+                }
                 ExprKind::Name(name)
             }
             TokenKind::LParen => {
                 self.bump();
-                let inner = self.parse_expr()?;
+                let prev = self.allow_struct_lit;
+                self.allow_struct_lit = true;
+                let inner = self.parse_expr();
+                self.allow_struct_lit = prev;
+                let inner = inner?;
                 self.expect(&TokenKind::RParen)?;
 
                 return Ok(inner);
@@ -679,6 +726,32 @@ mod tests {
         assert_eq!(p.name.name, "Halo");
         assert_eq!(p.items.len(), 1);
         assert!(matches!(p.items[0], Item::Main(_)));
+    }
+
+    #[test]
+    fn parses_struct_literal() {
+        let (p, d) = parse_src(
+            "program P\nutama { nilai t = Titik { x: 1, y: 2 } }",
+        );
+        assert!(!d.has_errors(), "{:?}", d.diagnostics());
+        let Item::Main(m) = &p.items[0] else { panic!() };
+        let Stmt::Let { init, .. } = &m.body.stmts[0] else { panic!() };
+        let ExprKind::StructLit { name, fields } = &init.kind else {
+            panic!("expected struct literal, got {:?}", init.kind);
+        };
+        assert_eq!(name.name, "Titik");
+        assert_eq!(fields.len(), 2);
+    }
+
+    #[test]
+    fn struct_literal_not_parsed_in_if_condition() {
+        let (p, d) = parse_src(
+            "program P\nutama { jika x { tampilkan(\"y\") } }",
+        );
+        assert!(!d.has_errors(), "{:?}", d.diagnostics());
+        let Item::Main(m) = &p.items[0] else { panic!() };
+        let Stmt::If(i) = &m.body.stmts[0] else { panic!() };
+        assert!(matches!(i.cond.kind, ExprKind::Name(_)), "cond should be a bare name");
     }
 
     #[test]

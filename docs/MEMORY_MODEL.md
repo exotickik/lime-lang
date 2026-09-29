@@ -48,6 +48,27 @@ fat pointers and owned strings are the next memory-model milestone. This
 limitation is intentional and isolated to the string representation; it does not
 affect the soundness of the numeric/control-flow core.
 
+## Structs
+
+Structs are value types with a real compile-time layout. Each `tipe` becomes an
+LLVM aggregate (`{ f0, f1, ... }`); field order is preserved and the target C ABI
+governs alignment and padding, so a Lime struct can cross the FFI boundary
+predictably.
+
+- **Binding / passing / returning** copies the aggregate value. There is no
+  implicit boxing and no heap allocation for a struct itself.
+- **Construction** lowers to `insertvalue` from `undef`; **field reads** lower to
+  `extractvalue`; **field mutation** loads the root aggregate, applies a nested
+  `insertvalue`, and stores it back. `llc -O2` (SROA / mem2reg) promotes these
+  slots to registers, so simple struct code carries no memory traffic.
+- **Mutability** is whole-value: mutating `p.posisi.y` requires the root binding
+  `p` to be `ubah`. This keeps the ownership story simple — one owner per struct
+  value — and sets up the borrow model below without partial-field aliasing.
+
+A struct whose fields are all stack values is itself a stack value; a struct that
+will later contain heap-owning fields (e.g. an owned `teks`) will follow the
+deterministic-destruction rules once ownership lands.
+
 ## No hidden allocations
 
 The bootstrap performs **zero** heap allocations at runtime for the currently

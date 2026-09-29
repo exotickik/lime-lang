@@ -192,6 +192,16 @@ fn subst_kind(kind: &mut InstrKind, known: &HashMap<u32, Operand>) -> bool {
                 changed |= subst_operand(a, known);
             }
         }
+        InstrKind::MakeStruct { fields, .. } => {
+            for f in fields {
+                changed |= subst_operand(f, known);
+            }
+        }
+        InstrKind::ExtractField { agg, .. } => changed |= subst_operand(agg, known),
+        InstrKind::InsertField { agg, value, .. } => {
+            changed |= subst_operand(agg, known);
+            changed |= subst_operand(value, known);
+        }
         InstrKind::Load { .. } => {}
     }
     changed
@@ -240,6 +250,9 @@ fn is_pure(kind: &InstrKind) -> bool {
             | InstrKind::Not { .. }
             | InstrKind::Cast { .. }
             | InstrKind::Select { .. }
+            | InstrKind::MakeStruct { .. }
+            | InstrKind::ExtractField { .. }
+            | InstrKind::InsertField { .. }
     )
 }
 
@@ -268,6 +281,16 @@ fn collect_uses(kind: &InstrKind, used: &mut HashSet<u32>) {
             for a in args {
                 note_use(a, used);
             }
+        }
+        InstrKind::MakeStruct { fields, .. } => {
+            for f in fields {
+                note_use(f, used);
+            }
+        }
+        InstrKind::ExtractField { agg, .. } => note_use(agg, used),
+        InstrKind::InsertField { agg, value, .. } => {
+            note_use(agg, used);
+            note_use(value, used);
         }
         InstrKind::Load { .. } => {}
     }

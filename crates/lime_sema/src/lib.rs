@@ -126,4 +126,69 @@ mod tests {
         let d = check("program P\nfungsi f(a: bilangan) { }\nutama { }");
         assert!(has_code(&d, codes::E_UNKNOWN_TYPE));
     }
+
+    #[test]
+    fn valid_struct_literal() {
+        let d = check(
+            "program P\ntipe Titik { x: i32\n y: i32 }\n\
+             utama { nilai t = Titik { x: 1i32, y: 2i32 } tampilkan(t.x) }",
+        );
+        assert!(!d.has_errors(), "{:?}", d.diagnostics());
+    }
+
+    #[test]
+    fn struct_literal_missing_field() {
+        let d = check(
+            "program P\ntipe Titik { x: i32\n y: i32 }\nutama { nilai t = Titik { x: 1i32 } }",
+        );
+        assert!(has_code(&d, codes::E_MISSING_FIELD));
+    }
+
+    #[test]
+    fn struct_literal_unknown_field() {
+        let d = check(
+            "program P\ntipe Titik { x: i32 }\nutama { nilai t = Titik { x: 1i32, z: 2i32 } }",
+        );
+        assert!(has_code(&d, codes::E_UNKNOWN_FIELD));
+    }
+
+    #[test]
+    fn struct_literal_field_type_mismatch() {
+        let d = check(
+            "program P\ntipe Titik { x: i32 }\nutama { nilai t = Titik { x: benar } }",
+        );
+        assert!(has_code(&d, codes::E_TYPE_MISMATCH_ASSIGN));
+    }
+
+    #[test]
+    fn struct_literal_duplicate_field() {
+        let d = check(
+            "program P\ntipe Titik { x: i32 }\nutama { nilai t = Titik { x: 1i32, x: 2i32 } }",
+        );
+        assert!(has_code(&d, codes::E_DUPLICATE_FIELD));
+    }
+
+    #[test]
+    fn construct_non_struct_is_error() {
+        let d = check("program P\nutama { nilai t = i32 { x: 1 } }");
+        assert!(has_code(&d, codes::E_NOT_A_STRUCT));
+    }
+
+    #[test]
+    fn unknown_field_access_reported() {
+        let d = check(
+            "program P\ntipe Titik { x: i32 }\n\
+             utama { nilai t = Titik { x: 1i32 } tampilkan(t.z) }",
+        );
+        assert!(has_code(&d, codes::E_UNKNOWN_FIELD));
+    }
+
+    #[test]
+    fn immutable_struct_field_assign_rejected() {
+        let d = check(
+            "program P\ntipe Titik { x: i32 }\n\
+             utama { nilai t = Titik { x: 1i32 } t.x = 5i32 }",
+        );
+        assert!(has_code(&d, codes::E_ASSIGN_IMMUTABLE));
+    }
 }
