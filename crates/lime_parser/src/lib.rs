@@ -1,30 +1,21 @@
-//! The Lime parser: a hand-written recursive-descent parser with
-//! precedence-climbing for expressions. It consumes the [`Token`] stream from
-//! `lime_lexer` and produces a [`Program`] AST, reporting syntax errors through
-//! the shared [`DiagnosticEngine`] and recovering at statement/item boundaries
-//! so one run can surface several errors.
-
 use lime_ast::*;
 use lime_diagnostics::{codes, Diagnostic, DiagnosticEngine};
 use lime_lexer::{Keyword, LitValue, Token, TokenKind};
 use lime_span::{FileId, Span};
 
 pub struct Parser<'a> {
-    file: FileId,
     tokens: Vec<Token>,
     pos: usize,
     diags: &'a mut DiagnosticEngine,
     next_node: u32,
 }
 
-/// Signals that the current construct could not be parsed; the caller should
-/// recover. Diagnostics have already been emitted at the point of failure.
 struct Bail;
 type PResult<T> = Result<T, Bail>;
 
 impl<'a> Parser<'a> {
-    pub fn new(file: FileId, tokens: Vec<Token>, diags: &'a mut DiagnosticEngine) -> Parser<'a> {
-        Parser { file, tokens, pos: 0, diags, next_node: 0 }
+    pub fn new(_file: FileId, tokens: Vec<Token>, diags: &'a mut DiagnosticEngine) -> Parser<'a> {
+        Parser { tokens, pos: 0, diags, next_node: 0 }
     }
 
     fn node_id(&mut self) -> NodeId {
@@ -32,8 +23,6 @@ impl<'a> Parser<'a> {
         self.next_node += 1;
         id
     }
-
-    // --- token cursor helpers --------------------------------------------
 
     fn peek(&self) -> &TokenKind {
         &self.tokens[self.pos].kind
@@ -81,7 +70,6 @@ impl<'a> Parser<'a> {
         matches!(self.peek(), TokenKind::Keyword(k) if *k == kw)
     }
 
-    /// Consume a token of the expected kind or emit an "expected" diagnostic.
     fn expect(&mut self, kind: &TokenKind) -> PResult<Token> {
         if self.peek() == kind {
             Ok(self.bump())
@@ -121,7 +109,7 @@ impl<'a> Parser<'a> {
     }
 
     fn expect_type(&mut self) -> PResult<TypeExpr> {
-        // A type is written as an identifier (built-in type names are idents).
+
         match self.peek().clone() {
             TokenKind::Ident(name) => {
                 let sp = self.peek_span();
@@ -142,10 +130,8 @@ impl<'a> Parser<'a> {
         }
     }
 
-    // --- program & items -------------------------------------------------
-
     pub fn parse_program(&mut self) -> Program {
-        // Program header.
+
         let (name, header_span) = if self.is_kw(Keyword::Program) {
             let start = self.peek_span();
             self.bump();
@@ -252,7 +238,7 @@ impl<'a> Parser<'a> {
         let mut params = Vec::new();
         let mut variadic = false;
         while !matches!(self.peek(), TokenKind::RParen | TokenKind::Eof) {
-            // Variadic marker "..." lexes as three Dot tokens.
+
             if matches!(self.peek(), TokenKind::Dot)
                 && matches!(self.peek2(), TokenKind::Dot)
             {
@@ -303,8 +289,6 @@ impl<'a> Parser<'a> {
         Ok(MainBlock { span: start.to(body.span), body })
     }
 
-    // --- statements ------------------------------------------------------
-
     fn parse_block(&mut self) -> PResult<Block> {
         let lb = self.expect(&TokenKind::LBrace)?;
         let mut stmts = Vec::new();
@@ -352,7 +336,7 @@ impl<'a> Parser<'a> {
     fn parse_let(&mut self) -> PResult<Stmt> {
         let start = self.peek_span();
         let mutable = self.is_kw(Keyword::Ubah);
-        self.bump(); // nilai / ubah
+        self.bump();
         let name = self.expect_ident()?;
         let ty = if self.eat(&TokenKind::Colon) { Some(self.expect_type()?) } else { None };
         self.expect(&TokenKind::Eq)?;
@@ -364,8 +348,8 @@ impl<'a> Parser<'a> {
 
     fn parse_return(&mut self) -> PResult<Stmt> {
         let start = self.peek_span();
-        self.bump(); // kembalikan
-        // A return value is present unless the statement ends here.
+        self.bump();
+
         let value = if matches!(
             self.peek(),
             TokenKind::RBrace | TokenKind::Semicolon | TokenKind::Eof
@@ -388,9 +372,9 @@ impl<'a> Parser<'a> {
         let mut else_block = None;
         let mut end = then_block.span;
         while self.is_kw(Keyword::Lain) {
-            self.bump(); // lain
+            self.bump();
             if self.is_kw(Keyword::Jika) {
-                self.bump(); // jika
+                self.bump();
                 let c = self.parse_expr()?;
                 let b = self.parse_block()?;
                 end = b.span;
@@ -451,7 +435,7 @@ impl<'a> Parser<'a> {
     fn parse_assign_or_expr(&mut self) -> PResult<Stmt> {
         let expr = self.parse_expr()?;
         if matches!(self.peek(), TokenKind::Eq) {
-            self.bump(); // =
+            self.bump();
             let value = self.parse_expr()?;
             let span = expr.span.to(value.span);
             if !expr.is_lvalue() {
@@ -471,13 +455,10 @@ impl<'a> Parser<'a> {
         }
     }
 
-    // --- expressions (precedence climbing) -------------------------------
-
     fn parse_expr(&mut self) -> PResult<Expr> {
         self.parse_bin(0)
     }
 
-    /// Binary operator precedence. Higher binds tighter.
     fn bin_prec(kind: &TokenKind) -> Option<(BinOp, u8)> {
         use TokenKind as T;
         Some(match kind {
@@ -505,7 +486,7 @@ impl<'a> Parser<'a> {
                 break;
             }
             self.bump();
-            // Left-associative: parse rhs with strictly higher precedence.
+
             let rhs = self.parse_bin(prec + 1)?;
             let span = lhs.span.to(rhs.span);
             let id = self.node_id();
@@ -608,7 +589,7 @@ impl<'a> Parser<'a> {
                 self.bump();
                 let inner = self.parse_expr()?;
                 self.expect(&TokenKind::RParen)?;
-                // Return the inner expression directly (its span/id preserved).
+
                 return Ok(inner);
             }
             other => {
@@ -626,9 +607,6 @@ impl<'a> Parser<'a> {
         Ok(Expr { id, kind, span: sp })
     }
 
-    // --- error recovery --------------------------------------------------
-
-    /// Skip tokens until the start of a plausible top-level item or EOF.
     fn recover_to_item(&mut self) {
         while !self.at_eof() {
             if matches!(
@@ -649,7 +627,6 @@ impl<'a> Parser<'a> {
         }
     }
 
-    /// Recover inside a block: skip to the next statement boundary.
     fn recover_in_block(&mut self) {
         while !matches!(self.peek(), TokenKind::RBrace | TokenKind::Eof) {
             if matches!(self.peek(), TokenKind::Semicolon) {
@@ -676,7 +653,6 @@ impl<'a> Parser<'a> {
     }
 }
 
-/// Parse a token stream into a [`Program`].
 pub fn parse(file: FileId, tokens: Vec<Token>, diags: &mut DiagnosticEngine) -> Program {
     Parser::new(file, tokens, diags).parse_program()
 }
@@ -723,7 +699,7 @@ mod tests {
 
     #[test]
     fn precedence_is_correct() {
-        // 1 + 2 * 3 should parse as 1 + (2 * 3)
+
         let (p, d) = parse_src("program P\nfungsi f() -> angka { kembalikan 1 + 2 * 3 }");
         assert!(!d.has_errors());
         let Item::Function(f) = &p.items[0] else { panic!() };
@@ -778,7 +754,7 @@ mod tests {
 
     #[test]
     fn recovers_and_reports_multiple() {
-        // Two broken statements; parser should not stop at the first.
+
         let (_p, d) = parse_src("program P\nutama { nilai = ; nilai y = 2 @ }");
         assert!(d.has_errors());
     }

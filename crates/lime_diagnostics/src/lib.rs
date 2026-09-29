@@ -1,11 +1,3 @@
-//! The Lime diagnostic subsystem: a reusable engine for collecting and
-//! rendering compiler messages with source snippets, carets, codes and notes.
-//!
-//! It is deliberately independent of any single compiler stage — the lexer,
-//! parser, semantic analyser and backend all emit [`Diagnostic`]s into a shared
-//! [`DiagnosticEngine`]. Rendering is separated from collection so a driver can
-//! choose to print, buffer, or (later) serialise diagnostics.
-
 pub mod codes;
 pub mod render;
 
@@ -32,23 +24,20 @@ impl Severity {
     }
 }
 
-/// A span with an attached message, underlined in rendered output.
 #[derive(Clone, Debug)]
 pub struct Label {
     pub span: Span,
     pub message: String,
-    /// Primary labels are underlined with `^`, secondary with `-`.
+
     pub primary: bool,
 }
 
-/// A sub-note attached below a diagnostic (severity Note or Help).
 #[derive(Clone, Debug)]
 pub struct SubNote {
     pub severity: Severity,
     pub message: String,
 }
 
-/// One compiler diagnostic.
 #[derive(Clone, Debug)]
 pub struct Diagnostic {
     pub severity: Severity,
@@ -79,13 +68,11 @@ impl Diagnostic {
         }
     }
 
-    /// Attach the primary span with an underline message.
     pub fn primary(mut self, span: Span, message: impl Into<String>) -> Diagnostic {
         self.labels.push(Label { span, message: message.into(), primary: true });
         self
     }
 
-    /// Attach a secondary span (context) with an underline message.
     pub fn secondary(mut self, span: Span, message: impl Into<String>) -> Diagnostic {
         self.labels.push(Label { span, message: message.into(), primary: false });
         self
@@ -106,7 +93,6 @@ impl Diagnostic {
     }
 }
 
-/// Collects diagnostics emitted across all stages of one compilation.
 #[derive(Default)]
 pub struct DiagnosticEngine {
     diagnostics: Vec<Diagnostic>,

@@ -6,6 +6,10 @@ members = [
     "crates/lime_lexer",
     "crates/lime_ast",
     "crates/lime_parser",
+    "crates/lime_types",
+    "crates/lime_sema",
+    "crates/lime_ir",
+    "crates/lime_codegen",
 ]
 
 [workspace.package]

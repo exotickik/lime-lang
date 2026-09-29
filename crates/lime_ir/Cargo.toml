@@ -1,0 +1,19 @@
+[package]
+name = "lime_ir"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+lime_span.workspace = true
+lime_diagnostics.workspace = true
+lime_ast.workspace = true
+lime_types.workspace = true
+lime_sema.workspace = true
+
+[dev-dependencies]
+lime_lexer.workspace = true
+lime_parser.workspace = true
+
+[lib]
+path = "src/lib.rs"

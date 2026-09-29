@@ -10,10 +10,36 @@ dependencies = [
 ]
 
 [[package]]
+name = "lime_codegen"
+version = "0.1.0"
+dependencies = [
+ "lime_diagnostics",
+ "lime_ir",
+ "lime_lexer",
+ "lime_parser",
+ "lime_sema",
+ "lime_span",
+ "lime_types",
+]
+
+[[package]]
 name = "lime_diagnostics"
 version = "0.1.0"
 dependencies = [
  "lime_span",
+]
+
+[[package]]
+name = "lime_ir"
+version = "0.1.0"
+dependencies = [
+ "lime_ast",
+ "lime_diagnostics",
+ "lime_lexer",
+ "lime_parser",
+ "lime_sema",
+ "lime_span",
+ "lime_types",
 ]
 
 [[package]]
@@ -35,5 +61,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "lime_sema"
+version = "0.1.0"
+dependencies = [
+ "lime_ast",
+ "lime_diagnostics",
+ "lime_lexer",
+ "lime_parser",
+ "lime_span",
+ "lime_types",
+]
+
+[[package]]
 name = "lime_span"
+version = "0.1.0"
+
+[[package]]
+name = "lime_types"
 version = "0.1.0"

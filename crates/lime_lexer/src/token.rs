@@ -1,5 +1,3 @@
-//! Token definitions for Lime.
-
 use lime_span::Span;
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -102,27 +100,24 @@ impl Keyword {
     }
 }
 
-/// A decoded literal value carried by the token, so later stages don't re-parse.
 #[derive(Clone, PartialEq, Debug)]
 pub enum LitValue {
-    /// Raw integer magnitude plus an optional explicit type suffix (e.g. "i32").
+
     Int { value: u128, suffix: Option<String> },
     Float { value: f64, suffix: Option<String> },
-    /// Decoded string contents (escapes resolved).
+
     Str(String),
     Char(char),
 }
 
 #[derive(Clone, PartialEq, Debug)]
 pub enum TokenKind {
-    // Identifiers & keywords
+
     Ident(String),
     Keyword(Keyword),
 
-    // Literals
     Literal(LitValue),
 
-    // Punctuation / operators
     LParen,
     RParen,
     LBrace,
@@ -133,29 +128,28 @@ pub enum TokenKind {
     Colon,
     Semicolon,
     Dot,
-    Arrow, // ->
-    Eq,    // =
-    EqEq,  // ==
-    Ne,    // !=
-    Lt,    // <
-    Le,    // <=
-    Gt,    // >
-    Ge,    // >=
+    Arrow,
+    Eq,
+    EqEq,
+    Ne,
+    Lt,
+    Le,
+    Gt,
+    Ge,
     Plus,
     Minus,
     Star,
     Slash,
     Percent,
-    AmpAmp, // &&
-    PipePipe, // ||
-    Bang,   // !
+    AmpAmp,
+    PipePipe,
+    Bang,
 
-    /// End of file.
     Eof,
 }
 
 impl TokenKind {
-    /// A short human description used in "expected X, found Y" diagnostics.
+
     pub fn describe(&self) -> String {
         match self {
             TokenKind::Ident(_) => "pengenal".to_string(),

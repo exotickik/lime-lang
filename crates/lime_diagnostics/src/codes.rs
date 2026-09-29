@@ -1,14 +1,3 @@
-//! Stable diagnostic codes.
-//!
-//! Codes are stable identifiers referenced by tests and (eventually) user
-//! documentation. Grouping:
-//!   E01xx  lexer / parser
-//!   E02xx  name resolution / type checking / control flow
-//!   E03xx  assignment / l-values
-//!   E09xx  backend / toolchain
-//!   W0xxx  warnings
-
-/// A diagnostic code such as `E0201`. Cheap to copy and compare.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub struct Code(pub &'static str);
 
@@ -18,7 +7,6 @@ impl std::fmt::Display for Code {
     }
 }
 
-// --- Lexer / parser -------------------------------------------------------
 pub const E_UNKNOWN_CHAR: Code = Code("E0101");
 pub const E_UNTERMINATED_STRING: Code = Code("E0102");
 pub const E_UNTERMINATED_COMMENT: Code = Code("E0103");
@@ -31,7 +19,6 @@ pub const E_MISSING_PROGRAM_HEADER: Code = Code("E0113");
 pub const E_DUPLICATE_MAIN: Code = Code("E0114");
 pub const E_MISSING_MAIN: Code = Code("E0115");
 
-// --- Name resolution / types ---------------------------------------------
 pub const E_UNDEFINED_NAME: Code = Code("E0201");
 pub const E_REDEFINITION: Code = Code("E0202");
 pub const E_TYPE_MISMATCH_BINOP: Code = Code("E0210");
@@ -48,13 +35,10 @@ pub const E_ASSIGN_IMMUTABLE: Code = Code("E0250");
 pub const E_UNKNOWN_FIELD: Code = Code("E0260");
 pub const E_NOT_A_STRUCT: Code = Code("E0261");
 
-// --- Assignment / l-values ------------------------------------------------
 pub const E_INVALID_ASSIGN_TARGET: Code = Code("E0301");
 
-// --- Backend / toolchain --------------------------------------------------
 pub const E_TOOLCHAIN: Code = Code("E0901");
 pub const E_UNSUPPORTED: Code = Code("E0902");
 
-// --- Warnings -------------------------------------------------------------
 pub const W_UNREACHABLE: Code = Code("W0010");
 pub const W_UNUSED_BINDING: Code = Code("W0011");

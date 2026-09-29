@@ -1,0 +1,19 @@
+[package]
+name = "lime_codegen"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+lime_ir.workspace = true
+lime_types.workspace = true
+lime_diagnostics.workspace = true
+
+[dev-dependencies]
+lime_span.workspace = true
+lime_lexer.workspace = true
+lime_parser.workspace = true
+lime_sema.workspace = true
+
+[lib]
+path = "src/lib.rs"

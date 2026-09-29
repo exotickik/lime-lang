@@ -1,11 +1,3 @@
-//! The Lime lexer: converts source text into a [`Token`] stream.
-//!
-//! The lexer is UTF-8 aware, supports nested block comments, and decodes
-//! literal values eagerly (numbers, strings, chars with escapes) so later
-//! stages never re-scan raw text. Lexical errors are reported through the shared
-//! [`DiagnosticEngine`]; the lexer recovers and keeps going so multiple errors
-//! surface in one run.
-
 pub mod token;
 
 pub use token::{Keyword, LitValue, Token, TokenKind};
@@ -26,7 +18,6 @@ impl<'a> Lexer<'a> {
         Lexer { file, src, bytes: src.as_bytes(), pos: 0, diags }
     }
 
-    /// Tokenise the whole file, always ending with an `Eof` token.
     pub fn tokenize(mut self) -> Vec<Token> {
         let mut tokens = Vec::new();
         loop {
@@ -63,7 +54,6 @@ impl<'a> Lexer<'a> {
         b
     }
 
-    /// Skip whitespace and comments (line and nested block).
     fn skip_trivia(&mut self) {
         loop {
             match self.peek() {
@@ -115,7 +105,7 @@ impl<'a> Lexer<'a> {
 
     fn next_token(&mut self, start: usize) -> Option<Token> {
         let b = self.peek().unwrap();
-        // Identifier / keyword: starts with a letter or underscore (UTF-8 aware).
+
         if b == b'_' || (b as char).is_ascii_alphabetic() || b >= 0x80 {
             return Some(self.lex_ident_or_keyword(start));
         }
@@ -127,12 +117,12 @@ impl<'a> Lexer<'a> {
             b'\'' => return self.lex_char(start),
             _ => {}
         }
-        // Operators and punctuation.
+
         let kind = self.lex_operator(start);
         match kind {
             Some(k) => Some(Token { kind: k, span: self.span(start, self.pos) }),
             None => {
-                // Unknown character: consume one full UTF-8 scalar and report.
+
                 let ch_len = utf8_len(b);
                 self.pos += ch_len;
                 let sp = self.span(start, self.pos);
@@ -166,7 +156,7 @@ impl<'a> Lexer<'a> {
     }
 
     fn lex_number(&mut self, start: usize) -> Option<Token> {
-        // Radix prefixes: 0x, 0b, 0o.
+
         if self.peek() == Some(b'0') {
             if let Some(radix_byte) = self.peek2() {
                 let radix = match radix_byte {
@@ -216,7 +206,6 @@ impl<'a> Lexer<'a> {
             }
         }
 
-        // Decimal integer or float.
         let mut is_float = false;
         let mut mantissa = String::new();
         while let Some(b) = self.peek() {
@@ -229,7 +218,7 @@ impl<'a> Lexer<'a> {
                 break;
             }
         }
-        // Fractional part: only if a digit follows the dot (so `1.metode` stays int).
+
         if self.peek() == Some(b'.') && self.peek2().map_or(false, |c| c.is_ascii_digit()) {
             is_float = true;
             mantissa.push('.');
@@ -245,7 +234,7 @@ impl<'a> Lexer<'a> {
                 }
             }
         }
-        // Exponent.
+
         if matches!(self.peek(), Some(b'e' | b'E')) {
             is_float = true;
             mantissa.push('e');
@@ -299,13 +288,12 @@ impl<'a> Lexer<'a> {
         }
     }
 
-    /// Lex an optional numeric type suffix like `i32`, `u8`, `f64`.
     fn lex_num_suffix(&mut self) -> Option<String> {
         let start = self.pos;
         if !matches!(self.peek(), Some(b'i' | b'u' | b'f')) {
             return None;
         }
-        // Only treat as a suffix if it forms a known type name.
+
         let mut end = self.pos;
         while let Some(b) = self.bytes.get(end) {
             if b.is_ascii_alphanumeric() {
@@ -326,7 +314,7 @@ impl<'a> Lexer<'a> {
     }
 
     fn lex_string(&mut self, start: usize) -> Option<Token> {
-        self.pos += 1; // opening quote
+        self.pos += 1;
         let mut value = String::new();
         loop {
             match self.bump() {
@@ -346,7 +334,7 @@ impl<'a> Lexer<'a> {
                 }
                 Some(b) if b < 0x80 => value.push(b as char),
                 Some(b) => {
-                    // Multi-byte UTF-8 scalar: rewind and take the whole char.
+
                     self.pos -= 1;
                     let len = utf8_len(b);
                     let ch = self.src[self.pos..self.pos + len].chars().next().unwrap();
@@ -362,7 +350,7 @@ impl<'a> Lexer<'a> {
     }
 
     fn lex_char(&mut self, start: usize) -> Option<Token> {
-        self.pos += 1; // opening quote
+        self.pos += 1;
         let ch = match self.bump() {
             Some(b'\\') => self.lex_escape(start),
             Some(b'\'') => {
@@ -382,7 +370,7 @@ impl<'a> Lexer<'a> {
             }
             None => None,
         };
-        // Expect closing quote.
+
         if self.peek() == Some(b'\'') {
             self.pos += 1;
         } else {
@@ -397,7 +385,6 @@ impl<'a> Lexer<'a> {
         })
     }
 
-    /// Decode an escape sequence after a backslash has been consumed.
     fn lex_escape(&mut self, start: usize) -> Option<char> {
         match self.bump() {
             Some(b'n') => Some('\n'),
@@ -461,7 +448,7 @@ impl<'a> Lexer<'a> {
     fn lex_operator(&mut self, _start: usize) -> Option<TokenKind> {
         let b = self.peek()?;
         let two = self.peek2();
-        // Two-character operators first.
+
         let two_char = match (b, two) {
             (b'-', Some(b'>')) => Some(TokenKind::Arrow),
             (b'=', Some(b'=')) => Some(TokenKind::EqEq),
@@ -503,7 +490,6 @@ impl<'a> Lexer<'a> {
     }
 }
 
-/// Length in bytes of a UTF-8 scalar from its leading byte.
 fn utf8_len(lead: u8) -> usize {
     match lead {
         0x00..=0x7F => 1,
@@ -514,7 +500,6 @@ fn utf8_len(lead: u8) -> usize {
     }
 }
 
-/// Convenience: tokenise a string into tokens, collecting diagnostics.
 pub fn tokenize(file: FileId, src: &str, diags: &mut DiagnosticEngine) -> Vec<Token> {
     Lexer::new(file, src, diags).tokenize()
 }
@@ -604,7 +589,7 @@ mod tests {
     fn unknown_char_reports_but_recovers() {
         let (kinds, d) = lex("nilai @ x");
         assert!(d.has_errors());
-        // Recovery: 'nilai' and 'x' still tokenised.
+
         assert_eq!(kinds[0], TokenKind::Keyword(Keyword::Nilai));
         assert_eq!(kinds[1], TokenKind::Ident("x".into()));
     }
