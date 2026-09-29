@@ -38,7 +38,7 @@ Reserved and cannot be used as identifiers:
 program  utama    fungsi   kembalikan
 nilai    ubah
 jika     lain     selama   untuk    dari   sampai   hingga
-henti    lanjut
+berhenti    lanjut
 benar    salah
 tipe     enum     cocok
 gunakan  impor    ekstern  publik
@@ -172,7 +172,7 @@ selama kondisi { ... }
 untuk i dari 0 sampai 10 { ... }     // half-open: 0,1,...,9
 untuk i dari 0 hingga 10 { ... }     // inclusive: 0,1,...,10
 
-henti        // break
+berhenti        // break
 lanjut       // continue
 kembalikan e // return
 ```

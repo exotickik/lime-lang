@@ -41,7 +41,7 @@ statement      = let_stmt
                | while_stmt
                | for_stmt
                | return_stmt
-               | "henti"
+               | "berhenti"
                | "lanjut"
                | block ;
 

@@ -342,7 +342,7 @@ impl<'a> Checker<'a> {
                     self.diags.emit(
                         Diagnostic::error(
                             codes::E_LOOP_CTRL_OUTSIDE_LOOP,
-                            "'henti' hanya boleh di dalam perulangan",
+                            "'berhenti' hanya boleh di dalam perulangan",
                         )
                         .primary(*sp, "di luar perulangan"),
                     );

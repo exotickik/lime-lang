@@ -99,7 +99,7 @@ mod tests {
 
     #[test]
     fn break_outside_loop() {
-        let d = check("program P\nutama { henti }");
+        let d = check("program P\nutama { berhenti }");
         assert!(has_code(&d, codes::E_LOOP_CTRL_OUTSIDE_LOOP));
     }
 

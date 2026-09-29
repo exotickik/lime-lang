@@ -316,7 +316,7 @@ impl<'a> Parser<'a> {
             TokenKind::Keyword(Keyword::Selama) => self.parse_while(),
             TokenKind::Keyword(Keyword::Untuk) => Ok(Stmt::For(self.parse_for()?)),
             TokenKind::Keyword(Keyword::Kembalikan) => self.parse_return(),
-            TokenKind::Keyword(Keyword::Henti) => {
+            TokenKind::Keyword(Keyword::Berhenti) => {
                 let sp = self.peek_span();
                 self.bump();
                 self.eat(&TokenKind::Semicolon);
@@ -642,7 +642,7 @@ impl<'a> Parser<'a> {
                         | Keyword::Selama
                         | Keyword::Untuk
                         | Keyword::Kembalikan
-                        | Keyword::Henti
+                        | Keyword::Berhenti
                         | Keyword::Lanjut
                 )
             ) {

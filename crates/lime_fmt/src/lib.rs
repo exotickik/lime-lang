@@ -143,7 +143,7 @@ impl Printer {
                 Some(e) => self.line(&format!("kembalikan {}", expr_str(e, 0))),
                 None => self.line("kembalikan"),
             },
-            Stmt::Break(_) => self.line("henti"),
+            Stmt::Break(_) => self.line("berhenti"),
             Stmt::Continue(_) => self.line("lanjut"),
             Stmt::If(if_stmt) => self.print_if(if_stmt),
             Stmt::While { cond, body, .. } => {

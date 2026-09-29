@@ -59,8 +59,8 @@ is no subtyping and no implicit coercion. Explicit conversions (`sebagai`, a
 
 After type checking, `lime_sema` runs a control-flow pass:
 - A function with return type `T ≠ hampa` must return on every path (`E0230`).
-- `henti`/`lanjut` outside a loop are errors (`E0240`).
-- Unreachable statements after `kembalikan`/`henti`/`lanjut` produce warning
+- `berhenti`/`lanjut` outside a loop are errors (`E0240`).
+- Unreachable statements after `kembalikan`/`berhenti`/`lanjut` produce warning
   `W0010`.
 
 ## Generics **(planned)**
@@ -83,5 +83,5 @@ This is designed but not implemented in the bootstrap.
 | E0221 | pemanggilan nilai yang bukan fungsi |
 | E0230 | fungsi tidak mengembalikan nilai pada semua jalur |
 | E0231 | tipe nilai kembalian tidak sesuai |
-| E0240 | 'henti'/'lanjut' di luar loop |
+| E0240 | 'berhenti'/'lanjut' di luar loop |
 | E0250 | penetapan ke binding immutable ('nilai') |
