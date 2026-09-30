@@ -3,15 +3,37 @@ use lime_types::Type;
 use std::collections::{HashMap, HashSet};
 
 pub fn optimize(module: &mut Module) {
+    optimize_level(module, 2);
+}
+
+pub fn optimize_level(module: &mut Module, opt_level: u8) {
+    if opt_level == 0 {
+        return;
+    }
     for func in &mut module.funcs {
         loop {
             let folded = fold_constants(func);
+            let branched = fold_branches(func);
             let removed = eliminate_dead(func);
-            if !folded && !removed {
+            if !folded && !branched && !removed {
                 break;
             }
         }
     }
+}
+
+fn fold_branches(func: &mut Func) -> bool {
+    let mut changed = false;
+    for block in &mut func.blocks {
+        if let Some(Terminator::CondBr { cond: Operand::ConstBool(b), then_bb, else_bb }) =
+            &block.term
+        {
+            let target = if *b { *then_bb } else { *else_bb };
+            block.term = Some(Terminator::Br(target));
+            changed = true;
+        }
+    }
+    changed
 }
 
 fn int_width_bits(ty: &Type) -> u32 {

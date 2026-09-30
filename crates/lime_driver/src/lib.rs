@@ -1,7 +1,7 @@
 use lime_ast::{Item, Program};
 use lime_codegen::{build_executable, emit_llvm_ir, Target};
 use lime_diagnostics::{codes, render, Diagnostic, DiagnosticEngine};
-use lime_ir::{lower, optimize};
+use lime_ir::{lower, optimize_level};
 use lime_lexer::tokenize;
 use lime_parser::parse_with_base;
 use lime_sema::{analyze_modules, ModuleInfo, TypeckResults};
@@ -169,7 +169,7 @@ impl Compiler {
             eprint!("{}", render::render_all(fe.diags.diagnostics(), &fe.sm));
             return None;
         }
-        optimize(&mut module);
+        optimize_level(&mut module, self.opt_level);
         Some(emit_llvm_ir(&module, &self.target))
     }
 
@@ -190,7 +190,7 @@ impl Compiler {
             eprint!("{}", render::render_all(fe.diags.diagnostics(), &fe.sm));
             return None;
         }
-        optimize(&mut module);
+        optimize_level(&mut module, self.opt_level);
         eprint!("{}", render::render_all(fe.diags.diagnostics(), &fe.sm));
 
         let out_exe = out.unwrap_or_else(|| default_output(path, &self.target));

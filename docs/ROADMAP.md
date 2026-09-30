@@ -100,8 +100,12 @@ Legend: ✅ done · 🟡 in progress · ⬜ planned
 - ⬜ `lime.toml` manifest, dependency resolution, package cache, build profiles
 
 ## Phase 8 — Optimization
-- ✅ Constant folding, dead-code elimination (Lime IR passes)
-- ⬜ Inlining, loop opts, escape analysis, LTO
+- ✅ Lime IR passes: constant folding + propagation, constant-branch folding,
+  dead-code elimination — run to a fixpoint, gated by optimization level (`-O0`
+  skips them). The optimizing backend is LLVM at the chosen `-O0..-O3`, so the IR
+  passes normalize/shrink rather than duplicate LLVM's inlining, loop and
+  load/store optimizations
+- ⬜ Escape analysis, LTO, Lime-level inlining where it beats LLVM
 - ⬜ Benchmark suite (compile time, size, runtime, allocations, startup)
 
 ## Current milestone summary

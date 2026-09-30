@@ -16,13 +16,21 @@ Typed AST + symbol tables (lime_sema, lime_types)
       │  lime_ir: lowering
       ▼
 Lime IR  (SSA-form, target-independent, Lime-owned)
-      │  lime_ir::opt (constant folding, DCE, ...)
+      │  lime_ir::opt  (constant fold + propagation, constant-branch fold, DCE;
+      │                 fixpoint, gated by opt level — skipped at -O0)
       ▼
 Optimized Lime IR
       │  lime_codegen: emit textual LLVM IR (.ll)
       ▼
-LLVM IR  ──llc──►  object file (.o)  ──cc/lld──►  native executable
+LLVM IR  ──llc -O{0..3}──►  object file (.o)  ──cc/lld──►  native executable
 ```
+
+The Lime IR passes normalize and shrink the IR (fold constants, simplify
+constant branches, drop dead pure instructions); the heavy optimization
+(inlining, loop transforms, redundant load/store elimination) is delegated to
+LLVM at the selected `-O` level rather than reimplemented. `-O0` skips the Lime
+passes and asks `llc` for no optimization; `-O1..-O3` run the Lime passes and the
+matching `llc` level.
 
 `llc` and the system linker (`cc`, `clang`, or `lld`) are invoked as external
 processes. **LLVM IR is not C/C++**; no stage ever emits or consumes C or C++

@@ -4,7 +4,7 @@ pub mod opt;
 
 pub use ir::*;
 pub use lower::lower;
-pub use opt::optimize;
+pub use opt::{optimize, optimize_level};
 
 #[cfg(test)]
 mod tests {
