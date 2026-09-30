@@ -356,6 +356,7 @@ fn expr_str(expr: &Expr, parent_prec: u8) -> String {
             format!("{}[{}]", expr_str(base, 8), expr_str(index, 0))
         }
         ExprKind::Deref(inner) => format!("*{}", expr_str(inner, 7)),
+        ExprKind::Try(inner) => format!("coba {}", expr_str(inner, 7)),
     }
 }
 

@@ -42,7 +42,7 @@ berhenti    lanjut
 benar    salah
 tipe     enum     sifat    implementasi   cocok
 gunakan  impor    ekstern  publik
-dan      atau     bukan
+dan      atau     bukan    coba
 ```
 
 Type names (`i8..i64`, `u8..u64`, `f32`, `f64`, `boolean`, `karakter`, `teks`,
@@ -388,6 +388,36 @@ utama {
 - Not yet: dynamic dispatch, default methods, associated types, generic impls.
   See `docs/TYPE_SYSTEM.md` for the full rules and diagnostics.
 
+### 3.12 Error handling (`Hasil<T, R>`, `coba`)
+A recoverable result is the built-in generic type `Hasil<T, R>`: either a success
+carrying a `T` or a failure carrying an error `R`. Errors are ordinary values —
+there is no unwinding and no hidden control flow.
+```lime
+fungsi bagi(a: angka, b: angka) -> Hasil<angka, teks> {
+    jika b == 0 { kembalikan gagal("pembagian dengan nol") }
+    kembalikan sukses(a / b)
+}
+fungsi rata(total: angka, n: angka) -> Hasil<angka, teks> {
+    nilai r = coba bagi(total, n)     // unwraps, or returns the failure early
+    kembalikan sukses(r)
+}
+utama {
+    nilai r = rata(100, 0)
+    jika berhasil(r) { tampilkan(nilai_atau(r, 0)) }
+    lain { tampilkan(gagal_atau(r, "?")) }
+}
+```
+- `sukses(x)` / `gagal(e)` build a result; the other type parameter comes from
+  the surrounding expected `Hasil` type (return type, annotation, or argument).
+- `coba e` is the propagation operator: it yields the success value, or returns
+  the failure from the enclosing function (which must return `Hasil<_, R>` with
+  the same error type `R`). Propagation is visible early-return, not an exception.
+- `berhasil(r)`, `nilai_atau(r, cadangan)`, and `gagal_atau(r, cadangan)` inspect
+  a result at a boundary without assuming a branch.
+- For now `T` and `R` must be Copy types (`teks`, numbers, Copy structs …); an
+  Owned payload is a diagnostic. `Hasil` is a value — it allocates nothing and
+  lowers to a tagged aggregate. See `docs/TYPE_SYSTEM.md`.
+
 ---
 
 ## 4. Statements
@@ -416,7 +446,7 @@ Precedence, high to low:
 | Level | Operators | Assoc |
 |---|---|---|
 | 1 | `f(...)` call, `.field` access | left |
-| 2 | unary `-` `bukan`/`!`, deref `*` | right |
+| 2 | unary `-` `bukan`/`!`, deref `*`, `coba` | right |
 | 3 | `*` `/` `%` | left |
 | 4 | `+` `-` | left |
 | 5 | `<` `<=` `>` `>=` | left |
@@ -439,8 +469,9 @@ against libc through Lime's FFI path (native ABI, not C source).
 
 `panjang(x)` — length of an array or `teks`. `kotak(x)` / `isi(k)` — build and
 read an owned heap cell (§3.9). `ambil(x)` / `ambil_ubah(x)` — borrow a place as
-a shared or mutable reference (§3.10). These names are reserved builtins and
-cannot be redefined.
+a shared or mutable reference (§3.10). `sukses(x)` / `gagal(e)` build a
+`Hasil<T, R>`, and `berhasil(r)` / `nilai_atau(r, d)` / `gagal_atau(r, d)`
+inspect one (§3.12). These names are reserved builtins and cannot be redefined.
 
 ---
 

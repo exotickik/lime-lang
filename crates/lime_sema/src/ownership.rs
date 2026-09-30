@@ -407,6 +407,7 @@ impl<'a> Own<'a> {
                 }
             }
             ExprKind::Deref(inner) => self.visit(inner, false),
+            ExprKind::Try(inner) => self.visit(inner, false),
             ExprKind::Int { .. }
             | ExprKind::Float { .. }
             | ExprKind::Str(_)

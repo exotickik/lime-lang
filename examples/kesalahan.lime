@@ -1,0 +1,37 @@
+program Kesalahan
+
+fungsi cek_positif(n: angka) -> Hasil<angka, teks> {
+    jika n < 0 {
+        kembalikan gagal("angka harus positif")
+    }
+    kembalikan sukses(n)
+}
+
+fungsi bagi(a: angka, b: angka) -> Hasil<angka, teks> {
+    jika b == 0 {
+        kembalikan gagal("pembagian dengan nol")
+    }
+    kembalikan sukses(a / b)
+}
+
+fungsi rata_rata(total: angka, jumlah: angka) -> Hasil<angka, teks> {
+    nilai t = coba cek_positif(total)
+    nilai n = coba cek_positif(jumlah)
+    nilai r = coba bagi(t, n)
+    kembalikan sukses(r)
+}
+
+fungsi lapor(nama: teks, r: Hasil<angka, teks>) {
+    tampilkan(nama)
+    jika berhasil(r) {
+        tampilkan(nilai_atau(r, 0))
+    } lain {
+        tampilkan(gagal_atau(r, "kesalahan tak dikenal"))
+    }
+}
+
+utama {
+    lapor("kasus normal", rata_rata(100, 4))
+    lapor("bagi nol", rata_rata(100, 0))
+    lapor("input negatif", rata_rata(-5, 4))
+}

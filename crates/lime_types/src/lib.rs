@@ -51,6 +51,7 @@ pub enum Type {
     Array { elem: Box<Type>, size: u64 },
     Kotak(Box<Type>),
     Ref { inner: Box<Type>, mutable: bool },
+    Hasil { ok: Box<Type>, err: Box<Type> },
     Fn { params: Vec<Type>, ret: Box<Type> },
     Param(String),
 
@@ -137,6 +138,7 @@ impl Type {
                     format!("&{}", inner.display())
                 }
             }
+            Type::Hasil { ok, err } => format!("Hasil<{}, {}>", ok.display(), err.display()),
             Type::Param(name) => name.clone(),
             Type::Fn { params, ret } => {
                 let ps: Vec<String> = params.iter().map(|t| t.display()).collect();

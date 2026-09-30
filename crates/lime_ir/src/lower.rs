@@ -533,6 +533,80 @@ impl<'a> FnLowerer<'a> {
                 self.emit(Some(dst), InstrKind::LoadPtr { ptr, ty: pointee });
                 Operand::Val(dst)
             }
+            ExprKind::Try(inner) => self.lower_try(inner),
+        }
+    }
+
+    fn hasil_field(&mut self, hasil: Operand, hasil_ty: &Type, index: u32, field_ty: Type) -> Operand {
+        let dst = self.fresh_value();
+        self.emit(
+            Some(dst),
+            InstrKind::ExtractField { agg: hasil, agg_ty: hasil_ty.clone(), index, field_ty },
+        );
+        Operand::Val(dst)
+    }
+
+    fn make_hasil(&mut self, hasil_ty: &Type, tag: u128, ok: Operand, err: Operand) -> Operand {
+        let dst = self.fresh_value();
+        self.emit(
+            Some(dst),
+            InstrKind::MakeStruct {
+                ty: hasil_ty.clone(),
+                fields: vec![Operand::ConstInt(tag, Type::I32), ok, err],
+            },
+        );
+        Operand::Val(dst)
+    }
+
+    fn lower_try(&mut self, inner: &Expr) -> Operand {
+        let hasil_ty = self.results.expr_type(inner.id).clone();
+        let (ok_ty, err_ty) = match &hasil_ty {
+            Type::Hasil { ok, err } => ((**ok).clone(), (**err).clone()),
+            _ => return Operand::ConstInt(0, Type::I64),
+        };
+        let val = self.lower_expr(inner);
+        let tag = self.hasil_field(val.clone(), &hasil_ty, 0, Type::I32);
+        let is_ok = self.fresh_value();
+        self.emit(
+            Some(is_ok),
+            InstrKind::Cmp {
+                pred: CmpPred::Eq,
+                ty: Type::I32,
+                signed: false,
+                lhs: tag,
+                rhs: Operand::ConstInt(0, Type::I32),
+            },
+        );
+        let ok_bb = self.new_block();
+        let err_bb = self.new_block();
+        self.set_term(Terminator::CondBr { cond: Operand::Val(is_ok), then_bb: ok_bb, else_bb: err_bb });
+
+        self.current = err_bb;
+        let err_val = self.hasil_field(val.clone(), &hasil_ty, 2, err_ty.clone());
+        let ret_ty = self.ret_ty.clone();
+        let undef_ok = self.undef_of(&ret_ok_type(&ret_ty));
+        let failed = self.make_hasil(&ret_ty, 1, undef_ok, err_val);
+        self.set_term(Terminator::Ret(Some(failed)));
+
+        self.current = ok_bb;
+        self.hasil_field(val, &hasil_ty, 1, ok_ty)
+    }
+
+    fn undef_of(&mut self, ty: &Type) -> Operand {
+        match ty {
+            Type::Float(_) => Operand::ConstFloat(0.0, ty.clone()),
+            Type::Bool => Operand::ConstBool(false),
+            Type::Str => {
+                let id = self.module.intern_str(Vec::new());
+                Operand::Str(id)
+            }
+            Type::Struct(_) | Type::Array { .. } | Type::Hasil { .. } => {
+                let slot = self.new_slot(ty.clone());
+                let dst = self.fresh_value();
+                self.emit(Some(dst), InstrKind::Load { slot });
+                Operand::Val(dst)
+            }
+            _ => Operand::ConstInt(0, ty.clone()),
         }
     }
 
@@ -1149,6 +1223,75 @@ impl<'a> FnLowerer<'a> {
             Some(Res::Builtin(Builtin::Ambil)) | Some(Res::Builtin(Builtin::AmbilUbah)) => {
                 self.lower_place_addr(&args[0])
             }
+            Some(Res::Builtin(Builtin::Sukses)) | Some(Res::Builtin(Builtin::Gagal)) => {
+                let is_ok = matches!(self.results.name_res.get(&callee.id), Some(Res::Builtin(Builtin::Sukses)));
+                let hasil_ty = self.results.expr_type(expr.id).clone();
+                let (ok_ty, err_ty) = match &hasil_ty {
+                    Type::Hasil { ok, err } => ((**ok).clone(), (**err).clone()),
+                    _ => (Type::I64, Type::I64),
+                };
+                let payload = self.lower_expr(&args[0]);
+                if is_ok {
+                    let undef_err = self.undef_of(&err_ty);
+                    self.make_hasil(&hasil_ty, 0, payload, undef_err)
+                } else {
+                    let undef_ok = self.undef_of(&ok_ty);
+                    self.make_hasil(&hasil_ty, 1, undef_ok, payload)
+                }
+            }
+            Some(Res::Builtin(Builtin::Berhasil)) => {
+                let hasil_ty = self.results.expr_type(args[0].id).clone();
+                let val = self.lower_expr(&args[0]);
+                let tag = self.hasil_field(val, &hasil_ty, 0, Type::I32);
+                let dst = self.fresh_value();
+                self.emit(
+                    Some(dst),
+                    InstrKind::Cmp {
+                        pred: CmpPred::Eq,
+                        ty: Type::I32,
+                        signed: false,
+                        lhs: tag,
+                        rhs: Operand::ConstInt(0, Type::I32),
+                    },
+                );
+                Operand::Val(dst)
+            }
+            Some(Res::Builtin(Builtin::NilaiAtau)) | Some(Res::Builtin(Builtin::GagalAtau)) => {
+                let is_ok = matches!(self.results.name_res.get(&callee.id), Some(Res::Builtin(Builtin::NilaiAtau)));
+                let hasil_ty = self.results.expr_type(args[0].id).clone();
+                let (ok_ty, err_ty) = match &hasil_ty {
+                    Type::Hasil { ok, err } => ((**ok).clone(), (**err).clone()),
+                    _ => (Type::I64, Type::I64),
+                };
+                let val = self.lower_expr(&args[0]);
+                let tag = self.hasil_field(val.clone(), &hasil_ty, 0, Type::I32);
+                let (idx, field_ty, want_tag) =
+                    if is_ok { (1, ok_ty, 0) } else { (2, err_ty, 1) };
+                let payload = self.hasil_field(val, &hasil_ty, idx, field_ty.clone());
+                let fallback = self.lower_expr(&args[1]);
+                let cond = self.fresh_value();
+                self.emit(
+                    Some(cond),
+                    InstrKind::Cmp {
+                        pred: CmpPred::Eq,
+                        ty: Type::I32,
+                        signed: false,
+                        lhs: tag,
+                        rhs: Operand::ConstInt(want_tag, Type::I32),
+                    },
+                );
+                let dst = self.fresh_value();
+                self.emit(
+                    Some(dst),
+                    InstrKind::Select {
+                        cond: Operand::Val(cond),
+                        then_val: payload,
+                        else_val: fallback,
+                        ty: field_ty,
+                    },
+                );
+                Operand::Val(dst)
+            }
             Some(Res::Builtin(Builtin::Panjang)) => {
                 let arg_ty = self.results.expr_type(args[0].id).clone();
                 match arg_ty {
@@ -1468,6 +1611,13 @@ impl<'a> FnLowerer<'a> {
     }
 }
 
+
+fn ret_ok_type(ty: &Type) -> Type {
+    match ty {
+        Type::Hasil { ok, .. } => (**ok).clone(),
+        _ => Type::I64,
+    }
+}
 
 fn struct_of(ty: &Type) -> Option<lime_types::StructId> {
     match ty {

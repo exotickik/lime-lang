@@ -79,7 +79,8 @@ eq_expr        = rel_expr { ( "==" | "!=" ) rel_expr } ;
 rel_expr       = add_expr { ( "<" | "<=" | ">" | ">=" ) add_expr } ;
 add_expr       = mul_expr { ( "+" | "-" ) mul_expr } ;
 mul_expr       = unary    { ( "*" | "/" | "%" ) unary } ;
-unary          = ( "-" | "!" | "bukan" | "*" ) unary   (* "*" e dereferences a reference *)
+unary          = ( "-" | "!" | "bukan" | "*" | "coba" ) unary
+                                                       (* "*" derefs a reference; "coba" propagates a Hasil *)
                | postfix ;
 postfix        = primary { call_suffix | field_suffix } ;
 call_suffix    = "(" [ arg_list ] ")" ;
@@ -111,6 +112,9 @@ literal        = IntLit | FloatLit | StringLit | CharLit | "benar" | "salah" ;
 - `Diri` is a contextual type name (not a keyword) usable only inside a `sifat`
   or `implementasi`, standing for the implementing type; `&Diri` / `&ubah Diri`
   / `Diri` choose the receiver's borrow mode.
+- `Hasil<T, R>` is the built-in result type (an `Applied` type). `sukses`,
+  `gagal`, `berhasil`, `nilai_atau`, and `gagal_atau` are reserved builtins used
+  with ordinary call syntax; `coba e` is the propagation operator.
 - Statement boundaries are determined structurally; a leading `-` on a new line
   is parsed as a binary operator continuing the previous expression only inside
   an unclosed `(` — top-level statements do not span lines implicitly.

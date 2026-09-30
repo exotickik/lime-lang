@@ -14,6 +14,11 @@ pub enum Builtin {
     Isi,
     Ambil,
     AmbilUbah,
+    Sukses,
+    Gagal,
+    Berhasil,
+    NilaiAtau,
+    GagalAtau,
 }
 
 #[derive(Clone, Debug)]

@@ -573,6 +573,11 @@ impl<'a> Checker<'a> {
         self.globals.insert("isi".to_string(), Res::Builtin(Builtin::Isi));
         self.globals.insert("ambil".to_string(), Res::Builtin(Builtin::Ambil));
         self.globals.insert("ambil_ubah".to_string(), Res::Builtin(Builtin::AmbilUbah));
+        self.globals.insert("sukses".to_string(), Res::Builtin(Builtin::Sukses));
+        self.globals.insert("gagal".to_string(), Res::Builtin(Builtin::Gagal));
+        self.globals.insert("berhasil".to_string(), Res::Builtin(Builtin::Berhasil));
+        self.globals.insert("nilai_atau".to_string(), Res::Builtin(Builtin::NilaiAtau));
+        self.globals.insert("gagal_atau".to_string(), Res::Builtin(Builtin::GagalAtau));
     }
 
     fn check_bodies(&mut self, program: &Program) {
@@ -927,7 +932,7 @@ impl<'a> Checker<'a> {
             },
             ExprKind::Binary { op, lhs, rhs } => self.check_binary(*op, lhs, rhs, expected),
             ExprKind::Unary { op, operand } => self.check_unary(*op, operand),
-            ExprKind::Call { callee, args } => self.check_call(expr, callee, args),
+            ExprKind::Call { callee, args } => self.check_call(expr, callee, args, expected),
             ExprKind::Field { base, field } => {
                 if let ExprKind::Name(n) = &base.kind {
                     if let Some(&eid) = self.enum_ids.get(n) {
@@ -940,6 +945,7 @@ impl<'a> Checker<'a> {
             ExprKind::ArrayLit(elems) => self.check_array_lit(elems, expected),
             ExprKind::Index { base, index } => self.check_index(base, index),
             ExprKind::Deref(inner) => self.check_deref(inner),
+            ExprKind::Try(inner) => self.check_try(inner),
         }
     }
 
@@ -1183,11 +1189,26 @@ impl<'a> Checker<'a> {
         }
     }
 
-    fn check_call(&mut self, call: &Expr, callee: &Expr, args: &[Expr]) -> Type {
+    fn check_call(&mut self, call: &Expr, callee: &Expr, args: &[Expr], expected: Option<&Type>) -> Type {
         if let ExprKind::Field { base, field } = &callee.kind {
             let enum_path = matches!(&base.kind, ExprKind::Name(n) if self.enum_ids.contains_key(n));
             if !enum_path {
                 return self.check_method_call(call, base, field, args);
+            }
+        }
+        if let ExprKind::Name(name) = &callee.kind {
+            if let Some(Res::Builtin(b)) = self.lookup(name) {
+                if matches!(
+                    b,
+                    Builtin::Sukses
+                        | Builtin::Gagal
+                        | Builtin::Berhasil
+                        | Builtin::NilaiAtau
+                        | Builtin::GagalAtau
+                ) {
+                    self.results.name_res.insert(callee.id, Res::Builtin(b));
+                    return self.check_hasil_builtin(b, call, args, expected);
+                }
             }
         }
         let ExprKind::Name(name) = &callee.kind else {
@@ -1593,6 +1614,12 @@ impl<'a> Checker<'a> {
             TypeExprKind::Applied { name, args } if name == "kotak" && args.len() == 1 => {
                 Type::Kotak(Box::new(self.resolve_type_generic(&args[0], type_params)))
             }
+            TypeExprKind::Applied { name, args } if name == "Hasil" && args.len() == 2 => {
+                Type::Hasil {
+                    ok: Box::new(self.resolve_type_generic(&args[0], type_params)),
+                    err: Box::new(self.resolve_type_generic(&args[1], type_params)),
+                }
+            }
             TypeExprKind::Applied { .. } => Type::Error,
             TypeExprKind::Ref { inner, mutable } => Type::Ref {
                 inner: Box::new(self.resolve_type_generic(inner, type_params)),
@@ -1650,6 +1677,195 @@ impl<'a> Checker<'a> {
             );
         }
         Type::Ref { inner: Box::new(ty), mutable }
+    }
+
+    fn require_hasil_copy(&mut self, ok: &Type, err: &Type, span: Span) -> bool {
+        let bad = if !self.is_copy(ok) {
+            Some(ok)
+        } else if !self.is_copy(err) {
+            Some(err)
+        } else {
+            None
+        };
+        if let Some(t) = bad {
+            self.diags.emit(
+                Diagnostic::error(
+                    codes::E_HASIL_NOT_COPY,
+                    format!("'Hasil' belum mendukung tipe milik '{}' sebagai muatan", t.display()),
+                )
+                .primary(span, "muatan bertipe milik")
+                .help("gunakan tipe salinan (mis. angka, teks) untuk nilai dan error"),
+            );
+            false
+        } else {
+            true
+        }
+    }
+
+    fn check_hasil_builtin(
+        &mut self,
+        b: Builtin,
+        call: &Expr,
+        args: &[Expr],
+        expected: Option<&Type>,
+    ) -> Type {
+        let want = if matches!(b, Builtin::NilaiAtau | Builtin::GagalAtau) { 2 } else { 1 };
+        let name = match b {
+            Builtin::Sukses => "sukses",
+            Builtin::Gagal => "gagal",
+            Builtin::Berhasil => "berhasil",
+            Builtin::NilaiAtau => "nilai_atau",
+            Builtin::GagalAtau => "gagal_atau",
+            _ => unreachable!(),
+        };
+        if args.len() != want {
+            self.diags.emit(
+                Diagnostic::error(
+                    codes::E_ARITY_MISMATCH,
+                    format!("'{}' butuh {} argumen, diberi {}", name, want, args.len()),
+                )
+                .primary(call.span, "jumlah argumen salah"),
+            );
+            for a in args {
+                self.check_expr(a, None);
+            }
+            return Type::Error;
+        }
+
+        match b {
+            Builtin::Sukses | Builtin::Gagal => {
+                let exp = match expected {
+                    Some(Type::Hasil { ok, err }) => Some(((**ok).clone(), (**err).clone())),
+                    _ => None,
+                };
+                let is_ok = matches!(b, Builtin::Sukses);
+                let hint = exp.as_ref().map(|(o, e)| if is_ok { o.clone() } else { e.clone() });
+                let at = self.check_expr(&args[0], hint.as_ref());
+                let Some((ok, err)) = exp else {
+                    self.diags.emit(
+                        Diagnostic::error(
+                            codes::E_HASIL_NO_CONTEXT,
+                            format!("tipe 'Hasil' dari '{}' tidak bisa disimpulkan di sini", name),
+                        )
+                        .primary(call.span, "tidak ada tipe 'Hasil' yang diharapkan")
+                        .help("beri anotasi tipe atau pakai di posisi kembalian 'Hasil<T, R>'"),
+                    );
+                    return Type::Error;
+                };
+                let target = if is_ok { &ok } else { &err };
+                if !at.is_error() && !at.assignable_to(target) {
+                    self.diags.emit(
+                        Diagnostic::error(
+                            codes::E_HASIL_TYPE_CONFLICT,
+                            format!("'{}' diberi '{}', tetapi 'Hasil' butuh '{}'", name, at.display(), target.display()),
+                        )
+                        .primary(args[0].span, format!("bertipe '{}'", at.display())),
+                    );
+                }
+                self.require_hasil_copy(&ok, &err, call.span);
+                Type::Hasil { ok: Box::new(ok), err: Box::new(err) }
+            }
+            Builtin::Berhasil => {
+                let at = self.check_expr(&args[0], None);
+                match at {
+                    Type::Hasil { .. } => Type::Bool,
+                    Type::Error => Type::Error,
+                    other => {
+                        self.diags.emit(
+                            Diagnostic::error(
+                                codes::E_INSPECT_MISUSE,
+                                format!("'berhasil' butuh 'Hasil', bukan '{}'", other.display()),
+                            )
+                            .primary(args[0].span, "bukan 'Hasil'"),
+                        );
+                        Type::Error
+                    }
+                }
+            }
+            Builtin::NilaiAtau | Builtin::GagalAtau => {
+                let at = self.check_expr(&args[0], None);
+                let picked = match &at {
+                    Type::Hasil { ok, err } => {
+                        Some(if matches!(b, Builtin::NilaiAtau) { (**ok).clone() } else { (**err).clone() })
+                    }
+                    _ => None,
+                };
+                match picked {
+                    Some(want_ty) => {
+                        let fb = self.check_expr(&args[1], Some(&want_ty));
+                        if !fb.is_error() && !fb.assignable_to(&want_ty) {
+                            self.diags.emit(
+                                Diagnostic::error(
+                                    codes::E_INSPECT_MISUSE,
+                                    format!("cadangan bertipe '{}', diharapkan '{}'", fb.display(), want_ty.display()),
+                                )
+                                .primary(args[1].span, "tipe cadangan tidak cocok"),
+                            );
+                        }
+                        want_ty
+                    }
+                    None => {
+                        self.check_expr(&args[1], None);
+                        if !at.is_error() {
+                            self.diags.emit(
+                                Diagnostic::error(
+                                    codes::E_INSPECT_MISUSE,
+                                    format!("'{}' butuh 'Hasil', bukan '{}'", name, at.display()),
+                                )
+                                .primary(args[0].span, "bukan 'Hasil'"),
+                            );
+                        }
+                        Type::Error
+                    }
+                }
+            }
+            _ => unreachable!(),
+        }
+    }
+
+    fn check_try(&mut self, inner: &Expr) -> Type {
+        let it = self.check_expr(inner, None);
+        let (ok, err) = match &it {
+            Type::Hasil { ok, err } => ((**ok).clone(), (**err).clone()),
+            Type::Error => return Type::Error,
+            other => {
+                self.diags.emit(
+                    Diagnostic::error(
+                        codes::E_TRY_NON_HASIL,
+                        format!("'coba' hanya untuk 'Hasil', bukan '{}'", other.display()),
+                    )
+                    .primary(inner.span, "bukan 'Hasil'"),
+                );
+                return Type::Error;
+            }
+        };
+        match self.current_ret.clone() {
+            Type::Hasil { err: ret_err, .. } => {
+                if *ret_err != err {
+                    self.diags.emit(
+                        Diagnostic::error(
+                            codes::E_TRY_BAD_CONTEXT,
+                            format!(
+                                "'coba' meneruskan error '{}', tetapi fungsi mengembalikan error '{}'",
+                                err.display(),
+                                ret_err.display()
+                            ),
+                        )
+                        .primary(inner.span, "tipe error tidak cocok dengan kembalian"),
+                    );
+                }
+            }
+            _ => {
+                self.diags.emit(
+                    Diagnostic::error(
+                        codes::E_TRY_BAD_CONTEXT,
+                        "'coba' hanya boleh di dalam fungsi yang mengembalikan 'Hasil<T, R>'",
+                    )
+                    .primary(inner.span, "fungsi ini tidak mengembalikan 'Hasil'"),
+                );
+            }
+        }
+        ok
     }
 
     fn place_is_mutable(&self, expr: &Expr) -> bool {
@@ -1869,12 +2085,17 @@ impl<'a> Checker<'a> {
                     let inner = self.resolve_type(&args[0]);
                     return Type::Kotak(Box::new(inner));
                 }
+                if name == "Hasil" && args.len() == 2 {
+                    let ok = self.resolve_type(&args[0]);
+                    let err = self.resolve_type(&args[1]);
+                    return Type::Hasil { ok: Box::new(ok), err: Box::new(err) };
+                }
                 self.diags.emit(
                     Diagnostic::error(
                         codes::E_UNKNOWN_TYPE,
                         format!("tipe generik '{}' dengan {} argumen tidak dikenal", name, args.len()),
                     )
-                    .primary(ty.span, "hanya 'kotak<T>' yang didukung saat ini"),
+                    .primary(ty.span, "hanya 'kotak<T>' dan 'Hasil<T, R>' yang didukung saat ini"),
                 );
                 Type::Error
             }
@@ -1892,6 +2113,7 @@ impl<'a> Checker<'a> {
                 self.results.structs[id.0 as usize].fields.iter().all(|f| self.is_copy(&f.ty))
             }
             Type::Array { elem, .. } => self.is_copy(elem),
+            Type::Hasil { ok, err } => self.is_copy(ok) && self.is_copy(err),
             Type::Param(_) => true,
             _ => true,
         }
@@ -1971,7 +2193,17 @@ impl<'a> Checker<'a> {
 fn is_builtin_name(name: &str) -> bool {
     matches!(
         name,
-        "tampilkan" | "panjang" | "kotak" | "isi" | "ambil" | "ambil_ubah"
+        "tampilkan"
+            | "panjang"
+            | "kotak"
+            | "isi"
+            | "ambil"
+            | "ambil_ubah"
+            | "sukses"
+            | "gagal"
+            | "berhasil"
+            | "nilai_atau"
+            | "gagal_atau"
     )
 }
 
@@ -1994,6 +2226,13 @@ fn unify(pat: &Type, actual: &Type, subst: &mut HashMap<String, Type>) -> bool {
         Type::Ref { inner, mutable } => {
             if let Type::Ref { inner: i2, mutable: m2 } = actual {
                 mutable == m2 && unify(inner, i2, subst)
+            } else {
+                false
+            }
+        }
+        Type::Hasil { ok, err } => {
+            if let Type::Hasil { ok: o2, err: e2 } = actual {
+                unify(ok, o2, subst) && unify(err, e2, subst)
             } else {
                 false
             }
@@ -2028,6 +2267,10 @@ fn subst_type(ty: &Type, subst: &HashMap<String, Type>) -> Type {
         Type::Ref { inner, mutable } => {
             Type::Ref { inner: Box::new(subst_type(inner, subst)), mutable: *mutable }
         }
+        Type::Hasil { ok, err } => Type::Hasil {
+            ok: Box::new(subst_type(ok, subst)),
+            err: Box::new(subst_type(err, subst)),
+        },
         Type::Fn { params, ret } => Type::Fn {
             params: params.iter().map(|p| subst_type(p, subst)).collect(),
             ret: Box::new(subst_type(ret, subst)),
@@ -2064,6 +2307,13 @@ fn type_to_type_expr_kind(ty: &Type, results: &TypeckResults) -> TypeExprKind {
                 span: dummy_span(),
             }),
             mutable: *mutable,
+        },
+        Type::Hasil { ok, err } => TypeExprKind::Applied {
+            name: "Hasil".to_string(),
+            args: vec![
+                TypeExpr { kind: type_to_type_expr_kind(ok, results), span: dummy_span() },
+                TypeExpr { kind: type_to_type_expr_kind(err, results), span: dummy_span() },
+            ],
         },
         other => TypeExprKind::Named(other.display()),
     }
@@ -2216,6 +2466,7 @@ fn renumber_expr(e: &mut Expr, counter: &mut u32) {
             renumber_expr(index, counter);
         }
         ExprKind::Deref(inner) => renumber_expr(inner, counter),
+        ExprKind::Try(inner) => renumber_expr(inner, counter),
         ExprKind::Int { .. }
         | ExprKind::Float { .. }
         | ExprKind::Str(_)

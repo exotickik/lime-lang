@@ -233,9 +233,10 @@ fn emit_instr(
         }
         InstrKind::MakeStruct { ty, fields } => {
             let struct_ty = ty_str(ty);
-            let field_types: &[Type] = match ty {
-                Type::Struct(id) => &structs[id.0 as usize].fields,
-                _ => &[],
+            let field_types: Vec<Type> = match ty {
+                Type::Struct(id) => structs[id.0 as usize].fields.clone(),
+                Type::Hasil { ok, err } => vec![Type::I32, (**ok).clone(), (**err).clone()],
+                _ => Vec::new(),
             };
             let d = dst.unwrap();
             let n = fields.len();
@@ -467,6 +468,7 @@ fn ty_str(ty: &Type) -> String {
         Type::Array { elem, size } => format!("[{} x {}]", size, ty_str(elem)),
         Type::Kotak(_) => "ptr".to_string(),
         Type::Ref { .. } => "ptr".to_string(),
+        Type::Hasil { ok, err } => format!("{{ i32, {}, {} }}", ty_str(ok), ty_str(err)),
         Type::Param(_) => "void".to_string(),
         Type::Fn { .. } => "ptr".to_string(),
         Type::Error => "void".to_string(),

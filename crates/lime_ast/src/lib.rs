@@ -281,6 +281,7 @@ pub enum ExprKind {
     Index { base: Box<Expr>, index: Box<Expr> },
 
     Deref(Box<Expr>),
+    Try(Box<Expr>),
 }
 
 #[derive(Clone, Debug)]

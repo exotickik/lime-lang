@@ -68,7 +68,11 @@ Legend: ✅ done · 🟡 in progress · ⬜ planned
   bound checking, real native lowering (methods are ordinary functions, no
   vtables)
 - ⬜ Generic structs/enums, explicit type args, dynamic dispatch / trait objects
-- ⬜ Error handling model
+- ✅ Error handling (`Hasil<T, R>`, Phase 12): built-in result type, `sukses`/
+  `gagal` constructors, `coba` propagation (early-return), `berhasil`/
+  `nilai_atau`/`gagal_atau` inspection, generic integration, native tagged-value
+  lowering (no exceptions, no allocation). Owned payloads and `cocok`
+  destructuring are documented follow-ups
 - ⬜ Modules across files
 - ✅ C-ABI FFI (`ekstern fungsi`, including variadic; links against libc) —
   see `docs/FFI.md`

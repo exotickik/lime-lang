@@ -727,6 +727,14 @@ impl<'a> Parser<'a> {
             let id = self.node_id();
             return Ok(Expr { id, kind: ExprKind::Deref(Box::new(operand)), span });
         }
+        if matches!(self.peek(), TokenKind::Keyword(Keyword::Coba)) {
+            let start = self.peek_span();
+            self.bump();
+            let operand = self.parse_unary()?;
+            let span = start.to(operand.span);
+            let id = self.node_id();
+            return Ok(Expr { id, kind: ExprKind::Try(Box::new(operand)), span });
+        }
         let (op, start) = match self.peek() {
             TokenKind::Minus => (Some(UnOp::Neg), self.peek_span()),
             TokenKind::Bang | TokenKind::Keyword(Keyword::Bukan) => {

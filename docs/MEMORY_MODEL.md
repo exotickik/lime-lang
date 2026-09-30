@@ -150,6 +150,17 @@ Use `isi(b)` to read the Copy payload of a borrowed box instead.
 `*r = e` to a native `store`. There is no wrapper, tag, or count — a reference is
 exactly a machine pointer, and reference-only code performs no heap traffic.
 
+### Results (`Hasil<T, R>`)
+
+The recoverable-result type `Hasil<T, R>` (`docs/TYPE_SYSTEM.md`) is, for now,
+restricted to Copy (`salinan`) payloads, so it is itself Copy: it lives inline as
+a tagged aggregate `{ tag, T, R }`, is copied rather than moved, and is never
+dropped. `sukses`/`gagal` construct it, `coba` unwraps or early-returns the
+failure, and the inspection builtins read it — all with no allocation and no
+drop obligations. Owned payloads (which would need the ok field dropped only on
+success and the err field only on failure — a conditional drop) are a documented
+later extension, rejected with a diagnostic today rather than mishandled.
+
 ### Method receivers
 
 Trait and inherent methods (`docs/TYPE_SYSTEM.md`) take their receiver as the

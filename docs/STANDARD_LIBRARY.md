@@ -41,6 +41,18 @@ claims to exist before it does.
   escape the scope of the value it points at. See `docs/MEMORY_MODEL.md` for the
   full borrowing rules.
 
+### Error handling
+- `sukses(x)` / `gagal(e)` — build a `Hasil<T, R>` success or failure. The
+  unconstrained type parameter comes from the expected type in scope.
+- `coba r` — propagation operator: yields the success value of `r`, or returns
+  the failure early from the enclosing `Hasil<_, R>` function.
+- `berhasil(r) -> boolean` — is `r` a success?
+- `nilai_atau(r, cadangan) -> T` — the success value, or `cadangan` on failure.
+- `gagal_atau(r, cadangan) -> R` — the error value, or `cadangan` on success.
+
+  `Hasil<T, R>` is a value type (a tagged aggregate, no allocation); `T` and `R`
+  must be Copy types. See `docs/TYPE_SYSTEM.md` for the full model.
+
 The heap runtime for owned values is libc `malloc`/`free`, reached through Lime's
 own C-ABI FFI path — no separate allocator library. Growable containers
 (`daftar<T>`) will be standard-library types built on `kotak` and this runtime.

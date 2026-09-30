@@ -19,6 +19,7 @@ Type =
   | Array { elem: Type, size: u64 }               // fixed-size array [T; N]
   | Kotak(Type)                                   // owned heap cell kotak<T>
   | Ref { inner: Type, mutable: bool }            // reference &T / &ubah T (native pointer)
+  | Hasil { ok: Type, err: Type }                 // recoverable result Hasil<T, R>
   | Fn { params: [Type], ret: Type }              // function type
   | Param(String)                                 // generic type variable
   | Error                                         // poison type (post-error)
@@ -101,6 +102,29 @@ at, so borrowing never allocates and never drops.
 
 The borrow checker (see `docs/MEMORY_MODEL.md`) enforces the aliasing and
 lifetime rules on top of these typing rules.
+
+## Error handling (`Hasil<T, R>`)
+
+`Hasil<T, R>` is a built-in generic result type: a success carrying a `T` or a
+failure carrying an error `R`. It is a value type with a tagged layout, fully
+resolved and checked at compile time; there is no exception machinery.
+
+- **Construction.** `sukses(x)` has type `Hasil<typeof x, R>` and `gagal(e)` has
+  type `Hasil<T, typeof e>`; the unconstrained parameter is taken from the
+  expected type in scope (return type, `let` annotation, or argument). With no
+  expected `Hasil` the constructor is `E02B0`; a payload whose type conflicts
+  with the expected `Hasil` is `E02B5`.
+- **Propagation.** `coba e` requires `e : Hasil<T, R>` (else `E02B1`) and yields
+  `T`; on a failure it returns early from the enclosing function, which must
+  return `Hasil<U, R>` with the same `R` (else `E02B2`). The error value moves
+  into the returned failure — ordinary early-return control flow.
+- **Inspection.** `berhasil(r) -> boolean`, `nilai_atau(r, d) -> T`, and
+  `gagal_atau(r, d) -> R` read a result without assuming a branch; misuse (a
+  non-`Hasil` argument or a mistyped fallback) is `E02B4`.
+- **Copy requirement.** `T` and `R` must be Copy (`salinan`) for now, so `Hasil`
+  is itself Copy and never dropped; an Owned payload is `E02B3`. Unification
+  recurses through `Hasil`, so `Hasil<T, R>` parameters infer in generic
+  functions.
 
 ## Assignability
 
@@ -236,3 +260,9 @@ method bodies, associated types/constants, and blanket or generic impls.
 | E02A4 | tipe tidak memenuhi batas sifat |
 | E02A5 | implementasi ganda sebuah sifat untuk satu tipe |
 | E02A6 | sifat atau tipe target tidak dikenal |
+| E02B0 | `sukses`/`gagal` tanpa tipe `Hasil` yang diharapkan |
+| E02B1 | `coba` pada sesuatu yang bukan `Hasil` |
+| E02B2 | `coba` di luar fungsi `Hasil<_, R>` atau tipe error tak cocok |
+| E02B3 | muatan `Hasil<T, R>` bertipe milik (belum didukung) |
+| E02B4 | penyalahgunaan `berhasil`/`nilai_atau`/`gagal_atau` |
+| E02B5 | nilai `sukses`/`gagal` bentrok dengan `Hasil` yang diharapkan |

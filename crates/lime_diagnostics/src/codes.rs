@@ -63,6 +63,13 @@ pub const E_BOUND_NOT_SATISFIED: Code = Code("E02A4");
 pub const E_DUP_IMPL: Code = Code("E02A5");
 pub const E_UNKNOWN_TRAIT_OR_TYPE: Code = Code("E02A6");
 
+pub const E_HASIL_NO_CONTEXT: Code = Code("E02B0");
+pub const E_TRY_NON_HASIL: Code = Code("E02B1");
+pub const E_TRY_BAD_CONTEXT: Code = Code("E02B2");
+pub const E_HASIL_NOT_COPY: Code = Code("E02B3");
+pub const E_INSPECT_MISUSE: Code = Code("E02B4");
+pub const E_HASIL_TYPE_CONFLICT: Code = Code("E02B5");
+
 pub const E_INVALID_ASSIGN_TARGET: Code = Code("E0301");
 
 pub const E_TOOLCHAIN: Code = Code("E0901");

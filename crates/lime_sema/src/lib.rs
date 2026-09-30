@@ -730,4 +730,87 @@ mod tests {
         let d = check("program P\nfungsi f(x: &Diri) -> angka { kembalikan 0 }\nutama { }");
         assert!(d.has_errors());
     }
+
+    const HASIL_BAGI: &str = "program P\n\
+        fungsi bagi(a: angka, b: angka) -> Hasil<angka, teks> {\n\
+            jika b == 0 { kembalikan gagal(\"nol\") }\n\
+            kembalikan sukses(a / b)\n\
+        }\n";
+
+    #[test]
+    fn hasil_construct_and_inspect_ok() {
+        let d = check(&format!(
+            "{HASIL_BAGI}utama {{ nilai r = bagi(10, 2) \
+             jika berhasil(r) {{ tampilkan(nilai_atau(r, 0)) }} \
+             lain {{ tampilkan(gagal_atau(r, \"?\")) }} }}"
+        ));
+        assert!(!d.has_errors(), "{:?}", d.diagnostics());
+    }
+
+    #[test]
+    fn hasil_propagation_ok() {
+        let d = check(&format!(
+            "{HASIL_BAGI}fungsi dua(a: angka, b: angka, c: angka) -> Hasil<angka, teks> {{ \
+             nilai x = coba bagi(a, b) nilai y = coba bagi(x, c) kembalikan sukses(y) }}\n\
+             utama {{ nilai r = dua(100, 5, 2) tampilkan(nilai_atau(r, 0)) }}"
+        ));
+        assert!(!d.has_errors(), "{:?}", d.diagnostics());
+    }
+
+    #[test]
+    fn generic_hasil_ok() {
+        let d = check(
+            "program P\nfungsi bungkus<T>(x: T) -> Hasil<T, teks> { kembalikan sukses(x) }\n\
+             utama { nilai a = bungkus(42) tampilkan(nilai_atau(a, 0)) }",
+        );
+        assert!(!d.has_errors(), "{:?}", d.diagnostics());
+    }
+
+    #[test]
+    fn sukses_without_context_rejected() {
+        let d = check("program P\nutama { nilai r = sukses(5) tampilkan(berhasil(r)) }");
+        assert!(has_code(&d, codes::E_HASIL_NO_CONTEXT));
+    }
+
+    #[test]
+    fn coba_on_non_hasil_rejected() {
+        let d = check("program P\nutama { nilai x = 5 nilai y = coba x }");
+        assert!(has_code(&d, codes::E_TRY_NON_HASIL));
+    }
+
+    #[test]
+    fn coba_outside_hasil_function_rejected() {
+        let d = check(&format!("{HASIL_BAGI}utama {{ nilai y = coba bagi(1, 1) }}"));
+        assert!(has_code(&d, codes::E_TRY_BAD_CONTEXT));
+    }
+
+    #[test]
+    fn coba_error_type_mismatch_rejected() {
+        let d = check(&format!(
+            "{HASIL_BAGI}fungsi f() -> Hasil<angka, angka> {{ nilai x = coba bagi(1, 1) kembalikan sukses(x) }}\nutama {{ }}"
+        ));
+        assert!(has_code(&d, codes::E_TRY_BAD_CONTEXT));
+    }
+
+    #[test]
+    fn hasil_owned_payload_rejected() {
+        let d = check(
+            "program P\nfungsi f() -> Hasil<kotak<angka>, teks> { kembalikan gagal(\"x\") }\nutama { }",
+        );
+        assert!(has_code(&d, codes::E_HASIL_NOT_COPY));
+    }
+
+    #[test]
+    fn inspect_non_hasil_rejected() {
+        let d = check("program P\nutama { nilai x = 5 tampilkan(berhasil(x)) }");
+        assert!(has_code(&d, codes::E_INSPECT_MISUSE));
+    }
+
+    #[test]
+    fn sukses_type_conflict_rejected() {
+        let d = check(
+            "program P\nfungsi f() -> Hasil<angka, teks> { kembalikan sukses(\"bukan angka\") }\nutama { }",
+        );
+        assert!(has_code(&d, codes::E_HASIL_TYPE_CONFLICT));
+    }
 }
