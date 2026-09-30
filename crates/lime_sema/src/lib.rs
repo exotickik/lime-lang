@@ -832,4 +832,38 @@ mod tests {
         );
         assert!(has_code(&d, codes::E_HASIL_TYPE_CONFLICT));
     }
+
+    #[test]
+    fn higher_order_function_ok() {
+        let d = check(
+            "program P\nfungsi tambah(a: angka, b: angka) -> angka { kembalikan a + b }\n\
+             fungsi terapkan(f: fungsi(angka, angka) -> angka, x: angka, y: angka) -> angka { kembalikan f(x, y) }\n\
+             utama { tampilkan(terapkan(tambah, 3, 4)) }",
+        );
+        assert!(!d.has_errors(), "{:?}", d.diagnostics());
+    }
+
+    #[test]
+    fn function_value_in_variable_ok() {
+        let d = check(
+            "program P\nfungsi tambah(a: angka, b: angka) -> angka { kembalikan a + b }\n\
+             utama { nilai g = tambah tampilkan(g(1, 2)) }",
+        );
+        assert!(!d.has_errors(), "{:?}", d.diagnostics());
+    }
+
+    #[test]
+    fn calling_non_function_rejected() {
+        let d = check("program P\nutama { nilai x = 5 tampilkan(x(1)) }");
+        assert!(has_code(&d, codes::E_NOT_CALLABLE));
+    }
+
+    #[test]
+    fn function_value_arity_checked() {
+        let d = check(
+            "program P\nfungsi tambah(a: angka, b: angka) -> angka { kembalikan a + b }\n\
+             utama { nilai g = tambah tampilkan(g(1)) }",
+        );
+        assert!(has_code(&d, codes::E_ARITY_MISMATCH));
+    }
 }

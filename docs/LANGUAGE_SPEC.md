@@ -97,6 +97,13 @@ generator selects signed vs unsigned instructions (`sdiv`/`udiv`,
 - **Array** `[T; N]`: fixed-size inline array (see §3.7). Slices (`[T]`) planned.
 - **`kotak<T>`**: an owned, heap-allocated cell holding one `T` (see §3.9). This
   is Lime's first **owned (`milik`)** type; it moves rather than copies.
+- **Function value** `fungsi(A, B) -> R`: a first-class reference to a function.
+  A function name used as a value yields a function pointer; it can be stored,
+  passed, returned, and called (`f(x)`). It is a bare machine pointer (Copy, no
+  allocation). Example:
+  ```lime
+  fungsi terapkan(f: fungsi(angka) -> angka, x: angka) -> angka { kembalikan f(x) }
+  ```
 
 ### 2.3 Strings
 

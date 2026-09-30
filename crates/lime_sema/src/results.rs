@@ -139,6 +139,8 @@ pub struct TypeckResults {
     pub traits: Vec<TraitInfo>,
     pub impls: Vec<ImplInfo>,
     pub method_calls: HashMap<NodeId, MethodResolution>,
+    pub indirect_calls: std::collections::HashSet<NodeId>,
+    pub func_values: std::collections::HashSet<NodeId>,
     pub expr_types: HashMap<NodeId, Type>,
     pub name_res: HashMap<NodeId, Res>,
     pub enum_variant: HashMap<NodeId, (EnumId, u32)>,

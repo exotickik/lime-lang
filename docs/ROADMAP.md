@@ -70,6 +70,10 @@ Legend: ✅ done · 🟡 in progress · ⬜ planned
   monomorphization, trait-bounded generics (`<T: Sifat>`), impl conformance and
   bound checking, real native lowering (methods are ordinary functions, no
   vtables)
+- ✅ First-class function values (`fungsi(A) -> R` type): functions passed,
+  stored, returned, and called indirectly; bare function pointers, no allocation.
+  Enables higher-order functions, and is the prerequisite for thread spawning and
+  FFI callbacks
 - ⬜ Generic structs/enums, explicit type args, dynamic dispatch / trait objects
 - ✅ Error handling (`Hasil<T, R>`, Phase 12): built-in result type, `sukses`/
   `gagal` constructors, `coba` propagation (early-return), `berhasil`/

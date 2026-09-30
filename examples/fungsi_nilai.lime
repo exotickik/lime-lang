@@ -1,0 +1,23 @@
+program FungsiNilai
+
+fungsi tambah(a: angka, b: angka) -> angka {
+    kembalikan a + b
+}
+
+fungsi kali(a: angka, b: angka) -> angka {
+    kembalikan a * b
+}
+
+fungsi lipat(f: fungsi(angka, angka) -> angka, awal: angka, data: [angka; 4]) -> angka {
+    ubah akumulasi = awal
+    untuk i dari 0 sampai 4 {
+        akumulasi = f(akumulasi, data[i])
+    }
+    kembalikan akumulasi
+}
+
+utama {
+    nilai angka_angka = [1, 2, 3, 4]
+    tampilkan(lipat(tambah, 0, angka_angka))
+    tampilkan(lipat(kali, 1, angka_angka))
+}

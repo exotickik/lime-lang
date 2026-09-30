@@ -21,6 +21,7 @@ pub enum TypeExprKind {
     Array { elem: Box<TypeExpr>, size: u64 },
     Applied { name: String, args: Vec<TypeExpr> },
     Ref { inner: Box<TypeExpr>, mutable: bool },
+    Fn { params: Vec<TypeExpr>, ret: Option<Box<TypeExpr>> },
 }
 
 #[derive(Clone, Debug)]

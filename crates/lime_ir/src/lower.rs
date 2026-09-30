@@ -508,6 +508,7 @@ impl<'a> FnLowerer<'a> {
                     }
                     Operand::Val(val)
                 }
+                Some(Res::Func(idx)) => Operand::Func(self.results.functions[*idx].name.clone()),
                 _ => {
                     self.unsupported(expr.span, "reference nilai ini belum didukung backend");
                     Operand::ConstInt(0, Type::I64)
@@ -1191,6 +1192,9 @@ impl<'a> FnLowerer<'a> {
         if let Some(m) = self.results.method_calls.get(&expr.id).cloned() {
             return self.lower_method_call(callee, args, &m);
         }
+        if self.results.indirect_calls.contains(&expr.id) {
+            return self.lower_indirect_call(callee, args);
+        }
         match self.results.name_res.get(&callee.id) {
             Some(Res::Builtin(Builtin::Tampilkan)) => {
                 self.lower_print(&args[0]);
@@ -1351,6 +1355,27 @@ impl<'a> FnLowerer<'a> {
                 self.unsupported(expr.span, "pemanggilan ini belum didukung backend");
                 Operand::ConstInt(0, Type::I64)
             }
+        }
+    }
+
+    fn lower_indirect_call(&mut self, callee: &Expr, args: &[Expr]) -> Operand {
+        let fty = self.results.expr_type(callee.id).clone();
+        let (arg_types, ret) = match fty {
+            Type::Fn { params, ret } => (params, *ret),
+            _ => (Vec::new(), Type::Unit),
+        };
+        let fptr = self.lower_expr(callee);
+        let arg_ops: Vec<Operand> = args.iter().map(|a| self.lower_expr(a)).collect();
+        if ret == Type::Unit {
+            self.emit(None, InstrKind::CallPtr { ptr: fptr, args: arg_ops, ret: Type::Unit, arg_types });
+            Operand::Unit
+        } else {
+            let dst = self.fresh_value();
+            self.emit(
+                Some(dst),
+                InstrKind::CallPtr { ptr: fptr, args: arg_ops, ret: ret.clone(), arg_types },
+            );
+            Operand::Val(dst)
         }
     }
 

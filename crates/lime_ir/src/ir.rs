@@ -19,6 +19,7 @@ pub enum Operand {
     ConstFloat(f64, Type),
     ConstBool(bool),
     Str(GlobalId),
+    Func(String),
     Unit,
 }
 
@@ -61,6 +62,7 @@ pub enum InstrKind {
     Cast { kind: CastKind, from: Type, to: Type, operand: Operand },
     Select { cond: Operand, then_val: Operand, else_val: Operand, ty: Type },
     Call { callee: String, args: Vec<Operand>, ret: Type, variadic_from: Option<usize> },
+    CallPtr { ptr: Operand, args: Vec<Operand>, ret: Type, arg_types: Vec<Type> },
     MakeStruct { ty: Type, fields: Vec<Operand> },
     ExtractField { agg: Operand, agg_ty: Type, index: u32, field_ty: Type },
     InsertField { agg: Operand, agg_ty: Type, indices: Vec<u32>, value: Operand, field_ty: Type },

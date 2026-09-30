@@ -231,6 +231,20 @@ fn emit_instr(
                 }
             }
         }
+        InstrKind::CallPtr { ptr, args, ret, arg_types } => {
+            let arg_strs: Vec<String> = args
+                .iter()
+                .zip(arg_types.iter())
+                .map(|(a, t)| format!("{} {}", ty_str(t), val_str(a, vt)))
+                .collect();
+            let ret_s = ty_str(ret);
+            let assign = match &dst {
+                Some(d) => format!("{} = ", d),
+                None => String::new(),
+            };
+            writeln!(out, "  {}call {} {}({})", assign, ret_s, val_str(ptr, vt), arg_strs.join(", "))
+                .ok();
+        }
         InstrKind::MakeStruct { ty, fields } => {
             let struct_ty = ty_str(ty);
             let field_types: Vec<Type> = match ty {
@@ -410,6 +424,7 @@ fn collect_value_types(func: &Func) -> HashMap<u32, Type> {
                 InstrKind::Cast { to, .. } => to.clone(),
                 InstrKind::Select { ty, .. } => ty.clone(),
                 InstrKind::Call { ret, .. } => ret.clone(),
+                InstrKind::CallPtr { ret, .. } => ret.clone(),
                 InstrKind::MakeStruct { ty, .. } => ty.clone(),
                 InstrKind::ExtractField { field_ty, .. } => field_ty.clone(),
                 InstrKind::InsertField { agg_ty, .. } => agg_ty.clone(),
@@ -482,6 +497,7 @@ fn operand_ty_str(op: &Operand, vt: &HashMap<u32, Type>) -> String {
         Operand::ConstFloat(_, ty) => ty_str(ty),
         Operand::ConstBool(_) => "i1".to_string(),
         Operand::Str(_) => "ptr".to_string(),
+        Operand::Func(_) => "ptr".to_string(),
         Operand::Unit => "void".to_string(),
     }
 }
@@ -493,6 +509,7 @@ fn val_str(op: &Operand, _vt: &HashMap<u32, Type>) -> String {
         Operand::ConstFloat(v, ty) => const_float_str(*v, ty),
         Operand::ConstBool(b) => if *b { "true".to_string() } else { "false".to_string() },
         Operand::Str(id) => format!("@.str{}", id.0),
+        Operand::Func(name) => format!("@{}", name),
         Operand::Unit => "void".to_string(),
     }
 }

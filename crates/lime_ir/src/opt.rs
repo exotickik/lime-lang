@@ -192,6 +192,12 @@ fn subst_kind(kind: &mut InstrKind, known: &HashMap<u32, Operand>) -> bool {
                 changed |= subst_operand(a, known);
             }
         }
+        InstrKind::CallPtr { ptr, args, .. } => {
+            changed |= subst_operand(ptr, known);
+            for a in args {
+                changed |= subst_operand(a, known);
+            }
+        }
         InstrKind::MakeStruct { fields, .. } => {
             for f in fields {
                 changed |= subst_operand(f, known);
@@ -310,6 +316,12 @@ fn collect_uses(kind: &InstrKind, used: &mut HashSet<u32>) {
             note_use(else_val, used);
         }
         InstrKind::Call { args, .. } => {
+            for a in args {
+                note_use(a, used);
+            }
+        }
+        InstrKind::CallPtr { ptr, args, .. } => {
+            note_use(ptr, used);
             for a in args {
                 note_use(a, used);
             }

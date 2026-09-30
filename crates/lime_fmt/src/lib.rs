@@ -285,6 +285,13 @@ fn type_str(t: &TypeExpr) -> String {
                 format!("&{}", type_str(inner))
             }
         }
+        TypeExprKind::Fn { params, ret } => {
+            let ps: Vec<String> = params.iter().map(type_str).collect();
+            match ret {
+                Some(r) => format!("fungsi({}) -> {}", ps.join(", "), type_str(r)),
+                None => format!("fungsi({})", ps.join(", ")),
+            }
+        }
     }
 }
 

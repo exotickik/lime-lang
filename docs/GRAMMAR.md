@@ -43,7 +43,8 @@ field          = [ "publik" ] Ident ":" type ;
 
 type           = Ident [ "<" type { "," type } ">" ]   (* named or applied, e.g. kotak<i64> *)
                | "[" type ";" IntLit "]"                (* fixed array [T; N] *)
-               | "&" [ "ubah" ] type ;                  (* reference: &T shared, &ubah T mutable *)
+               | "&" [ "ubah" ] type                    (* reference: &T shared, &ubah T mutable *)
+               | "fungsi" "(" [ type { "," type } ] ")" [ "->" type ] ;  (* function value type *)
 
 block          = "{" { statement } "}" ;
 

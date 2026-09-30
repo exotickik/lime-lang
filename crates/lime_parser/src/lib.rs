@@ -186,6 +186,27 @@ impl<'a> Parser<'a> {
                     span: start.to(rb.span),
                 })
             }
+            TokenKind::Keyword(Keyword::Fungsi) => {
+                let start = self.peek_span();
+                self.bump();
+                self.expect(&TokenKind::LParen)?;
+                let mut params = Vec::new();
+                while !matches!(self.peek(), TokenKind::RParen | TokenKind::Eof) {
+                    params.push(self.expect_type()?);
+                    if !self.eat(&TokenKind::Comma) {
+                        break;
+                    }
+                }
+                let rp = self.expect(&TokenKind::RParen)?;
+                let (ret, end) = if self.eat(&TokenKind::Arrow) {
+                    let r = self.expect_type()?;
+                    let sp = r.span;
+                    (Some(Box::new(r)), sp)
+                } else {
+                    (None, rp.span)
+                };
+                Ok(TypeExpr { kind: TypeExprKind::Fn { params, ret }, span: start.to(end) })
+            }
             other => {
                 let sp = self.peek_span();
                 self.diags.emit(

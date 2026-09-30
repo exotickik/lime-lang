@@ -993,7 +993,10 @@ impl<'a> Checker<'a> {
                     }
                     match res {
                         Res::Local(id) => self.results.locals[&id].ty.clone(),
-                        Res::Func(idx) => self.results.functions[idx].fn_type(),
+                        Res::Func(idx) => {
+                            self.results.func_values.insert(expr.id);
+                            self.results.functions[idx].fn_type()
+                        }
                         Res::Builtin(_) => Type::Error,
                         Res::Struct(_) => Type::Error,
                         Res::Enum(_) => Type::Error,
@@ -1296,15 +1299,7 @@ impl<'a> Checker<'a> {
             }
         }
         let ExprKind::Name(name) = &callee.kind else {
-            self.check_expr(callee, None);
-            self.diags.emit(
-                Diagnostic::error(codes::E_NOT_CALLABLE, "ekspresi ini tidak bisa dipanggil")
-                    .primary(callee.span, "bukan sebuah fungsi"),
-            );
-            for a in args {
-                self.check_expr(a, None);
-            }
-            return Type::Error;
+            return self.check_indirect_call(call, callee, args);
         };
 
         if matches!(self.lookup(name), Some(Res::Func(_)) | Some(Res::GenericFn(_))) {
@@ -1503,6 +1498,7 @@ impl<'a> Checker<'a> {
                 }
                 sig.ret.clone()
             }
+            Some(Res::Local(_)) => self.check_indirect_call(call, callee, args),
             Some(_) | None => {
                 self.diags.emit(
                     Diagnostic::error(
@@ -1517,6 +1513,49 @@ impl<'a> Checker<'a> {
                 Type::Error
             }
         }
+    }
+
+    fn check_indirect_call(&mut self, call: &Expr, callee: &Expr, args: &[Expr]) -> Type {
+        let ct = self.check_expr(callee, None);
+        let Type::Fn { params, ret } = ct.clone() else {
+            if !ct.is_error() {
+                self.diags.emit(
+                    Diagnostic::error(codes::E_NOT_CALLABLE, "ekspresi ini tidak bisa dipanggil")
+                        .primary(callee.span, "bukan sebuah fungsi"),
+                );
+            }
+            for a in args {
+                self.check_expr(a, None);
+            }
+            return Type::Error;
+        };
+        self.results.indirect_calls.insert(call.id);
+        if args.len() != params.len() {
+            self.diags.emit(
+                Diagnostic::error(
+                    codes::E_ARITY_MISMATCH,
+                    format!("nilai fungsi butuh {} argumen, diberi {}", params.len(), args.len()),
+                )
+                .primary(call.span, "jumlah argumen salah"),
+            );
+            for a in args {
+                self.check_expr(a, None);
+            }
+            return *ret;
+        }
+        for (a, pt) in args.iter().zip(params.iter()) {
+            let at = self.check_expr(a, Some(pt));
+            if !at.is_error() && !at.assignable_to(pt) {
+                self.diags.emit(
+                    Diagnostic::error(
+                        codes::E_TYPE_MISMATCH_ASSIGN,
+                        format!("argumen bertipe '{}', diharapkan '{}'", at.display(), pt.display()),
+                    )
+                    .primary(a.span, format!("bertipe '{}'", at.display())),
+                );
+            }
+        }
+        *ret
     }
 
     fn check_generic_call(
@@ -1711,6 +1750,14 @@ impl<'a> Checker<'a> {
             TypeExprKind::Ref { inner, mutable } => Type::Ref {
                 inner: Box::new(self.resolve_type_generic(inner, type_params)),
                 mutable: *mutable,
+            },
+            TypeExprKind::Fn { params, ret } => Type::Fn {
+                params: params.iter().map(|p| self.resolve_type_generic(p, type_params)).collect(),
+                ret: Box::new(
+                    ret.as_ref()
+                        .map(|r| self.resolve_type_generic(r, type_params))
+                        .unwrap_or(Type::Unit),
+                ),
             },
         }
     }
@@ -2192,6 +2239,11 @@ impl<'a> Checker<'a> {
                 let inner = self.resolve_type(inner);
                 Type::Ref { inner: Box::new(inner), mutable: *mutable }
             }
+            TypeExprKind::Fn { params, ret } => {
+                let params = params.iter().map(|p| self.resolve_type(p)).collect();
+                let ret = ret.as_ref().map(|r| self.resolve_type(r)).unwrap_or(Type::Unit);
+                Type::Fn { params, ret: Box::new(ret) }
+            }
         }
     }
 
@@ -2426,6 +2478,14 @@ fn substitute_type_expr(te: &mut TypeExpr, subst: &HashMap<String, Type>, result
             }
         }
         TypeExprKind::Ref { inner, .. } => substitute_type_expr(inner, subst, results),
+        TypeExprKind::Fn { params, ret } => {
+            for p in params {
+                substitute_type_expr(p, subst, results);
+            }
+            if let Some(r) = ret {
+                substitute_type_expr(r, subst, results);
+            }
+        }
         TypeExprKind::Named(_) => {}
     }
 }
