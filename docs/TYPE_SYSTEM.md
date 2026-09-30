@@ -147,9 +147,50 @@ fungsi maksimum<T>(a: T, b: T) -> T {
   secondary note). This is real type checking over a shared, type-substituted
   AST — not textual substitution.
 
-**Not yet:** generic structs/enums, explicit type arguments at the call site
-(turbofish), and trait/constraint bounds (planned as the traits phase). Nested
-generic calls (a generic calling another generic) are supported.
+Trait bounds on type parameters (`<T: Sifat>`) are supported — see **Traits**
+below. **Not yet:** generic structs/enums, explicit type arguments at the call
+site (turbofish). Nested generic calls (a generic calling another generic) are
+supported.
+
+## Traits
+
+A **trait** (`sifat`) is a named set of method signatures; an **implementation**
+(`implementasi`) provides those methods for a concrete type. Dispatch is fully
+**static** — every method call resolves at compile time to an ordinary function,
+so traits add no runtime representation and no vtables.
+
+```lime
+sifat Luas {
+    fungsi luas(diri: &Diri) -> angka
+}
+implementasi Luas untuk Persegi {
+    fungsi luas(diri: &Diri) -> angka { kembalikan diri.sisi * diri.sisi }
+}
+```
+
+- **Self type.** `Diri` inside a `sifat`/`implementasi` denotes the implementing
+  type. The first parameter's form picks the receiver mode: `&Diri` (shared
+  borrow), `&ubah Diri` (mutable borrow), or `Diri` (by value).
+- **Method calls.** `x.m(a)` resolves `m` among the implementations for the type
+  of `x` (auto-dereferencing a reference receiver). Exactly one match is
+  required: none → `E02A2`, more than one (two traits) → `E02A3`. The receiver
+  is passed as the first argument with the mode its parameter declares, so a
+  method call borrows or moves `x` under the same rules as `ambil` /
+  `ambil_ubah` / a by-value pass.
+- **Impl checking.** A trait impl must define exactly the trait's methods with
+  matching signatures (`Diri` substituted by the target type); a missing,
+  extra, or mis-typed method is `E02A1`. Implementing the same trait twice for a
+  type is `E02A5`; an unknown trait or target type is `E02A6`; a duplicated
+  method name inside a `sifat` is `E02A0`. `implementasi Tipe { ... }` (no
+  trait) adds inherent methods.
+- **Bounds.** A type parameter may carry trait bounds: `fungsi f<T: Luas>(x: &T)`.
+  At each call the inferred concrete type must implement every bound (`E02A4`);
+  because generic bodies are checked per monomorphized instance, the method
+  calls inside then resolve to the concrete impl — static dispatch with no
+  overhead.
+
+**Not yet (documented, not faked):** dynamic dispatch / trait objects, default
+method bodies, associated types/constants, and blanket or generic impls.
 
 ## Error codes (type system excerpt)
 
@@ -188,3 +229,10 @@ generic calls (a generic calling another generic) are supported.
 | E0296 | nilai diubah padahal masih dipakai reference |
 | E0297 | reference keluar dari scope nilainya (kembalian/struct/larik) |
 | E0298 | reference melewati batas FFI |
+| E02A0 | metode ditulis dua kali di dalam sifat |
+| E02A1 | implementasi tidak cocok dengan sifat (metode kurang/lebih/beda tipe) |
+| E02A2 | metode tidak ditemukan untuk tipe penerima |
+| E02A3 | metode ambigu (didefinisikan lebih dari satu sifat) |
+| E02A4 | tipe tidak memenuhi batas sifat |
+| E02A5 | implementasi ganda sebuah sifat untuk satu tipe |
+| E02A6 | sifat atau tipe target tidak dikenal |

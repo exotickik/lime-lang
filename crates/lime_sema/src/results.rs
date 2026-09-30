@@ -26,6 +26,46 @@ pub enum Res {
     Enum(EnumId),
 }
 
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum RecvMode {
+    Value,
+    Ref,
+    RefMut,
+}
+
+#[derive(Clone, Debug)]
+pub struct MethodResolution {
+    pub func_idx: usize,
+    pub recv_mode: RecvMode,
+}
+
+#[derive(Clone, Debug)]
+pub struct TraitMethodInfo {
+    pub name: String,
+    pub params: Vec<Type>,
+    pub ret: Type,
+}
+
+#[derive(Clone, Debug)]
+pub struct TraitInfo {
+    pub name: String,
+    pub methods: Vec<TraitMethodInfo>,
+    pub def_span: Span,
+}
+
+impl TraitInfo {
+    pub fn method(&self, name: &str) -> Option<&TraitMethodInfo> {
+        self.methods.iter().find(|m| m.name == name)
+    }
+}
+
+#[derive(Clone, Debug)]
+pub struct ImplInfo {
+    pub trait_name: Option<String>,
+    pub self_type: Type,
+    pub methods: HashMap<String, usize>,
+}
+
 #[derive(Clone, Debug)]
 pub struct FnSig {
     pub name: String,
@@ -91,6 +131,9 @@ pub struct TypeckResults {
     pub functions: Vec<FnSig>,
     pub structs: Vec<StructInfo>,
     pub enums: Vec<EnumInfo>,
+    pub traits: Vec<TraitInfo>,
+    pub impls: Vec<ImplInfo>,
+    pub method_calls: HashMap<NodeId, MethodResolution>,
     pub expr_types: HashMap<NodeId, Type>,
     pub name_res: HashMap<NodeId, Res>,
     pub enum_variant: HashMap<NodeId, (EnumId, u32)>,

@@ -55,6 +55,14 @@ pub const E_MUTATE_WHILE_BORROWED: Code = Code("E0296");
 pub const E_REF_ESCAPE: Code = Code("E0297");
 pub const E_REF_IN_FFI: Code = Code("E0298");
 
+pub const E_TRAIT_DUP_METHOD: Code = Code("E02A0");
+pub const E_IMPL_METHOD_MISMATCH: Code = Code("E02A1");
+pub const E_METHOD_NOT_FOUND: Code = Code("E02A2");
+pub const E_METHOD_AMBIGUOUS: Code = Code("E02A3");
+pub const E_BOUND_NOT_SATISFIED: Code = Code("E02A4");
+pub const E_DUP_IMPL: Code = Code("E02A5");
+pub const E_UNKNOWN_TRAIT_OR_TYPE: Code = Code("E02A6");
+
 pub const E_INVALID_ASSIGN_TARGET: Code = Code("E0301");
 
 pub const E_TOOLCHAIN: Code = Code("E0901");

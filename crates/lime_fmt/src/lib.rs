@@ -57,6 +57,8 @@ impl Printer {
             Item::Function(f) => self.print_function(f),
             Item::Struct(s) => self.print_struct(s),
             Item::Enum(e) => self.print_enum(e),
+            Item::Trait(t) => self.print_trait(t),
+            Item::Impl(b) => self.print_impl(b),
             Item::Main(m) => {
                 self.line("utama {");
                 self.indent += 1;
@@ -75,7 +77,18 @@ impl Printer {
         let generics = if f.type_params.is_empty() {
             String::new()
         } else {
-            let ps: Vec<String> = f.type_params.iter().map(|p| p.name.clone()).collect();
+            let ps: Vec<String> = f
+                .type_params
+                .iter()
+                .map(|p| {
+                    if p.bounds.is_empty() {
+                        p.name.name.clone()
+                    } else {
+                        let bs: Vec<String> = p.bounds.iter().map(|b| b.name.clone()).collect();
+                        format!("{}: {}", p.name.name, bs.join(" + "))
+                    }
+                })
+                .collect();
             format!("<{}>", ps.join(", "))
         };
         let params = self.params_str(&f.params);
@@ -124,6 +137,35 @@ impl Printer {
         self.indent += 1;
         for variant in &e.variants {
             self.line(&format!("{},", variant.name));
+        }
+        self.indent -= 1;
+        self.line("}");
+    }
+
+    fn print_trait(&mut self, t: &TraitDecl) {
+        let vis = if t.public { "publik " } else { "" };
+        self.line(&format!("{}sifat {} {{", vis, t.name.name));
+        self.indent += 1;
+        for m in &t.methods {
+            let ret = match &m.ret {
+                Some(ty) => format!(" -> {}", type_str(ty)),
+                None => String::new(),
+            };
+            self.line(&format!("fungsi {}({}){}", m.name.name, self.params_str(&m.params), ret));
+        }
+        self.indent -= 1;
+        self.line("}");
+    }
+
+    fn print_impl(&mut self, b: &ImplBlock) {
+        let head = match &b.trait_name {
+            Some(t) => format!("implementasi {} untuk {} {{", t.name, b.type_name.name),
+            None => format!("implementasi {} {{", b.type_name.name),
+        };
+        self.line(&head);
+        self.indent += 1;
+        for m in &b.methods {
+            self.print_function(m);
         }
         self.indent -= 1;
         self.line("}");

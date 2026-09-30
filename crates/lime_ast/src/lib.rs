@@ -35,10 +35,42 @@ pub enum Item {
     Function(Function),
     Struct(StructDecl),
     Enum(EnumDecl),
+    Trait(TraitDecl),
+    Impl(ImplBlock),
     Main(MainBlock),
     Extern(ExternDecl),
     Use(Ident),
     Import(Ident),
+}
+
+#[derive(Clone, Debug)]
+pub struct TypeParam {
+    pub name: Ident,
+    pub bounds: Vec<Ident>,
+}
+
+#[derive(Clone, Debug)]
+pub struct TraitDecl {
+    pub public: bool,
+    pub name: Ident,
+    pub methods: Vec<MethodSig>,
+    pub span: Span,
+}
+
+#[derive(Clone, Debug)]
+pub struct MethodSig {
+    pub name: Ident,
+    pub params: Vec<Param>,
+    pub ret: Option<TypeExpr>,
+    pub span: Span,
+}
+
+#[derive(Clone, Debug)]
+pub struct ImplBlock {
+    pub trait_name: Option<Ident>,
+    pub type_name: Ident,
+    pub methods: Vec<Function>,
+    pub span: Span,
 }
 
 #[derive(Clone, Debug)]
@@ -53,7 +85,7 @@ pub struct EnumDecl {
 pub struct Function {
     pub public: bool,
     pub name: Ident,
-    pub type_params: Vec<Ident>,
+    pub type_params: Vec<TypeParam>,
     pub params: Vec<Param>,
     pub ret: Option<TypeExpr>,
     pub body: Block,

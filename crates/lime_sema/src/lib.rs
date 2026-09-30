@@ -5,7 +5,8 @@ pub mod results;
 pub use check::Checker;
 pub use ownership::is_copy;
 pub use results::{
-    Builtin, EnumInfo, FieldInfo, FnSig, LocalId, LocalInfo, Res, StructInfo, TypeckResults,
+    Builtin, EnumInfo, FieldInfo, FnSig, LocalId, LocalInfo, MethodResolution, RecvMode, Res,
+    StructInfo, TypeckResults,
 };
 
 use lime_ast::Program;
@@ -591,5 +592,142 @@ mod tests {
              utama { ubah a = [10, 20, 30] naik(ambil_ubah(a[1])) tampilkan(a[1]) }",
         );
         assert!(!d.has_errors(), "{:?}", d.diagnostics());
+    }
+
+    const TRAIT_PRELUDE: &str = "program P\n\
+        tipe Persegi { sisi: angka }\n\
+        sifat Luas { fungsi luas(diri: &Diri) -> angka }\n\
+        implementasi Luas untuk Persegi { fungsi luas(diri: &Diri) -> angka { kembalikan diri.sisi * diri.sisi } }\n";
+
+    #[test]
+    fn trait_impl_and_method_call_ok() {
+        let d = check(&format!(
+            "{TRAIT_PRELUDE}utama {{ nilai p = Persegi {{ sisi: 3 }} tampilkan(p.luas()) }}"
+        ));
+        assert!(!d.has_errors(), "{:?}", d.diagnostics());
+    }
+
+    #[test]
+    fn inherent_method_ok() {
+        let d = check(
+            "program P\ntipe Titik { x: angka }\n\
+             implementasi Titik { fungsi ambil_x(diri: &Diri) -> angka { kembalikan diri.x } }\n\
+             utama { nilai t = Titik { x: 9 } tampilkan(t.ambil_x()) }",
+        );
+        assert!(!d.has_errors(), "{:?}", d.diagnostics());
+    }
+
+    #[test]
+    fn mutable_method_ok() {
+        let d = check(
+            "program P\ntipe Hitung { n: angka }\n\
+             implementasi Hitung { fungsi naik(diri: &ubah Diri) { diri.n = diri.n + 1 } }\n\
+             utama { ubah h = Hitung { n: 0 } h.naik() tampilkan(h.n) }",
+        );
+        assert!(!d.has_errors(), "{:?}", d.diagnostics());
+    }
+
+    #[test]
+    fn trait_bounded_generic_ok() {
+        let d = check(&format!(
+            "{TRAIT_PRELUDE}\
+             fungsi cetak<T: Luas>(v: &T) {{ tampilkan(v.luas()) }}\n\
+             utama {{ nilai p = Persegi {{ sisi: 5 }} cetak(ambil(p)) }}"
+        ));
+        assert!(!d.has_errors(), "{:?}", d.diagnostics());
+    }
+
+    #[test]
+    fn bound_not_satisfied_rejected() {
+        let d = check(&format!(
+            "{TRAIT_PRELUDE}tipe Kosong {{ a: angka }}\n\
+             fungsi cetak<T: Luas>(v: &T) {{ tampilkan(v.luas()) }}\n\
+             utama {{ nilai k = Kosong {{ a: 1 }} cetak(ambil(k)) }}"
+        ));
+        assert!(has_code(&d, codes::E_BOUND_NOT_SATISFIED));
+    }
+
+    #[test]
+    fn method_not_found_rejected() {
+        let d = check(
+            "program P\ntipe A { x: angka }\nutama { nilai a = A { x: 1 } tampilkan(a.hilang()) }",
+        );
+        assert!(has_code(&d, codes::E_METHOD_NOT_FOUND));
+    }
+
+    #[test]
+    fn impl_missing_method_rejected() {
+        let d = check(
+            "program P\ntipe A { x: angka }\n\
+             sifat S { fungsi m(diri: &Diri) -> angka }\n\
+             implementasi S untuk A { }\nutama { }",
+        );
+        assert!(has_code(&d, codes::E_IMPL_METHOD_MISMATCH));
+    }
+
+    #[test]
+    fn impl_signature_mismatch_rejected() {
+        let d = check(
+            "program P\ntipe A { x: angka }\n\
+             sifat S { fungsi m(diri: &Diri) -> angka }\n\
+             implementasi S untuk A { fungsi m(diri: &Diri) -> teks { kembalikan \"x\" } }\nutama { }",
+        );
+        assert!(has_code(&d, codes::E_IMPL_METHOD_MISMATCH));
+    }
+
+    #[test]
+    fn extra_method_in_trait_impl_rejected() {
+        let d = check(
+            "program P\ntipe A { x: angka }\n\
+             sifat S { fungsi m(diri: &Diri) -> angka }\n\
+             implementasi S untuk A { \
+               fungsi m(diri: &Diri) -> angka { kembalikan diri.x } \
+               fungsi dua(diri: &Diri) -> angka { kembalikan diri.x } }\nutama { }",
+        );
+        assert!(has_code(&d, codes::E_IMPL_METHOD_MISMATCH));
+    }
+
+    #[test]
+    fn duplicate_impl_rejected() {
+        let d = check(&format!(
+            "{TRAIT_PRELUDE}implementasi Luas untuk Persegi {{ fungsi luas(diri: &Diri) -> angka {{ kembalikan 0 }} }}\nutama {{ }}"
+        ));
+        assert!(has_code(&d, codes::E_DUP_IMPL));
+    }
+
+    #[test]
+    fn duplicate_trait_method_rejected() {
+        let d = check(
+            "program P\nsifat S { fungsi m(diri: &Diri) -> angka fungsi m(diri: &Diri) -> angka }\nutama { }",
+        );
+        assert!(has_code(&d, codes::E_TRAIT_DUP_METHOD));
+    }
+
+    #[test]
+    fn unknown_trait_in_impl_rejected() {
+        let d = check(
+            "program P\ntipe A { x: angka }\n\
+             implementasi Tak untuk A { fungsi m(diri: &Diri) -> angka { kembalikan diri.x } }\nutama { }",
+        );
+        assert!(has_code(&d, codes::E_UNKNOWN_TRAIT_OR_TYPE));
+    }
+
+    #[test]
+    fn ambiguous_method_rejected() {
+        let d = check(
+            "program P\ntipe A { x: angka }\n\
+             sifat S1 { fungsi m(diri: &Diri) -> angka }\n\
+             sifat S2 { fungsi m(diri: &Diri) -> angka }\n\
+             implementasi S1 untuk A { fungsi m(diri: &Diri) -> angka { kembalikan diri.x } }\n\
+             implementasi S2 untuk A { fungsi m(diri: &Diri) -> angka { kembalikan diri.x } }\n\
+             utama { nilai a = A { x: 1 } tampilkan(a.m()) }",
+        );
+        assert!(has_code(&d, codes::E_METHOD_AMBIGUOUS));
+    }
+
+    #[test]
+    fn diri_outside_impl_rejected() {
+        let d = check("program P\nfungsi f(x: &Diri) -> angka { kembalikan 0 }\nutama { }");
+        assert!(d.has_errors());
     }
 }

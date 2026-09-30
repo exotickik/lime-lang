@@ -322,6 +322,18 @@ fn emit_instr(
             }
             writeln!(out, "  {} = getelementptr {}", dst.unwrap(), parts.join(", ")).ok();
         }
+        InstrKind::GepPtr { base, agg_ty, indices } => {
+            let mut parts =
+                vec![format!("{}, ptr {}", ty_str(agg_ty), val_str(base, vt)), "i64 0".to_string()];
+            for idx in indices {
+                match idx {
+                    GepIndex::Field(n) => parts.push(format!("i32 {}", n)),
+                    GepIndex::ArrayConst(n) => parts.push(format!("i64 {}", n)),
+                    GepIndex::ArrayVal(op) => parts.push(format!("i64 {}", val_str(op, vt))),
+                }
+            }
+            writeln!(out, "  {} = getelementptr {}", dst.unwrap(), parts.join(", ")).ok();
+        }
         InstrKind::LoadPtr { ptr, ty } => {
             writeln!(out, "  {} = load {}, ptr {}", dst.unwrap(), ty_str(ty), val_str(ptr, vt)).ok();
         }
@@ -408,7 +420,8 @@ fn collect_value_types(func: &Func) -> HashMap<u32, Type> {
                 InstrKind::AddrOf { ty, .. } => {
                     Type::Ref { inner: Box::new(ty.clone()), mutable: false }
                 }
-                InstrKind::Gep { agg_ty, indices, .. } => {
+                InstrKind::Gep { agg_ty, indices, .. }
+                | InstrKind::GepPtr { agg_ty, indices, .. } => {
                     Type::Ref { inner: Box::new(gep_result_type(agg_ty, indices)), mutable: false }
                 }
                 InstrKind::StorePtr { .. } => continue,

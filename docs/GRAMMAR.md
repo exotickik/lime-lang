@@ -11,10 +11,18 @@ program        = "program" Ident { item } ;
 
 item           = function
                | struct
+               | enum
+               | trait
+               | impl_block
                | main_block
                | extern_decl
                | use_decl
                | import_decl ;
+
+trait          = [ "publik" ] "sifat" Ident "{" { method_sig } "}" ;
+method_sig     = "fungsi" Ident "(" [ param_list ] ")" [ "->" type ] ;   (* no body *)
+
+impl_block     = "implementasi" [ Ident "untuk" ] Ident "{" { function } "}" ;
 
 use_decl       = "gunakan" Ident ;
 import_decl    = "impor" Ident ;
@@ -23,8 +31,10 @@ extern_decl    = "ekstern" "fungsi" Ident "(" [ param_list [ "," "..." ] ] ")"
 
 main_block     = "utama" block ;
 
-function       = [ "publik" ] "fungsi" Ident [ "<" Ident { "," Ident } ">" ]
+function       = [ "publik" ] "fungsi" Ident [ type_params ]
                  "(" [ param_list ] ")" [ "->" type ] block ;
+type_params    = "<" type_param { "," type_param } ">" ;
+type_param     = Ident [ ":" Ident { "+" Ident } ] ;      (* optional trait bounds *)
 param_list     = param { "," param } ;
 param          = Ident ":" type ;
 
@@ -93,6 +103,14 @@ literal        = IntLit | FloatLit | StringLit | CharLit | "benar" | "salah" ;
   `ambil_ubah(x)` (mutable `&ubah T`); these are ordinary call syntax, resolved
   by the checker rather than the grammar. `*r` reads through a reference and,
   as an l-value, writes through a `&ubah` reference.
+- A **method call** `x.m(args)` needs no dedicated grammar: it parses as a call
+  whose callee is a field access (`postfix` chaining `field_suffix` then
+  `call_suffix`). The checker treats a call whose callee is `base.name` as a
+  method call, resolving `name` against the implementations for the type of
+  `base` and passing `base` as the receiver.
+- `Diri` is a contextual type name (not a keyword) usable only inside a `sifat`
+  or `implementasi`, standing for the implementing type; `&Diri` / `&ubah Diri`
+  / `Diri` choose the receiver's borrow mode.
 - Statement boundaries are determined structurally; a leading `-` on a new line
   is parsed as a binary operator continuing the previous expression only inside
   an unclosed `(` — top-level statements do not span lines implicitly.

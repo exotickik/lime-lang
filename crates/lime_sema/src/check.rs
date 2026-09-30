@@ -3,7 +3,7 @@ use lime_ast::*;
 use lime_diagnostics::{codes, Diagnostic, DiagnosticEngine};
 use lime_span::Span;
 use lime_types::{EnumId, StructId, Type};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 pub struct Checker<'a> {
     diags: &'a mut DiagnosticEngine,
@@ -18,6 +18,8 @@ pub struct Checker<'a> {
     next_mono_node: u32,
     next_local: u32,
     current_ret: Type,
+    current_self: Option<Type>,
+    trait_ids: HashMap<String, usize>,
     loop_depth: u32,
 }
 
@@ -36,6 +38,8 @@ impl<'a> Checker<'a> {
             next_mono_node: 1_000_000_000,
             next_local: 0,
             current_ret: Type::Unit,
+            current_self: None,
+            trait_ids: HashMap::new(),
             loop_depth: 0,
         }
     }
@@ -45,6 +49,8 @@ impl<'a> Checker<'a> {
         self.collect_structs(program);
         self.resolve_struct_fields(program);
         self.collect_functions(program);
+        self.collect_traits(program);
+        self.collect_impls(program);
         self.register_globals();
         self.check_bodies(program);
         self.process_mono_worklist();
@@ -231,6 +237,321 @@ impl<'a> Checker<'a> {
             return;
         }
         self.results.functions.push(sig);
+    }
+
+    fn collect_traits(&mut self, program: &Program) {
+        for item in &program.items {
+            if let Item::Trait(t) = item {
+                if self.trait_ids.contains_key(&t.name.name) {
+                    self.diags.emit(
+                        Diagnostic::error(
+                            codes::E_REDEFINITION,
+                            format!("sifat '{}' didefinisikan lebih dari sekali", t.name.name),
+                        )
+                        .primary(t.name.span, "definisi ulang di sini"),
+                    );
+                    continue;
+                }
+                self.current_self = Some(Type::Param("Diri".to_string()));
+                let mut methods = Vec::new();
+                let mut seen = HashSet::new();
+                for m in &t.methods {
+                    if !seen.insert(m.name.name.clone()) {
+                        self.diags.emit(
+                            Diagnostic::error(
+                                codes::E_TRAIT_DUP_METHOD,
+                                format!("metode '{}' ditulis dua kali di sifat '{}'", m.name.name, t.name.name),
+                            )
+                            .primary(m.name.span, "metode ganda"),
+                        );
+                        continue;
+                    }
+                    let params = m.params.iter().map(|p| self.resolve_type(&p.ty)).collect();
+                    let ret = m.ret.as_ref().map(|r| self.resolve_type(r)).unwrap_or(Type::Unit);
+                    methods.push(TraitMethodInfo { name: m.name.name.clone(), params, ret });
+                }
+                self.current_self = None;
+                let idx = self.results.traits.len();
+                self.trait_ids.insert(t.name.name.clone(), idx);
+                self.results.traits.push(TraitInfo {
+                    name: t.name.name.clone(),
+                    methods,
+                    def_span: t.span,
+                });
+            }
+        }
+    }
+
+    fn collect_impls(&mut self, program: &Program) {
+        for item in &program.items {
+            let Item::Impl(b) = item else { continue };
+            let Some(self_type) = self.resolve_impl_target(&b.type_name) else {
+                continue;
+            };
+            let trait_name = b.trait_name.as_ref().map(|t| t.name.clone());
+            if let Some(tn) = &b.trait_name {
+                if !self.trait_ids.contains_key(&tn.name) {
+                    self.diags.emit(
+                        Diagnostic::error(
+                            codes::E_UNKNOWN_TRAIT_OR_TYPE,
+                            format!("sifat '{}' tidak dikenal", tn.name),
+                        )
+                        .primary(tn.span, "bukan sifat yang dikenal"),
+                    );
+                    continue;
+                }
+            }
+            if self
+                .results
+                .impls
+                .iter()
+                .any(|im| im.trait_name == trait_name && im.self_type == self_type)
+            {
+                self.diags.emit(
+                    Diagnostic::error(
+                        codes::E_DUP_IMPL,
+                        "implementasi ganda untuk tipe ini",
+                    )
+                    .primary(b.span, "sudah ada implementasi yang sama"),
+                );
+                continue;
+            }
+
+            self.current_self = Some(self_type.clone());
+            let mut method_map: HashMap<String, usize> = HashMap::new();
+            for m in &b.methods {
+                let mangled = mangle_method(&self_type, trait_name.as_deref(), &m.name.name);
+                let params: Vec<(String, Type)> = m
+                    .params
+                    .iter()
+                    .map(|p| (p.name.name.clone(), self.resolve_type(&p.ty)))
+                    .collect();
+                let ret = m.ret.as_ref().map(|r| self.resolve_type(r)).unwrap_or(Type::Unit);
+                let fn_idx = self.results.functions.len();
+                self.results.functions.push(FnSig {
+                    name: mangled.clone(),
+                    params,
+                    ret,
+                    is_extern: false,
+                    variadic: false,
+                    public: false,
+                    def_span: m.name.span,
+                });
+
+                let mut inst = m.clone();
+                inst.name.name = mangled;
+                inst.type_params.clear();
+                let subst: HashMap<String, Type> =
+                    std::iter::once(("Diri".to_string(), self_type.clone())).collect();
+                substitute_fn_types(&mut inst, &subst, &self.struct_ids, &self.enum_ids, &self.results);
+                let mono_idx = self.results.mono_functions.len();
+                self.results.mono_functions.push(inst);
+                self.mono_worklist.push(mono_idx);
+
+                method_map.insert(m.name.name.clone(), fn_idx);
+            }
+            self.current_self = None;
+
+            if let Some(tn) = &b.trait_name {
+                let tidx = self.trait_ids[&tn.name];
+                self.check_trait_conformance(tidx, &self_type, &method_map, b);
+            }
+
+            self.results.impls.push(ImplInfo { trait_name, self_type, methods: method_map });
+        }
+    }
+
+    fn resolve_impl_target(&mut self, name: &Ident) -> Option<Type> {
+        if let Some(&id) = self.struct_ids.get(&name.name) {
+            return Some(Type::Struct(id));
+        }
+        if let Some(&id) = self.enum_ids.get(&name.name) {
+            return Some(Type::Enum(id));
+        }
+        if let Some(t) = Type::from_builtin_name(&name.name) {
+            return Some(t);
+        }
+        self.diags.emit(
+            Diagnostic::error(
+                codes::E_UNKNOWN_TRAIT_OR_TYPE,
+                format!("tipe '{}' tidak dikenal", name.name),
+            )
+            .primary(name.span, "bukan tipe yang bisa diimplementasi"),
+        );
+        None
+    }
+
+    fn check_trait_conformance(
+        &mut self,
+        trait_idx: usize,
+        self_type: &Type,
+        method_map: &HashMap<String, usize>,
+        b: &ImplBlock,
+    ) {
+        let ti = self.results.traits[trait_idx].clone();
+        let subst: HashMap<String, Type> =
+            std::iter::once(("Diri".to_string(), self_type.clone())).collect();
+        for tm in &ti.methods {
+            let Some(&fn_idx) = method_map.get(&tm.name) else {
+                self.diags.emit(
+                    Diagnostic::error(
+                        codes::E_IMPL_METHOD_MISMATCH,
+                        format!("implementasi '{}' belum punya metode '{}'", ti.name, tm.name),
+                    )
+                    .primary(b.span, "metode dari sifat belum diisi"),
+                );
+                continue;
+            };
+            let sig = self.results.functions[fn_idx].clone();
+            let want_params: Vec<Type> =
+                tm.params.iter().map(|p| subst_type(p, &subst)).collect();
+            let want_ret = subst_type(&tm.ret, &subst);
+            let got_params: Vec<Type> = sig.params.iter().map(|(_, t)| t.clone()).collect();
+            if want_params != got_params || want_ret != sig.ret {
+                self.diags.emit(
+                    Diagnostic::error(
+                        codes::E_IMPL_METHOD_MISMATCH,
+                        format!("tanda tangan metode '{}' tidak cocok dengan sifat '{}'", tm.name, ti.name),
+                    )
+                    .primary(sig.def_span, "tanda tangan berbeda dari sifat"),
+                );
+            }
+        }
+        for name in method_map.keys() {
+            if ti.method(name).is_none() {
+                self.diags.emit(
+                    Diagnostic::error(
+                        codes::E_IMPL_METHOD_MISMATCH,
+                        format!("metode '{}' bukan bagian dari sifat '{}'", name, ti.name),
+                    )
+                    .primary(b.span, "metode ini tidak ada di sifat"),
+                );
+            }
+        }
+    }
+
+    fn type_implements(&self, ty: &Type, trait_name: &str) -> bool {
+        self.results
+            .impls
+            .iter()
+            .any(|im| im.trait_name.as_deref() == Some(trait_name) && im.self_type == *ty)
+    }
+
+    fn resolve_method(&mut self, self_ty: &Type, field: &Ident, call: &Expr) -> Option<(usize, RecvMode)> {
+        let mut found: Vec<usize> = Vec::new();
+        for im in &self.results.impls {
+            if im.self_type == *self_ty {
+                if let Some(&idx) = im.methods.get(&field.name) {
+                    found.push(idx);
+                }
+            }
+        }
+        if found.is_empty() {
+            self.diags.emit(
+                Diagnostic::error(
+                    codes::E_METHOD_NOT_FOUND,
+                    format!("tipe '{}' tidak punya metode '{}'", self_ty.display(), field.name),
+                )
+                .primary(field.span, "metode tidak ditemukan")
+                .secondary(call.span, "pada pemanggilan ini"),
+            );
+            return None;
+        }
+        if found.len() > 1 {
+            self.diags.emit(
+                Diagnostic::error(
+                    codes::E_METHOD_AMBIGUOUS,
+                    format!("metode '{}' ada di lebih dari satu sifat untuk tipe ini", field.name),
+                )
+                .primary(field.span, "metode ambigu"),
+            );
+            return None;
+        }
+        let fn_idx = found[0];
+        let sig = &self.results.functions[fn_idx];
+        let mode = match sig.params.first() {
+            Some((_, Type::Ref { mutable: true, .. })) => RecvMode::RefMut,
+            Some((_, Type::Ref { mutable: false, .. })) => RecvMode::Ref,
+            Some(_) => RecvMode::Value,
+            None => {
+                self.diags.emit(
+                    Diagnostic::error(
+                        codes::E_METHOD_NOT_FOUND,
+                        format!("metode '{}' tidak punya penerima 'diri'", field.name),
+                    )
+                    .primary(field.span, "metode tanpa penerima"),
+                );
+                return None;
+            }
+        };
+        Some((fn_idx, mode))
+    }
+
+    fn check_method_call(&mut self, call: &Expr, base: &Expr, field: &Ident, args: &[Expr]) -> Type {
+        let recv_ty = self.check_expr(base, None);
+        if recv_ty.is_error() {
+            for a in args {
+                self.check_expr(a, None);
+            }
+            return Type::Error;
+        }
+        let lookup_ty = match &recv_ty {
+            Type::Ref { inner, .. } => (**inner).clone(),
+            t => t.clone(),
+        };
+        let Some((fn_idx, mode)) = self.resolve_method(&lookup_ty, field, call) else {
+            for a in args {
+                self.check_expr(a, None);
+            }
+            return Type::Error;
+        };
+        self.results
+            .method_calls
+            .insert(call.id, MethodResolution { func_idx: fn_idx, recv_mode: mode });
+
+        if mode == RecvMode::RefMut {
+            let ok_place = base.is_lvalue() && self.place_is_mutable(base);
+            let ok_mut_ref = matches!(&recv_ty, Type::Ref { mutable: true, .. });
+            if !ok_place && !ok_mut_ref {
+                self.diags.emit(
+                    Diagnostic::error(
+                        codes::E_BORROW_IMMUTABLE,
+                        format!("metode '{}' butuh penerima yang bisa diubah ('&ubah Diri')", field.name),
+                    )
+                    .primary(base.span, "penerima ini tidak bisa diubah")
+                    .help("deklarasikan penerima dengan 'ubah'"),
+                );
+            }
+        }
+
+        let sig = self.results.functions[fn_idx].clone();
+        let want = sig.params.len().saturating_sub(1);
+        if args.len() != want {
+            self.diags.emit(
+                Diagnostic::error(
+                    codes::E_ARITY_MISMATCH,
+                    format!("metode '{}' butuh {} argumen, diberi {}", field.name, want, args.len()),
+                )
+                .primary(call.span, "jumlah argumen salah"),
+            );
+            for a in args {
+                self.check_expr(a, None);
+            }
+            return sig.ret;
+        }
+        for (a, (_, pty)) in args.iter().zip(sig.params.iter().skip(1)) {
+            let at = self.check_expr(a, Some(pty));
+            if !at.assignable_to(pty) {
+                self.diags.emit(
+                    Diagnostic::error(
+                        codes::E_TYPE_MISMATCH_ASSIGN,
+                        format!("argumen bertipe '{}', diharapkan '{}'", at.display(), pty.display()),
+                    )
+                    .primary(a.span, format!("bertipe '{}'", at.display())),
+                );
+            }
+        }
+        sig.ret
     }
 
     fn register_globals(&mut self) {
@@ -863,6 +1184,12 @@ impl<'a> Checker<'a> {
     }
 
     fn check_call(&mut self, call: &Expr, callee: &Expr, args: &[Expr]) -> Type {
+        if let ExprKind::Field { base, field } = &callee.kind {
+            let enum_path = matches!(&base.kind, ExprKind::Name(n) if self.enum_ids.contains_key(n));
+            if !enum_path {
+                return self.check_method_call(call, base, field, args);
+            }
+        }
         let ExprKind::Name(name) = &callee.kind else {
             self.check_expr(callee, None);
             self.diags.emit(
@@ -1093,7 +1420,7 @@ impl<'a> Checker<'a> {
     ) -> Type {
         let template = self.generic_fns[gidx].clone();
         let type_params: Vec<String> =
-            template.type_params.iter().map(|p| p.name.clone()).collect();
+            template.type_params.iter().map(|p| p.name.name.clone()).collect();
 
         if args.len() != template.params.len() {
             self.diags.emit(
@@ -1160,6 +1487,39 @@ impl<'a> Checker<'a> {
             }
         };
 
+        let mut bound_failed = false;
+        for (tp, concrete) in template.type_params.iter().zip(type_args.iter()) {
+            for bound in &tp.bounds {
+                if !self.trait_ids.contains_key(&bound.name) {
+                    self.diags.emit(
+                        Diagnostic::error(
+                            codes::E_UNKNOWN_TRAIT_OR_TYPE,
+                            format!("sifat '{}' tidak dikenal", bound.name),
+                        )
+                        .primary(bound.span, "bukan sifat yang dikenal"),
+                    );
+                    bound_failed = true;
+                } else if !self.type_implements(concrete, &bound.name) {
+                    self.diags.emit(
+                        Diagnostic::error(
+                            codes::E_BOUND_NOT_SATISFIED,
+                            format!(
+                                "tipe '{}' tidak mengimplementasi sifat '{}'",
+                                concrete.display(),
+                                bound.name
+                            ),
+                        )
+                        .primary(call.span, "batas sifat tidak terpenuhi")
+                        .secondary(tp.name.span, "diminta di sini"),
+                    );
+                    bound_failed = true;
+                }
+            }
+        }
+        if bound_failed {
+            return Type::Error;
+        }
+
         let instance_idx = self.instantiate(gidx, &type_args);
         self.results.name_res.insert(callee.id, Res::Func(instance_idx));
         self.results.functions[instance_idx].ret.clone()
@@ -1172,7 +1532,7 @@ impl<'a> Checker<'a> {
         }
         let template = self.generic_fns[gidx].clone();
         let type_params: Vec<String> =
-            template.type_params.iter().map(|p| p.name.clone()).collect();
+            template.type_params.iter().map(|p| p.name.name.clone()).collect();
         let subst: HashMap<String, Type> =
             type_params.iter().cloned().zip(type_args.iter().cloned()).collect();
 
@@ -1298,8 +1658,12 @@ impl<'a> Checker<'a> {
                 Some(Res::Local(id)) => self.results.locals[id].mutable,
                 _ => false,
             },
-            ExprKind::Field { base, .. } => self.place_is_mutable(base),
-            ExprKind::Index { base, .. } => self.place_is_mutable(base),
+            ExprKind::Field { base, .. } | ExprKind::Index { base, .. } => {
+                match self.results.expr_type(base.id) {
+                    Type::Ref { mutable, .. } => *mutable,
+                    _ => self.place_is_mutable(base),
+                }
+            }
             ExprKind::Deref(inner) => {
                 matches!(self.results.expr_type(inner.id), Type::Ref { mutable: true, .. })
             }
@@ -1363,6 +1727,10 @@ impl<'a> Checker<'a> {
 
     fn check_field(&mut self, base: &Expr, field: &Ident) -> Type {
         let bt = self.check_expr(base, None);
+        let bt = match bt {
+            Type::Ref { inner, .. } => (*inner).clone(),
+            other => other,
+        };
         match bt {
             Type::Struct(id) => {
                 let info = self.results.struct_info(id);
@@ -1423,8 +1791,21 @@ impl<'a> Checker<'a> {
                 }
                 None => {}
             },
-            ExprKind::Field { base, .. } => self.check_assignable(base),
-            ExprKind::Index { base, .. } => self.check_assignable(base),
+            ExprKind::Field { base, .. } | ExprKind::Index { base, .. } => {
+                match self.results.expr_type(base.id).clone() {
+                    Type::Ref { mutable: true, .. } => {}
+                    Type::Ref { mutable: false, .. } => {
+                        self.diags.emit(
+                            Diagnostic::error(
+                                codes::E_STORE_THROUGH_SHARED,
+                                "tidak bisa menulis lewat reference '&' (harus '&ubah')",
+                            )
+                            .primary(target.span, "reference ini hanya untuk baca"),
+                        );
+                    }
+                    _ => self.check_assignable(base),
+                }
+            }
             ExprKind::Deref(inner) => {
                 let it = self.results.expr_type(inner.id).clone();
                 if let Type::Ref { mutable, .. } = it {
@@ -1446,6 +1827,21 @@ impl<'a> Checker<'a> {
     fn resolve_type(&mut self, ty: &TypeExpr) -> Type {
         match &ty.kind {
             TypeExprKind::Named(name) => {
+                if name == "Diri" {
+                    return match &self.current_self {
+                        Some(t) => t.clone(),
+                        None => {
+                            self.diags.emit(
+                                Diagnostic::error(
+                                    codes::E_UNKNOWN_TYPE,
+                                    "'Diri' hanya bisa dipakai di dalam 'sifat' atau 'implementasi'",
+                                )
+                                .primary(ty.span, "di luar konteks sifat/implementasi"),
+                            );
+                            Type::Error
+                        }
+                    };
+                }
                 if let Some(t) = Type::from_builtin_name(name) {
                     return t;
                 }
@@ -1612,6 +2008,32 @@ fn mangle_name(base: &str, type_args: &[Type]) -> String {
         .map(|t| t.display().chars().map(|c| if c.is_alphanumeric() { c } else { '_' }).collect())
         .collect();
     format!("{}${}", base, parts.join("_"))
+}
+
+fn sanitize(s: &str) -> String {
+    s.chars().map(|c| if c.is_alphanumeric() { c } else { '_' }).collect()
+}
+
+fn mangle_method(self_type: &Type, trait_name: Option<&str>, method: &str) -> String {
+    format!("{}${}${}", sanitize(&self_type.display()), trait_name.unwrap_or(""), method)
+}
+
+fn subst_type(ty: &Type, subst: &HashMap<String, Type>) -> Type {
+    match ty {
+        Type::Param(n) => subst.get(n).cloned().unwrap_or_else(|| ty.clone()),
+        Type::Array { elem, size } => {
+            Type::Array { elem: Box::new(subst_type(elem, subst)), size: *size }
+        }
+        Type::Kotak(inner) => Type::Kotak(Box::new(subst_type(inner, subst))),
+        Type::Ref { inner, mutable } => {
+            Type::Ref { inner: Box::new(subst_type(inner, subst)), mutable: *mutable }
+        }
+        Type::Fn { params, ret } => Type::Fn {
+            params: params.iter().map(|p| subst_type(p, subst)).collect(),
+            ret: Box::new(subst_type(ret, subst)),
+        },
+        other => other.clone(),
+    }
 }
 
 fn dummy_span() -> Span {

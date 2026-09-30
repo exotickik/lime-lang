@@ -4,7 +4,7 @@ use lime_ast::{
     Program, Stmt, UnOp,
 };
 use lime_diagnostics::{codes, Diagnostic, DiagnosticEngine};
-use lime_sema::{Builtin, Res, TypeckResults};
+use lime_sema::{Builtin, MethodResolution, RecvMode, Res, TypeckResults};
 use lime_types::Type;
 use std::collections::HashMap;
 
@@ -552,21 +552,87 @@ impl<'a> FnLowerer<'a> {
                 }
             },
             ExprKind::Deref(inner) => self.lower_expr(inner),
-            ExprKind::Field { .. } | ExprKind::Index { .. } => {
+            ExprKind::Field { base, field } => {
                 if let Some((slot, path)) = self.resolve_place(place) {
                     let agg_ty = self.slots[slot.0 as usize].ty.clone();
                     let dst = self.fresh_value();
                     self.emit(Some(dst), InstrKind::Gep { slot, agg_ty, indices: path });
-                    Operand::Val(dst)
-                } else {
-                    self.unsupported(place.span, "alamat tempat ini belum didukung backend");
-                    Operand::ConstInt(0, Type::I64)
+                    return Operand::Val(dst);
+                }
+                let base_ty = self.results.expr_type(base.id).clone();
+                match struct_of(&base_ty) {
+                    Some(sid) => {
+                        let base_ptr = self.struct_base_ptr(base, &base_ty);
+                        let idx = self.field_index(sid, &field.name);
+                        let dst = self.fresh_value();
+                        self.emit(
+                            Some(dst),
+                            InstrKind::GepPtr {
+                                base: base_ptr,
+                                agg_ty: Type::Struct(sid),
+                                indices: vec![GepIndex::Field(idx)],
+                            },
+                        );
+                        Operand::Val(dst)
+                    }
+                    None => {
+                        self.unsupported(place.span, "alamat tempat ini belum didukung backend");
+                        Operand::ConstInt(0, Type::I64)
+                    }
+                }
+            }
+            ExprKind::Index { base, index } => {
+                if let Some((slot, path)) = self.resolve_place(place) {
+                    let agg_ty = self.slots[slot.0 as usize].ty.clone();
+                    let dst = self.fresh_value();
+                    self.emit(Some(dst), InstrKind::Gep { slot, agg_ty, indices: path });
+                    return Operand::Val(dst);
+                }
+                let base_ty = self.results.expr_type(base.id).clone();
+                match array_of(&base_ty) {
+                    Some((elem_ty, size)) => {
+                        let base_ptr = self.lower_expr(base);
+                        let idx = self.lower_index_value(index, size);
+                        let dst = self.fresh_value();
+                        self.emit(
+                            Some(dst),
+                            InstrKind::GepPtr {
+                                base: base_ptr,
+                                agg_ty: Type::Array { elem: Box::new(elem_ty), size },
+                                indices: vec![GepIndex::ArrayVal(idx)],
+                            },
+                        );
+                        Operand::Val(dst)
+                    }
+                    None => {
+                        self.unsupported(place.span, "alamat tempat ini belum didukung backend");
+                        Operand::ConstInt(0, Type::I64)
+                    }
                 }
             }
             _ => {
                 self.unsupported(place.span, "alamat ekspresi ini tidak valid");
                 Operand::ConstInt(0, Type::I64)
             }
+        }
+    }
+
+    fn struct_base_ptr(&mut self, base: &Expr, base_ty: &Type) -> Operand {
+        if matches!(base_ty, Type::Ref { .. }) {
+            self.lower_expr(base)
+        } else {
+            self.lower_place_addr(base)
+        }
+    }
+
+    fn place_through_ref(&self, expr: &Expr) -> bool {
+        match &expr.kind {
+            ExprKind::Deref(_) => true,
+            ExprKind::Field { base, .. } | ExprKind::Index { base, .. } => {
+                matches!(self.results.expr_type(base.id), Type::Ref { .. })
+                    || self.place_through_ref(base)
+            }
+            _ => false,
         }
     }
 
@@ -602,6 +668,22 @@ impl<'a> FnLowerer<'a> {
 
     fn elem_ptr(&mut self, base: &Expr, index: &Expr) -> Operand {
         let base_ty = self.results.expr_type(base.id).clone();
+        if let Some((elem_ty, size)) = array_of(&base_ty) {
+            if matches!(base_ty, Type::Ref { .. }) {
+                let base_ptr = self.lower_expr(base);
+                let idx = self.lower_index_value(index, size);
+                let dst = self.fresh_value();
+                self.emit(
+                    Some(dst),
+                    InstrKind::GepPtr {
+                        base: base_ptr,
+                        agg_ty: Type::Array { elem: Box::new(elem_ty), size },
+                        indices: vec![GepIndex::ArrayVal(idx)],
+                    },
+                );
+                return Operand::Val(dst);
+            }
+        }
         let size = match &base_ty {
             Type::Array { size, .. } => *size,
             _ => 0,
@@ -823,6 +905,9 @@ impl<'a> FnLowerer<'a> {
 
     fn lower_field_read(&mut self, base: &Expr, field: &Ident, expr: &Expr) -> Operand {
         let base_ty = self.results.expr_type(base.id).clone();
+        if matches!(base_ty, Type::Ref { .. }) {
+            return self.lower_field_read_ref(expr);
+        }
         let field_ty = self.results.expr_type(expr.id).clone();
         let Type::Struct(sid) = &base_ty else {
             self.unsupported(expr.span, "akses field pada nilai bukan struct");
@@ -839,6 +924,13 @@ impl<'a> FnLowerer<'a> {
     }
 
     fn lower_field_assign(&mut self, target: &Expr, value: &Expr) {
+        if self.place_through_ref(target) {
+            let field_ty = self.results.expr_type(target.id).clone();
+            let ptr = self.lower_place_addr(target);
+            let val = self.lower_expr(value);
+            self.emit(None, InstrKind::StorePtr { ptr, ty: field_ty, value: val });
+            return;
+        }
         let mut indices = Vec::new();
         let mut node = target;
         let root_slot;
@@ -889,6 +981,14 @@ impl<'a> FnLowerer<'a> {
             },
         );
         self.emit(None, InstrKind::Store { slot: root_slot, value: Operand::Val(updated) });
+    }
+
+    fn lower_field_read_ref(&mut self, expr: &Expr) -> Operand {
+        let field_ty = self.results.expr_type(expr.id).clone();
+        let ptr = self.lower_place_addr(expr);
+        let dst = self.fresh_value();
+        self.emit(Some(dst), InstrKind::LoadPtr { ptr, ty: field_ty });
+        Operand::Val(dst)
     }
 
     fn field_index(&self, sid: lime_types::StructId, name: &str) -> u32 {
@@ -1014,6 +1114,9 @@ impl<'a> FnLowerer<'a> {
     }
 
     fn lower_call(&mut self, callee: &Expr, args: &[Expr], expr: &Expr) -> Operand {
+        if let Some(m) = self.results.method_calls.get(&expr.id).cloned() {
+            return self.lower_method_call(callee, args, &m);
+        }
         match self.results.name_res.get(&callee.id) {
             Some(Res::Builtin(Builtin::Tampilkan)) => {
                 self.lower_print(&args[0]);
@@ -1105,6 +1208,53 @@ impl<'a> FnLowerer<'a> {
                 self.unsupported(expr.span, "pemanggilan ini belum didukung backend");
                 Operand::ConstInt(0, Type::I64)
             }
+        }
+    }
+
+    fn lower_method_call(&mut self, callee: &Expr, args: &[Expr], m: &MethodResolution) -> Operand {
+        let ExprKind::Field { base, .. } = &callee.kind else {
+            self.unsupported(callee.span, "pemanggilan metode tidak valid");
+            return Operand::ConstInt(0, Type::I64);
+        };
+        let recv = match m.recv_mode {
+            RecvMode::Value => self.lower_expr(base),
+            RecvMode::Ref | RecvMode::RefMut => self.recv_ptr(base),
+        };
+        let mut arg_ops = vec![recv];
+        for a in args {
+            arg_ops.push(self.lower_expr(a));
+        }
+        let sig = self.results.functions[m.func_idx].clone();
+        let ret = sig.ret.clone();
+        if ret == Type::Unit {
+            self.emit(
+                None,
+                InstrKind::Call { callee: sig.name, args: arg_ops, ret: Type::Unit, variadic_from: None },
+            );
+            Operand::Unit
+        } else {
+            let dst = self.fresh_value();
+            self.emit(
+                Some(dst),
+                InstrKind::Call { callee: sig.name, args: arg_ops, ret: ret.clone(), variadic_from: None },
+            );
+            Operand::Val(dst)
+        }
+    }
+
+    fn recv_ptr(&mut self, base: &Expr) -> Operand {
+        let base_ty = self.results.expr_type(base.id).clone();
+        if matches!(base_ty, Type::Ref { .. }) {
+            self.lower_expr(base)
+        } else if base.is_lvalue() {
+            self.lower_place_addr(base)
+        } else {
+            let v = self.lower_expr(base);
+            let slot = self.new_slot(base_ty.clone());
+            self.emit(None, InstrKind::Store { slot, value: v });
+            let dst = self.fresh_value();
+            self.emit(Some(dst), InstrKind::AddrOf { slot, ty: base_ty });
+            Operand::Val(dst)
         }
     }
 
@@ -1318,3 +1468,25 @@ impl<'a> FnLowerer<'a> {
     }
 }
 
+
+fn struct_of(ty: &Type) -> Option<lime_types::StructId> {
+    match ty {
+        Type::Struct(sid) => Some(*sid),
+        Type::Ref { inner, .. } => match &**inner {
+            Type::Struct(sid) => Some(*sid),
+            _ => None,
+        },
+        _ => None,
+    }
+}
+
+fn array_of(ty: &Type) -> Option<(Type, u64)> {
+    match ty {
+        Type::Array { elem, size } => Some(((**elem).clone(), *size)),
+        Type::Ref { inner, .. } => match &**inner {
+            Type::Array { elem, size } => Some(((**elem).clone(), *size)),
+            _ => None,
+        },
+        _ => None,
+    }
+}

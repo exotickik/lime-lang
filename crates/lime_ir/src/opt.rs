@@ -214,6 +214,14 @@ fn subst_kind(kind: &mut InstrKind, known: &HashMap<u32, Operand>) -> bool {
                 }
             }
         }
+        InstrKind::GepPtr { base, indices, .. } => {
+            changed |= subst_operand(base, known);
+            for idx in indices {
+                if let GepIndex::ArrayVal(op) = idx {
+                    changed |= subst_operand(op, known);
+                }
+            }
+        }
         InstrKind::LoadPtr { ptr, .. } => changed |= subst_operand(ptr, known),
         InstrKind::StorePtr { ptr, value, .. } => {
             changed |= subst_operand(ptr, known);
@@ -274,6 +282,7 @@ fn is_pure(kind: &InstrKind) -> bool {
             | InstrKind::InsertField { .. }
             | InstrKind::MakeArray { .. }
             | InstrKind::Gep { .. }
+            | InstrKind::GepPtr { .. }
             | InstrKind::LoadPtr { .. }
             | InstrKind::AddrOf { .. }
     )
@@ -321,6 +330,14 @@ fn collect_uses(kind: &InstrKind, used: &mut HashSet<u32>) {
             }
         }
         InstrKind::Gep { indices, .. } => {
+            for idx in indices {
+                if let GepIndex::ArrayVal(op) = idx {
+                    note_use(op, used);
+                }
+            }
+        }
+        InstrKind::GepPtr { base, indices, .. } => {
+            note_use(base, used);
             for idx in indices {
                 if let GepIndex::ArrayVal(op) = idx {
                     note_use(op, used);

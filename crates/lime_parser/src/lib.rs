@@ -232,6 +232,10 @@ impl<'a> Parser<'a> {
             TokenKind::Keyword(Keyword::Fungsi) => Ok(Item::Function(self.parse_function(public)?)),
             TokenKind::Keyword(Keyword::Tipe) => Ok(Item::Struct(self.parse_struct(public)?)),
             TokenKind::Keyword(Keyword::Enum) => Ok(Item::Enum(self.parse_enum(public)?)),
+            TokenKind::Keyword(Keyword::Sifat) => Ok(Item::Trait(self.parse_trait(public)?)),
+            TokenKind::Keyword(Keyword::Implementasi) if !public => {
+                Ok(Item::Impl(self.parse_impl()?))
+            }
             TokenKind::Keyword(Keyword::Utama) if !public => Ok(Item::Main(self.parse_main()?)),
             TokenKind::Keyword(Keyword::Ekstern) if !public => {
                 Ok(Item::Extern(self.parse_extern()?))
@@ -259,6 +263,55 @@ impl<'a> Parser<'a> {
         }
     }
 
+    fn parse_trait(&mut self, public: bool) -> PResult<TraitDecl> {
+        let start = self.peek_span();
+        self.expect(&TokenKind::Keyword(Keyword::Sifat))?;
+        let name = self.expect_ident()?;
+        self.expect(&TokenKind::LBrace)?;
+        let mut methods = Vec::new();
+        while !matches!(self.peek(), TokenKind::RBrace | TokenKind::Eof) {
+            methods.push(self.parse_method_sig()?);
+        }
+        let end = self.expect(&TokenKind::RBrace)?.span;
+        Ok(TraitDecl { public, name, methods, span: start.to(end) })
+    }
+
+    fn parse_method_sig(&mut self) -> PResult<MethodSig> {
+        let start = self.peek_span();
+        self.expect(&TokenKind::Keyword(Keyword::Fungsi))?;
+        let name = self.expect_ident()?;
+        self.expect(&TokenKind::LParen)?;
+        let params = self.parse_params()?;
+        let rp = self.expect(&TokenKind::RParen)?.span;
+        let (ret, end) = if self.eat(&TokenKind::Arrow) {
+            let t = self.expect_type()?;
+            let sp = t.span;
+            (Some(t), sp)
+        } else {
+            (None, rp)
+        };
+        Ok(MethodSig { name, params, ret, span: start.to(end) })
+    }
+
+    fn parse_impl(&mut self) -> PResult<ImplBlock> {
+        let start = self.peek_span();
+        self.expect(&TokenKind::Keyword(Keyword::Implementasi))?;
+        let first = self.expect_ident()?;
+        let (trait_name, type_name) = if self.eat_kw(Keyword::Untuk) {
+            (Some(first), self.expect_ident()?)
+        } else {
+            (None, first)
+        };
+        self.expect(&TokenKind::LBrace)?;
+        let mut methods = Vec::new();
+        while !matches!(self.peek(), TokenKind::RBrace | TokenKind::Eof) {
+            self.eat_kw(Keyword::Publik);
+            methods.push(self.parse_function(false)?);
+        }
+        let end = self.expect(&TokenKind::RBrace)?.span;
+        Ok(ImplBlock { trait_name, type_name, methods, span: start.to(end) })
+    }
+
     fn parse_function(&mut self, public: bool) -> PResult<Function> {
         let start = self.peek_span();
         self.expect(&TokenKind::Keyword(Keyword::Fungsi))?;
@@ -273,11 +326,19 @@ impl<'a> Parser<'a> {
         Ok(Function { public, name, type_params, params, ret, body, span })
     }
 
-    fn parse_type_params(&mut self) -> PResult<Vec<Ident>> {
+    fn parse_type_params(&mut self) -> PResult<Vec<TypeParam>> {
         let mut params = Vec::new();
         if self.eat(&TokenKind::Lt) {
             while !matches!(self.peek(), TokenKind::Gt | TokenKind::Eof) {
-                params.push(self.expect_ident()?);
+                let name = self.expect_ident()?;
+                let mut bounds = Vec::new();
+                if self.eat(&TokenKind::Colon) {
+                    bounds.push(self.expect_ident()?);
+                    while self.eat(&TokenKind::Plus) {
+                        bounds.push(self.expect_ident()?);
+                    }
+                }
+                params.push(TypeParam { name, bounds });
                 if !self.eat(&TokenKind::Comma) {
                     break;
                 }

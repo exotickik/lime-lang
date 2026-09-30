@@ -66,6 +66,7 @@ pub enum InstrKind {
     InsertField { agg: Operand, agg_ty: Type, indices: Vec<u32>, value: Operand, field_ty: Type },
     MakeArray { elem_ty: Type, elems: Vec<Operand> },
     Gep { slot: SlotId, agg_ty: Type, indices: Vec<GepIndex> },
+    GepPtr { base: Operand, agg_ty: Type, indices: Vec<GepIndex> },
     LoadPtr { ptr: Operand, ty: Type },
     StorePtr { ptr: Operand, ty: Type, value: Operand },
     KotakNew { inner_ty: Type, value: Operand },

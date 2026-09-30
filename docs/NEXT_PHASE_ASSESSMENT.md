@@ -1,98 +1,123 @@
-# Phase 9 (References) — Design Assessment
+# Phase 11 (Traits) — Design Assessment
 
 Baseline before this phase: `cargo build --workspace` and `cargo test --workspace`
-green (141 tests, 0 warnings). Phase 8 ownership (`kotak<T>`, moves, drops) is in
-place and must not regress.
+green (175 tests, 0 warnings). Phases 8–9 (ownership, references) are in place and
+must not regress. References, generics with monomorphization, structs and enums
+are all available and are the foundations traits build on.
 
-## Current state relevant to references
+## Goal
 
-- Every local lives in a stack slot (`alloca`, tracked by `slot_of_local`). The
-  slot pointer is already a real `ptr` in the generated LLVM. **A reference to a
-  local is therefore just the address of its slot** — no new runtime concept is
-  needed, and the IR already has `LoadPtr` / `StorePtr` for pointer access.
-- `Type::Kotak(T)` is the only Owned type; ownership is classified by `is_copy`
-  in `lime_sema` and enforced flow-sensitively in `ownership.rs`.
-- Borrowing already exists in a limited form: `isi(k)` reads a `kotak` without
-  consuming it (a builtin marked "borrow-only" in `ownership.rs::visit_call`).
+A real, first-class **trait** system with **static dispatch** (monomorphization).
+No dynamic dispatch / `dyn` in this phase — static dispatch is preferred and the
+architecture does not yet need vtables.
 
-## Reference model (Lime's own design)
+## Why this fits the existing architecture
 
-Lime references are **temporary, non-escaping borrows** checked entirely at
-compile time. There is no reference counting, no runtime borrow state, and no GC.
+- Generic functions are already monomorphized: each `(template, type-args)` pair
+  becomes a fresh `lime_ast::Function` (name-mangled), whose signature and body
+  are **re-checked** with the concrete types substituted, then lowered like any
+  other function. Trait method calls inside a generic body therefore resolve to a
+  concrete impl automatically once the type parameter is concrete — this *is*
+  static dispatch, with no new lowering concept.
+- Method-call syntax needs no new grammar: `x.m(a)` already parses as
+  `Call { callee: Field { base: x, field: m }, args: [a] }`. The checker treats a
+  call whose callee is a field access naming a method as a method call.
+- An impl method is just a function. Each `implementasi` method lowers to an
+  ordinary mangled top-level function (e.g. `Titik$luas`); a method call becomes a
+  direct call to it with the receiver as the first argument. All existing
+  function checking, IR lowering, and codegen are reused unchanged.
 
-### Types
-- `&T` — an immutable reference (a **pinjam**, "borrow"): read the referent.
-- `&ubah T` — a mutable reference: read and write the referent.
+## Surface syntax (Indonesian, consistent with Lime)
 
-### Creating references
-Two builtins, consistent with `kotak`/`isi`:
-- `ambil(x)` → `&T` (take an immutable reference to local `x`).
-- `ambil_ubah(x)` → `&ubah T` (take a mutable reference; `x` must be `ubah`).
+```lime
+sifat Luas {
+    fungsi luas(diri: &Diri) -> angka
+}
 
-`ambil`/`ambil_ubah` borrow a **whole local** and do **not** move it, including
-when `x` is a `kotak<T>` (the box is borrowed, not duplicated).
+implementasi Luas untuk Persegi {
+    fungsi luas(diri: &Diri) -> angka { kembalikan diri.sisi * diri.sisi }
+}
 
-### Using references
-- `*r` — dereference: read the referent (requires a Copy referent), yielding a
-  value. Lowers to a real load through the pointer.
-- `*r = v` — dereference-assign through a `&ubah` reference: a real store through
-  the pointer. `(*r).field` (with parentheses) accesses a field of a referenced
-  struct.
-- `isi(r)` accepts `&kotak<T>` / `&ubah kotak<T>` as well as `kotak<T>`, so a
-  borrowed box can be read.
+implementasi Persegi {
+    fungsi perbesar(diri: &ubah Diri, k: angka) { diri.sisi = diri.sisi * k }
+}
 
-### Aliasing rules (checked in `ownership.rs`)
-While a local `x` is borrowed (a **loan** is active):
-- a `&ubah` loan is **exclusive**: no other access to `x` (read, write, move, or
-  another borrow) may occur while it is live;
-- `&` loans are **shared**: any number may coexist and `x` may be read, but `x`
-  may not be mutated, moved, or `&ubah`-borrowed while one is live.
+fungsi total_luas<T: Luas>(bentuk: &T) -> angka {
+    kembalikan bentuk.luas()
+}
+```
 
-Loan lifetime is **lexical and conservative**: a loan bound to `nilai r = ...`
-lives until the end of `r`'s block; a loan created as a call argument lives for
-that statement. This is sound (it over-approximates a value's borrow span) and
-simple; it may reject some programs a non-lexical analysis would accept, which is
-a documented trade, not a soundness hole.
+- `sifat Nama { ... }` declares a trait; its body holds **method signatures only**
+  (no bodies — default methods are a later extension, not faked here).
+- `implementasi Trait untuk Tipe { ... }` provides the trait's methods for a type;
+  `implementasi Tipe { ... }` provides inherent methods (no trait).
+- `Diri` is the Self type; `&Diri` / `&ubah Diri` / `Diri` choose the receiver
+  mode (shared borrow / mutable borrow / by-value). The receiver parameter name is
+  conventional (`diri`) but not special — only its type position matters.
+- Type-parameter bounds: `<T: Trait>` and `<T: A + B>`.
 
-### No dangling — the non-escaping rule
-A reference must never outlive its referent. Lime guarantees this structurally
-rather than with lifetime parameters: **references may not escape**. Concretely,
-the compiler rejects
-- returning a reference from a function,
-- storing a reference in a struct field, array element, or `kotak`,
-- reference types crossing the FFI boundary.
+## Representation
 
-References may only flow *downward* (into function calls) and be dereferenced.
-Because a non-escaping reference cannot leave the scope in which its referent is
-live, it can never dangle. Reference-returning functions (and thus generic
-`ambil_maksimum<T>(a: &T, b: &T) -> &T`) need lifetime inference and are
-explicitly deferred; the compiler rejects them with a clear diagnostic rather
-than accepting them unsoundly.
+- **AST.** `TypeParam { name, bounds: Vec<Ident> }` replaces the bare `Ident` in
+  `type_params`. New items `Item::Trait(TraitDecl)` and `Item::Impl(ImplBlock)`.
+  `TraitDecl` holds `MethodSig`s (name, params, ret — no body). `ImplBlock` holds
+  an optional trait name, a target type name, and method `Function`s.
+- **Self type.** `Diri` resolves to `Type::Param("Diri")` inside a trait or impl,
+  reusing the generic substitution engine. When checking or lowering an impl for
+  type `S`, `Param("Diri")` is substituted with `S`.
+- **Sema.** `TraitInfo { name, methods: [ (name, param-types, ret) ] }` with method
+  types resolved using the `Diri = Param("Diri")` convention. `ImplInfo
+  { trait, self_type, methods: name -> fn-index }`. Each impl method is registered
+  as a mangled `FnSig` and its body added to the check/lower pipeline (self-type
+  substituted), exactly like a monomorphized generic.
 
-### Ownership interaction
-- `ambil(x)` / `ambil_ubah(x)` borrow, they do not move `x`; `x` stays live.
-- A borrowed local may not be moved while the loan is active (caught as a loan
-  conflict), so a value is never freed while a reference to it exists.
-- References are Copy values (copying a reference is fine); the loan stays tied
-  to the original borrow's lexical region.
+## Method resolution & static dispatch
 
-### Generics
-`ambil`/`*`/`ambil_ubah` work when the referent type is a generic parameter `T`
-(checked per monomorphized instance). Returning a reference from a generic
-function is rejected like any reference return.
+- **Concrete receiver.** For `x.m(args)` with `typeof(x)` concrete (auto-dereferencing
+  a reference receiver), look up an impl method `m` for that type. Exactly one match
+  is required; none → `E02A2`, ambiguous (two traits) → `E02A3`. The method's first
+  parameter type selects the receiver mode: `&Diri` borrows `x`, `&ubah Diri`
+  mutably borrows it, `Diri` moves it — so a method call creates the same loans /
+  moves as `ambil` / `ambil_ubah` / a by-value pass, and the borrow checker treats
+  it identically.
+- **Bounded generic receiver.** Inside a generic body, `x.m()` for `x : T` with
+  `T: Trait` type-checks against the trait's signature (with `Diri = T`). No
+  concrete call is emitted for the template — the template body is only checked
+  through its instantiations, where `T` is concrete and resolution finds the real
+  impl.
+- **Bound enforcement.** At a call to `f<T: Trait>(..)`, once `T` is inferred, the
+  concrete type must implement every bound trait (`E02A4`) — this gives a clean
+  error at the call rather than deep inside the instantiated body, and guarantees
+  every method call in the body resolves.
 
-## Implementation plan (incremental, tests stay green each step)
+## Diagnostics (E02A0–E02A6)
 
-1. **Types + syntax**: `Type::Ref { inner, mutable }`; parse `&T` / `&ubah T`
-   type forms; single `&` lexer token; prefix `*` deref expression and
-   `*r = v` assignment target; `ambil` / `ambil_ubah` builtins.
-2. **Type checking**: reference types, deref, `ambil`/`ambil_ubah`, `isi` on
-   references.
-3. **IR + codegen**: `AddrOf { slot }` (slot address), reuse `LoadPtr`/`StorePtr`
-   for deref read/write; `ty_str(Ref) = ptr`. Real native pointer ops.
-4. **Borrow checking** in `ownership.rs`: loans, aliasing conflicts, escape
-   rejection, FFI rejection, move-while-borrowed.
-5. **Tests** (valid + invalid), **examples**, **docs**.
+| Code | Meaning |
+|---|---|
+| E02A0 | trait method with a duplicate name |
+| E02A1 | impl is missing a trait method / has an unknown or mis-typed one |
+| E02A2 | method not found for the receiver type |
+| E02A3 | ambiguous method (defined by more than one implemented trait) |
+| E02A4 | type does not implement a required trait bound |
+| E02A5 | duplicate implementation of a trait for a type |
+| E02A6 | unknown trait or impl target type |
 
-Nothing in the Copy/ownership paths changes, so existing structs, enums, arrays,
-strings, generics, FFI, and ownership behavior are preserved.
+## Ownership / references / generics / FFI interaction
+
+- **Ownership & references.** The receiver mode reuses the existing loan and move
+  machinery — no new borrow rules. A `&ubah Diri` method needs a mutable place,
+  and no other borrow may be live, exactly as `ambil_ubah`.
+- **Generics.** Traits compose with monomorphization: bounded generic functions
+  are checked per instance, so method calls resolve statically with zero overhead.
+- **FFI.** Traits are a compile-time resolution mechanism; they add no runtime
+  representation and never cross the FFI boundary. Extern functions are unaffected.
+
+## Non-goals this phase (documented, not faked)
+
+- No dynamic dispatch / trait objects (`dyn`).
+- No default method bodies in traits.
+- No associated types or associated constants.
+- No blanket impls or generic impls (`implementasi<T> Trait untuk kotak<T>`).
+
+These are natural later extensions; the phase ships a complete, statically
+dispatched trait system without them.

@@ -40,7 +40,7 @@ nilai    ubah
 jika     lain     selama   untuk    dari   sampai   hingga
 berhenti    lanjut
 benar    salah
-tipe     enum     cocok
+tipe     enum     sifat    implementasi   cocok
 gunakan  impor    ekstern  publik
 dan      atau     bukan
 ```
@@ -352,6 +352,41 @@ utama {
   `store`, with no allocation, tag, or reference count.
 
 See `docs/MEMORY_MODEL.md` for the complete borrowing rules and their rationale.
+
+### 3.11 Traits (`sifat` / `implementasi`)
+A trait names a set of method signatures; an implementation supplies them for a
+type. Dispatch is **static**: a method call compiles to a direct function call,
+with no vtable and no runtime cost.
+```lime
+sifat Luas {
+    fungsi luas(diri: &Diri) -> angka
+}
+implementasi Luas untuk Persegi {
+    fungsi luas(diri: &Diri) -> angka { kembalikan diri.sisi * diri.sisi }
+}
+implementasi Persegi {
+    fungsi perbesar(diri: &ubah Diri, k: angka) { diri.sisi = diri.sisi * k }
+}
+fungsi cetak_luas<T: Luas>(b: &T) { tampilkan(b.luas()) }
+
+utama {
+    ubah p = Persegi { sisi: 3 }
+    p.perbesar(2)              // inherent method, mutates through &ubah Diri
+    tampilkan(p.luas())        // 36
+    cetak_luas(ambil(p))       // trait-bounded generic, resolved statically
+}
+```
+- `Diri` is the implementing type; the first parameter's form (`&Diri`,
+  `&ubah Diri`, or `Diri`) sets whether the receiver is borrowed, mutably
+  borrowed, or moved. A method call `x.m(a)` passes `x` as that receiver under
+  the ordinary borrow/move rules.
+- `implementasi Sifat untuk Tipe` provides a trait's methods; `implementasi
+  Tipe` adds inherent methods. An impl must match the trait's methods exactly.
+- A type parameter may be bounded (`<T: Luas>`, or `<T: A + B>`); at each call
+  the concrete type must implement the bounds, and the bounded methods then
+  resolve to that type's implementation when the function is monomorphized.
+- Not yet: dynamic dispatch, default methods, associated types, generic impls.
+  See `docs/TYPE_SYSTEM.md` for the full rules and diagnostics.
 
 ---
 

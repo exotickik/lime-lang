@@ -1,4 +1,4 @@
-use crate::results::{Builtin, LocalId, Res, TypeckResults};
+use crate::results::{Builtin, LocalId, RecvMode, Res, TypeckResults};
 use lime_ast::*;
 use lime_diagnostics::{codes, Diagnostic, DiagnosticEngine};
 use lime_span::Span;
@@ -388,7 +388,7 @@ impl<'a> Own<'a> {
                 self.visit(rhs, false);
             }
             ExprKind::Unary { operand, .. } => self.visit(operand, false),
-            ExprKind::Call { callee, args } => self.visit_call(callee, args),
+            ExprKind::Call { callee, args } => self.visit_call(expr, callee, args),
             ExprKind::Field { base, .. } => self.visit(base, false),
             ExprKind::Index { base, index } => {
                 self.visit(base, false);
@@ -415,7 +415,34 @@ impl<'a> Own<'a> {
         }
     }
 
-    fn visit_call(&mut self, callee: &Expr, args: &[Expr]) {
+    fn visit_call(&mut self, call: &Expr, callee: &Expr, args: &[Expr]) {
+        if let Some(m) = self.results.method_calls.get(&call.id).cloned() {
+            if let ExprKind::Field { base, .. } = &callee.kind {
+                let base_is_ref = matches!(self.results.expr_type(base.id), Type::Ref { .. });
+                match m.recv_mode {
+                    RecvMode::Value => self.visit(base, true),
+                    RecvMode::Ref => {
+                        if base_is_ref {
+                            self.visit(base, false);
+                        } else {
+                            self.handle_borrow(base, false);
+                        }
+                    }
+                    RecvMode::RefMut => {
+                        if base_is_ref {
+                            self.visit(base, false);
+                        } else {
+                            self.handle_borrow(base, true);
+                        }
+                    }
+                }
+            }
+            for a in args {
+                self.visit(a, true);
+            }
+            return;
+        }
+
         let res = self.results.name_res.get(&callee.id).cloned();
 
         if matches!(res, Some(Res::Builtin(Builtin::Ambil))) {

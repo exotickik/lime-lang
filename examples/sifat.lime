@@ -1,0 +1,52 @@
+program Sifat
+
+tipe Persegi {
+    sisi: angka
+}
+
+tipe Lingkaran {
+    jari: angka
+}
+
+sifat Bentuk {
+    fungsi luas(diri: &Diri) -> angka
+    fungsi keliling(diri: &Diri) -> angka
+}
+
+implementasi Bentuk untuk Persegi {
+    fungsi luas(diri: &Diri) -> angka {
+        kembalikan diri.sisi * diri.sisi
+    }
+    fungsi keliling(diri: &Diri) -> angka {
+        kembalikan 4 * diri.sisi
+    }
+}
+
+implementasi Bentuk untuk Lingkaran {
+    fungsi luas(diri: &Diri) -> angka {
+        kembalikan 3 * diri.jari * diri.jari
+    }
+    fungsi keliling(diri: &Diri) -> angka {
+        kembalikan 2 * 3 * diri.jari
+    }
+}
+
+implementasi Persegi {
+    fungsi perbesar(diri: &ubah Diri, faktor: angka) {
+        diri.sisi = diri.sisi * faktor
+    }
+}
+
+fungsi ringkas<T: Bentuk>(bentuk: &T) {
+    tampilkan(bentuk.luas())
+    tampilkan(bentuk.keliling())
+}
+
+utama {
+    ubah p = Persegi { sisi: 3 }
+    ringkas(ambil(p))
+    p.perbesar(2)
+    ringkas(ambil(p))
+    nilai c = Lingkaran { jari: 5 }
+    ringkas(ambil(c))
+}

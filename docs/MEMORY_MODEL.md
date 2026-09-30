@@ -150,6 +150,17 @@ Use `isi(b)` to read the Copy payload of a borrowed box instead.
 `*r = e` to a native `store`. There is no wrapper, tag, or count — a reference is
 exactly a machine pointer, and reference-only code performs no heap traffic.
 
+### Method receivers
+
+Trait and inherent methods (`docs/TYPE_SYSTEM.md`) take their receiver as the
+first parameter, typed `&Diri`, `&ubah Diri`, or `Diri`. A method call reuses the
+borrowing machinery above with no new rules: a `&Diri` receiver takes a shared
+loan on the receiver place, `&ubah Diri` a mutable loan, and `Diri` moves it.
+Fields are reached through the receiver by auto-dereferencing the reference
+(`diri.x` compiles to a `getelementptr`/`load` through the pointer), and a
+`&ubah Diri` method may write them in place. Methods therefore allocate nothing
+and, being statically dispatched, lower to ordinary direct calls.
+
 ## Strings
 
 Design target: `teks` is `{ ptr: bita*, len: u64 }`. Owned strings additionally

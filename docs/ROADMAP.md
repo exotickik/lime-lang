@@ -62,7 +62,12 @@ Legend: ✅ done · 🟡 in progress · ⬜ planned
 - ⬜ Enum associated data + pattern matching (`cocok`)
 - ✅ Generic functions with type inference and monomorphization (native
   specialization, instantiation-time checking, nested generic calls)
-- ⬜ Generic structs/enums, explicit type args, trait/constraint bounds
+- ✅ Traits (`sifat`/`implementasi`, Phase 11): trait & inherent methods, method
+  calls with `&Diri`/`&ubah Diri`/`Diri` receivers, static dispatch via
+  monomorphization, trait-bounded generics (`<T: Sifat>`), impl conformance and
+  bound checking, real native lowering (methods are ordinary functions, no
+  vtables)
+- ⬜ Generic structs/enums, explicit type args, dynamic dispatch / trait objects
 - ⬜ Error handling model
 - ⬜ Modules across files
 - ✅ C-ABI FFI (`ekstern fungsi`, including variadic; links against libc) —
