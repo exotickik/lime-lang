@@ -1,0 +1,15 @@
+program Pustaka
+
+gunakan Inti
+
+gunakan Matematika
+
+utama {
+    tampilkan(maks(12, 7))
+    tampilkan(batas(120, 0, 100))
+    tampilkan(pangkat(3, 4))
+    tampilkan(fpb(1071, 462))
+    nilai f = faktorial(6)
+    tampilkan(nilai_atau(f, 0))
+    tampilkan(apakah_prima(97))
+}

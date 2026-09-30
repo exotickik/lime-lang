@@ -54,7 +54,10 @@ Legend: ✅ done · 🟡 in progress · ⬜ planned
 - 🟡 String model: UTF-8, immutable value semantics, content comparison
   (`strcmp`), byte length (`panjang`/`strlen`); concatenation, slicing,
   indexing, and owned strings pending the allocator
-- ⬜ `lime/std`: io, string, collections, filesystem, process, math, time
+- 🟡 `lime/std` (Phase 14): standard library written in Lime and embedded in the
+  compiler, pulled in with `gunakan`. Shipping now: `Inti` (maks/min/mutlak/
+  batas/tanda) and `Matematika` (pangkat/fpb/kpk/apakah_prima/faktorial). io,
+  string, collections, filesystem, process, time await further runtime features
 
 ## Phase 5 — Advanced language
 - ✅ Enums (C-style tagged variants: construction, equality, print, params,

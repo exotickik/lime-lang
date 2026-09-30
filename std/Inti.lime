@@ -1,0 +1,42 @@
+modul Inti
+
+publik fungsi maks(a: angka, b: angka) -> angka {
+    jika a > b {
+        kembalikan a
+    }
+    kembalikan b
+}
+
+publik fungsi min(a: angka, b: angka) -> angka {
+    jika a < b {
+        kembalikan a
+    }
+    kembalikan b
+}
+
+publik fungsi mutlak(n: angka) -> angka {
+    jika n < 0 {
+        kembalikan 0 - n
+    }
+    kembalikan n
+}
+
+publik fungsi batas(n: angka, bawah: angka, atas: angka) -> angka {
+    jika n < bawah {
+        kembalikan bawah
+    }
+    jika n > atas {
+        kembalikan atas
+    }
+    kembalikan n
+}
+
+publik fungsi tanda(n: angka) -> angka {
+    jika n < 0 {
+        kembalikan 0 - 1
+    }
+    jika n > 0 {
+        kembalikan 1
+    }
+    kembalikan 0
+}

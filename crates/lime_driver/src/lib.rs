@@ -43,15 +43,30 @@ impl Compiler {
 
         let dir = path.parent().map(|p| p.to_path_buf()).unwrap_or_default();
         let mut loaded: HashSet<String> = HashSet::new();
-        let mut queue: Vec<(PathBuf, bool)> = vec![(path.to_path_buf(), true)];
+        let mut queue: Vec<(ModSource, bool)> = vec![(ModSource::File(path.to_path_buf()), true)];
         let mut next_node: u32 = 0;
 
-        while let Some((mpath, is_entry)) = queue.pop() {
-            let key = mpath.to_string_lossy().to_string();
+        while let Some((source, is_entry)) = queue.pop() {
+            let key = source.key();
             if !loaded.insert(key.clone()) {
                 continue;
             }
-            let src = self.read(&mpath)?;
+            let src = match &source {
+                ModSource::File(p) => self.read(p)?,
+                ModSource::Std(name) => match std_source(name) {
+                    Some(s) => s.to_string(),
+                    None => {
+                        diags.emit(
+                            Diagnostic::error(
+                                codes::E_UNSUPPORTED,
+                                format!("modul pustaka '{}' tidak ada", name),
+                            )
+                            .primary(lime_span::Span::point(lime_span::FileId(0), 0), "bukan modul standar"),
+                        );
+                        continue;
+                    }
+                },
+            };
             let file = sm.add(key, src.clone());
             let toks = tokenize(file, &src, &mut diags);
             let (program, next) = parse_with_base(file, toks, &mut diags, next_node);
@@ -76,20 +91,38 @@ impl Compiler {
             }
 
             for item in &program.items {
-                if let Item::Import(name) = item {
-                    info.imports[mod_id].insert(name.name.clone());
-                    let child = dir.join(format!("{}.lime", name.name));
-                    if !child.exists() {
-                        diags.emit(
-                            Diagnostic::error(
-                                codes::E_UNSUPPORTED,
-                                format!("modul '{}' tidak ditemukan ('{}')", name.name, child.display()),
-                            )
-                            .primary(name.span, "file modul tidak ada"),
-                        );
-                    } else {
-                        queue.push((child, false));
+                match item {
+                    Item::Import(name) => {
+                        info.imports[mod_id].insert(name.name.clone());
+                        let child = dir.join(format!("{}.lime", name.name));
+                        if !child.exists() {
+                            diags.emit(
+                                Diagnostic::error(
+                                    codes::E_UNSUPPORTED,
+                                    format!("modul '{}' tidak ditemukan ('{}')", name.name, child.display()),
+                                )
+                                .primary(name.span, "file modul tidak ada"),
+                            );
+                        } else {
+                            queue.push((ModSource::File(child), false));
+                        }
                     }
+                    Item::Use(name) => {
+                        info.imports[mod_id].insert(name.name.clone());
+                        if std_source(&name.name).is_none() {
+                            diags.emit(
+                                Diagnostic::error(
+                                    codes::E_UNSUPPORTED,
+                                    format!("modul pustaka '{}' tidak dikenal", name.name),
+                                )
+                                .primary(name.span, "bukan modul standar")
+                                .help("modul standar yang tersedia: Inti, Matematika"),
+                            );
+                        } else {
+                            queue.push((ModSource::Std(name.name.clone()), false));
+                        }
+                    }
+                    _ => {}
                 }
             }
             items.extend(program.items);
@@ -184,6 +217,28 @@ impl Compiler {
                 1
             }
         }
+    }
+}
+
+enum ModSource {
+    File(PathBuf),
+    Std(String),
+}
+
+impl ModSource {
+    fn key(&self) -> String {
+        match self {
+            ModSource::File(p) => p.to_string_lossy().to_string(),
+            ModSource::Std(name) => format!("<pustaka>/{}.lime", name),
+        }
+    }
+}
+
+fn std_source(name: &str) -> Option<&'static str> {
+    match name {
+        "Inti" => Some(include_str!("../../../std/Inti.lime")),
+        "Matematika" => Some(include_str!("../../../std/Matematika.lime")),
+        _ => None,
     }
 }
 

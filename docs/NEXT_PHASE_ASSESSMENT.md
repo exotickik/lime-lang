@@ -1,73 +1,50 @@
-# Phase 13 (Modules) — Design Assessment
+# Phase 14 (Standard Library) — Design Assessment
 
-Baseline: `main` at the Error-Handling checkpoint — 215 tests, 0 warnings, all
-examples run, formatter idempotent.
-
-## Current state
-
-- The driver compiles a **single** `.lime` file: `frontend(path)` reads one file,
-  lexes, parses, and analyzes it.
-- `impor <Name>` and `gunakan <Name>` parse into `Item::Import` / `Item::Use` and
-  are otherwise ignored.
-- `publik` is parsed on functions, structs, enums, and struct fields but is not
-  enforced across any boundary (there is only one file).
+Baseline: `main` at the Modules checkpoint — 221 tests, 0 warnings.
 
 ## Goal
 
-Real multi-file compilation: a program can be split across `.lime` files, one file
-can `impor` another, and `publik` controls what crosses the module boundary. The
-result compiles and runs as one native executable.
+A real standard library, written **in Lime** wherever practical, so it also
+serves the eventual self-hosting path. No placeholder APIs: ship only functions
+the language and runtime can implement honestly today.
 
-## Model (v1)
+## What Lime can support today
 
-- **A module is a file.** A library file begins with `modul <Nama>`; the entry
-  file begins with `program <Nama>` and holds `utama`. An imported file may not
-  contain `utama`.
-- **`impor <Nama>`** loads `<Nama>.lime` from the importing file's directory,
-  transitively. The import graph is walked once; a cycle is a diagnostic, and a
-  missing file is a diagnostic.
-- **Visibility.** Within its own module a name is always accessible. A name from
-  another module is accessible only if that module is `impor`ed by the referrer
-  **and** the item is `publik`. This applies to functions, structs, enums,
-  traits, and (for field access) struct fields. A violation is `E0270`-class
-  diagnostic `E02C0`.
-- **Flat namespace (documented limitation).** All modules currently share one
-  global name space: two modules may not define the same top-level name (that is
-  the existing redefinition error). True per-module namespacing with qualified
-  names (`Matematika.tambah`) is the documented next step; this phase delivers
-  separate files, imports, and enforced visibility without it.
+Numbers, `teks` (immutable strings), fixed arrays, `kotak<T>`, structs, enums,
+generics, traits, references, `Hasil<T, R>`, modules, and libc FFI. That is
+enough for **numeric / integer-math** utilities and result-returning helpers, all
+expressible in Lime. Growable collections, mutable/owned strings, and file /
+process I/O need runtime features still on the roadmap and are deferred (listed
+as planned, not stubbed).
 
-## Implementation
+## Delivery mechanism
 
-Modules are resolved by a **front-end merge pass** that produces a single
-`Program`, so the existing sema / IR / codegen run unchanged:
+Standard modules live under `std/` as ordinary `modul` files and are **embedded
+into the compiler** with `include_str!` (a small registry in `lime_driver`). A
+program pulls one in with `gunakan <Nama>`, which the driver resolves against the
+embedded registry exactly as `impor` resolves a sibling file — same merge, same
+module metadata, same visibility rules. This keeps the library always available
+(no search path), and, because it is plain Lime, it is compiled and checked by
+the same pipeline as user code.
 
-1. **Driver** loads the entry file and every transitively `impor`ed file (same
-   directory), each into its own `SourceMap` file id, sharing one AST node-id
-   counter so ids stay unique. It concatenates all items into one `Program` and
-   records module metadata: the module name per file id, the import set per
-   module, and — from the merged items — which module defines each top-level name
-   and whether it is `publik`.
-2. **Parser** accepts `modul <Nama>` as a header alongside `program <Nama>`
-   (`Program.is_module`), and rejects `utama` in a module during later checking.
-3. **Sema** takes the module metadata. During collection it records each global
-   symbol's owning module and visibility. While checking a function/`utama`
-   body it sets the current module from the item's file id, and the global name
-   resolver (`lookup`) and type resolver reject a reference to a symbol that the
-   current module cannot access (`E02C0`) — locals, builtins and primitive types
-   are unaffected. Name resolution itself is unchanged (flat), so type checking,
-   ownership, generics and traits keep working across module boundaries.
+## Modules shipped this phase
+
+- **`Inti`** — `maks`, `min`, `mutlak`, `batas` (clamp), `tanda` (sign).
+- **`Matematika`** — `pangkat` (integer power), `fpb`/`kpk` (gcd/lcm),
+  `apakah_prima`, and `faktorial` returning `Hasil<angka, teks>` (exercising the
+  error model inside the library).
 
 ## Validation
 
-Multi-file Lime programs (an entry `program` plus one or more `modul` files) must
-compile with `lime build`/`run`, exercise cross-module functions/structs/traits,
-and reject access to private items and un-imported modules. A runnable multi-file
-example ships under `examples/`.
+Programs `gunakan` the modules and run natively; visibility and the flat
+namespace behave as for user modules. CLI tests cover each function and the
+error paths (unknown library module; using a library function without `gunakan`).
+An example (`examples/pustaka.lime`) runs.
 
-## Non-goals this phase (documented, not faked)
+## Non-goals this phase (documented)
 
-- Per-module namespaces and qualified names (`Modul.item`); same-name items in
-  different modules.
-- Package-manager / dependency resolution (a later roadmap milestone).
-- Standard-library modules via `gunakan` (kept reserved).
+- Collections (`daftar<T>` vector, maps) — need a dynamic-allocation API beyond
+  the single-cell `kotak<T>`.
+- String module (concat/slice/owned strings) — needs the owned-string runtime.
+- io / filesystem / process / time / net — need the FFI surface and runtime for
+  each, taken up in later roadmap phases.

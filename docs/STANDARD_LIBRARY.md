@@ -4,7 +4,37 @@ The standard library is modular and expands incrementally. The bootstrap ships a
 minimal, honest surface; unimplemented modules are listed as planned so nothing
 claims to exist before it does.
 
-## Available now
+## Library modules (`gunakan`)
+
+Library modules are written **in Lime** (under `std/` in the repository) and
+embedded in the compiler; a program pulls one in with `gunakan <Nama>`. Their
+public functions then follow the ordinary module-visibility rules. Available
+today:
+
+### `Inti` (core numeric helpers)
+- `maks(a, b)` / `min(a, b)` — larger / smaller of two `angka`.
+- `mutlak(n)` — absolute value.
+- `batas(n, bawah, atas)` — clamp `n` into `[bawah, atas]`.
+- `tanda(n)` — `-1`, `0`, or `1`.
+
+### `Matematika` (integer math)
+- `pangkat(basis, eksp)` — integer power.
+- `fpb(a, b)` / `kpk(a, b)` — gcd / lcm.
+- `apakah_prima(n)` — primality test (`boolean`).
+- `faktorial(n)` — returns `Hasil<angka, teks>`, failing for negative input.
+
+```lime
+program Hitung
+gunakan Matematika
+utama { nilai f = faktorial(5) tampilkan(nilai_atau(f, 0)) }   // 120
+```
+
+These are real, tested Lime functions — not placeholders. Modules that need
+language/runtime features still on the roadmap (growable collections, mutable /
+owned strings, file and process I/O) are listed under **Planned modules** and are
+not shipped until they can be implemented honestly.
+
+## Available now (builtins)
 
 ### Core I/O
 - `tampilkan(x)` — print a value followed by a newline. Built into the compiler

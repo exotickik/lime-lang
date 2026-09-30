@@ -1,0 +1,65 @@
+modul Matematika
+
+publik fungsi pangkat(basis: angka, eksp: angka) -> angka {
+    ubah hasil = 1
+    ubah i = 0
+    selama i < eksp {
+        hasil = hasil * basis
+        i = i + 1
+    }
+    kembalikan hasil
+}
+
+publik fungsi fpb(a: angka, b: angka) -> angka {
+    ubah x = a
+    ubah y = b
+    jika x < 0 {
+        x = 0 - x
+    }
+    jika y < 0 {
+        y = 0 - y
+    }
+    selama y != 0 {
+        nilai t = y
+        y = x % y
+        x = t
+    }
+    kembalikan x
+}
+
+publik fungsi kpk(a: angka, b: angka) -> angka {
+    jika a == 0 {
+        kembalikan 0
+    }
+    jika b == 0 {
+        kembalikan 0
+    }
+    kembalikan a / fpb(a, b) * b
+}
+
+publik fungsi faktorial(n: angka) -> Hasil<angka, teks> {
+    jika n < 0 {
+        kembalikan gagal("faktorial butuh angka tak negatif")
+    }
+    ubah hasil = 1
+    ubah i = 2
+    selama i <= n {
+        hasil = hasil * i
+        i = i + 1
+    }
+    kembalikan sukses(hasil)
+}
+
+publik fungsi apakah_prima(n: angka) -> boolean {
+    jika n < 2 {
+        kembalikan salah
+    }
+    ubah i = 2
+    selama i * i <= n {
+        jika n % i == 0 {
+            kembalikan salah
+        }
+        i = i + 1
+    }
+    kembalikan benar
+}
