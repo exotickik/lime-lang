@@ -32,7 +32,8 @@ struct         = [ "publik" ] "tipe" Ident "{" { field } "}" ;
 field          = [ "publik" ] Ident ":" type ;
 
 type           = Ident [ "<" type { "," type } ">" ]   (* named or applied, e.g. kotak<i64> *)
-               | "[" type ";" IntLit "]" ;              (* fixed array [T; N] *)
+               | "[" type ";" IntLit "]"                (* fixed array [T; N] *)
+               | "&" [ "ubah" ] type ;                  (* reference: &T shared, &ubah T mutable *)
 
 block          = "{" { statement } "}" ;
 
@@ -68,7 +69,7 @@ eq_expr        = rel_expr { ( "==" | "!=" ) rel_expr } ;
 rel_expr       = add_expr { ( "<" | "<=" | ">" | ">=" ) add_expr } ;
 add_expr       = mul_expr { ( "+" | "-" ) mul_expr } ;
 mul_expr       = unary    { ( "*" | "/" | "%" ) unary } ;
-unary          = ( "-" | "!" | "bukan" ) unary
+unary          = ( "-" | "!" | "bukan" | "*" ) unary   (* "*" e dereferences a reference *)
                | postfix ;
 postfix        = primary { call_suffix | field_suffix } ;
 call_suffix    = "(" [ arg_list ] ")" ;
@@ -85,8 +86,13 @@ literal        = IntLit | FloatLit | StringLit | CharLit | "benar" | "salah" ;
 - `jika ... { }` — the parser requires a block, so there is no dangling-else
   ambiguity; `lain jika` chains are parsed iteratively.
 - `assign_or_expr_stmt` first parses a full expression; if a `=` follows, the
-  parsed expression must be an *l-value* (a bare identifier or a field access),
-  otherwise `E0301 (target penugasan tidak valid)` is raised.
+  parsed expression must be an *l-value* (a bare identifier, a field or index
+  access, or a dereference `*r`), otherwise `E0301 (target penugasan tidak
+  valid)` is raised.
+- References are created with the builtins `ambil(x)` (shared `&T`) and
+  `ambil_ubah(x)` (mutable `&ubah T`); these are ordinary call syntax, resolved
+  by the checker rather than the grammar. `*r` reads through a reference and,
+  as an l-value, writes through a `&ubah` reference.
 - Statement boundaries are determined structurally; a leading `-` on a new line
   is parsed as a binary operator continuing the previous expression only inside
   an unclosed `(` — top-level statements do not span lines implicitly.

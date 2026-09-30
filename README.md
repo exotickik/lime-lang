@@ -77,11 +77,11 @@ The `lime` binary is produced at `target/release/lime`.
 ## Using the toolchain
 
 ```
-lime run <berkas.lime>      # compile and run
-lime build <berkas.lime>    # compile to a native executable
-lime check <berkas.lime>    # type-check only
-lime fmt <berkas.lime>      # format source
-lime emit-ir <berkas.lime>  # print the generated LLVM IR
+lime run <file.lime>      # compile and run
+lime build <file.lime>    # compile to a native executable
+lime check <file.lime>    # type-check only
+lime fmt <file.lime>      # format source
+lime emit-ir <file.lime>  # print the generated LLVM IR
 lime init [nama]            # scaffold a new project
 ```
 

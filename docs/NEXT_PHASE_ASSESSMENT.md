@@ -1,90 +1,98 @@
-# Phase 8 (Memory Model / Ownership) — Implementation Assessment
+# Phase 9 (References) — Design Assessment
 
 Baseline before this phase: `cargo build --workspace` and `cargo test --workspace`
-both green (125 tests, 0 warnings).
+green (141 tests, 0 warnings). Phase 8 ownership (`kotak<T>`, moves, drops) is in
+place and must not regress.
 
-## Current memory semantics (as actually implemented)
+## Current state relevant to references
 
-The compiler today has **one uniform memory model: everything is a copyable
-value on the stack, and nothing is heap-allocated at runtime.**
+- Every local lives in a stack slot (`alloca`, tracked by `slot_of_local`). The
+  slot pointer is already a real `ptr` in the generated LLVM. **A reference to a
+  local is therefore just the address of its slot** — no new runtime concept is
+  needed, and the IR already has `LoadPtr` / `StorePtr` for pointer access.
+- `Type::Kotak(T)` is the only Owned type; ownership is classified by `is_copy`
+  in `lime_sema` and enforced flow-sensitively in `ownership.rs`.
+- Borrowing already exists in a limited form: `isi(k)` reads a `kotak` without
+  consuming it (a builtin marked "borrow-only" in `ownership.rs::visit_call`).
 
-- **Primitives** (`i8..i64`, `u8..u64`, `f32`, `f64`, `boolean`, `karakter`,
-  `hampa`, enum tags) are register/stack values, copied on assignment, argument
-  passing, and return.
-- **`teks`** is a pointer to a **static, deduplicated, NUL-terminated** UTF-8
-  buffer. It is immutable and freely copyable (a pointer copy). No string is ever
-  heap-allocated, so a `teks` owns nothing.
-- **Structs, arrays, enums** are inline LLVM aggregates. Binding, passing, and
-  returning **copy** the whole aggregate; `llc -O2` (mem2reg/SROA) promotes these
-  to registers. Field/element access uses `extractvalue` / `getelementptr`.
-- **Generics** monomorphize; each instance is an ordinary concrete function, so
-  it inherits the same value semantics.
-- There are **no references, no moves, no destructors, and no `free`**. Assigning
-  to an `ubah` binding overwrites in place; because no binding owns a heap
-  resource, there is nothing to clean up. The current model is trivially sound:
-  no aliasing (everything copies) and no leaks/double-frees (no heap).
+## Reference model (Lime's own design)
 
-Conclusion: the existing types are all **Copy** types. Ownership only becomes
-meaningful once a type exists that *owns a heap allocation*. None does today.
+Lime references are **temporary, non-escaping borrows** checked entirely at
+compile time. There is no reference counting, no runtime borrow state, and no GC.
 
-## What must change
+### Types
+- `&T` — an immutable reference (a **pinjam**, "borrow"): read the referent.
+- `&ubah T` — a mutable reference: read and write the referent.
 
-To give ownership real semantics without disturbing the working language:
+### Creating references
+Two builtins, consistent with `kotak`/`isi`:
+- `ambil(x)` → `&T` (take an immutable reference to local `x`).
+- `ambil_ubah(x)` → `&ubah T` (take a mutable reference; `x` must be `ubah`).
 
-1. Introduce an **owned heap type** so that move/drop have observable meaning:
-   `kotak<T>` — an owned, heap-allocated cell holding one `T`.
-2. Classify every type as **`salinan` (Copy)** or **`milik` (Owned)**. All
-   existing types stay Copy; only `kotak<T>` (and any aggregate that transitively
-   contains one) is Owned. This preserves every existing test and example.
-3. Add **move semantics** for Owned values (assignment, argument, return, literal
-   field/element, `kotak(...)`), with **use-after-move** detection.
-4. Add **deterministic drop**: at scope exit and before every `kembalikan` /
-   `berhenti` / `lanjut`, free each still-owning Owned local (recursively for
-   aggregates), never a moved one, never twice.
-5. Add **real heap runtime**: `malloc`/`free` through the existing C-ABI FFI (no
-   fake allocator).
-6. Extend **Lime IR** with allocation and drop operations that lower to real
-   native `malloc`/`free`, and thread ownership results from sema into lowering.
+`ambil`/`ambil_ubah` borrow a **whole local** and do **not** move it, including
+when `x` is a `kotak<T>` (the box is borrowed, not duplicated).
 
-Nothing about the Copy path changes, so structs, enums, arrays, strings,
-generics, FFI, the formatter, the CLI, and all examples keep working unchanged.
+### Using references
+- `*r` — dereference: read the referent (requires a Copy referent), yielding a
+  value. Lowers to a real load through the pointer.
+- `*r = v` — dereference-assign through a `&ubah` reference: a real store through
+  the pointer. `(*r).field` (with parentheses) accesses a field of a referenced
+  struct.
+- `isi(r)` accepts `&kotak<T>` / `&ubah kotak<T>` as well as `kotak<T>`, so a
+  borrowed box can be read.
 
-## Design decisions (Lime's own model, not Rust's)
+### Aliasing rules (checked in `ownership.rs`)
+While a local `x` is borrowed (a **loan** is active):
+- a `&ubah` loan is **exclusive**: no other access to `x` (read, write, move, or
+  another borrow) may occur while it is live;
+- `&` loans are **shared**: any number may coexist and `x` may be read, but `x`
+  may not be mutated, moved, or `&ubah`-borrowed while one is live.
 
-- **Two categories, inferred not annotated.** A type is Owned iff it is `kotak<T>`
-  or an aggregate transitively containing an Owned type; otherwise Copy. There is
-  no `Copy`-trait opt-in and no move/copy sigil at use sites — the category is a
-  property of the type, decided by the compiler.
-- **Whole-value moves only.** Owned values move as a unit. Moving an Owned field
-  *out of* a struct/array (a partial move) is not allowed; read Copy fields
-  freely, move the whole aggregate.
-- **Branch-consistent moves (no runtime drop flags).** Within a scope, a binding
-  must have the same moved/live status on all paths that rejoin. Moving a binding
-  in one `if` arm but not another is a compile error, not a runtime drop flag.
-  This keeps drops fully compile-time and adds **zero** runtime overhead, at the
-  cost of some flexibility — a deliberate trade chosen over Rust-style drop flags.
-- **No moves out of a loop binding.** A loop body may not move an Owned binding
-  declared outside the loop (it would be moved on the next iteration). Owned
-  values created inside the loop are dropped at each iteration's end.
-- **Reading without consuming** is done with the `isi(k)` builtin (returns a copy
-  of a `kotak`'s contents; requires the contents to be Copy). This is the
-  borrow-read path while first-class references are pending.
-- **References are Phase 9.** `&`/`&ubah` borrows with aliasing rules are a large
-  subsystem; the design is written in `docs/MEMORY_MODEL.md`, and the
-  implementation is deferred to Phase 9 exactly as the roadmap lists it. The
-  Phase 8 model is coherent without them: owned values move, are read via `isi`,
-  and are handed back by returning them.
-- **FFI boundary.** Owned types may not appear in `ekstern` signatures or be
-  passed to extern functions; the C ABI has no knowledge of Lime ownership, so
-  crossing the boundary with an owned value is rejected at compile time.
-- **Generics.** Ownership is enforced per monomorphized instance, where every
-  type parameter is concrete and its Copy/Owned category is known. A generic body
-  is thus checked for ownership violations once per instantiation.
+Loan lifetime is **lexical and conservative**: a loan bound to `nilai r = ...`
+lives until the end of `r`'s block; a loan created as a call argument lives for
+that statement. This is sound (it over-approximates a value's borrow span) and
+simple; it may reject some programs a non-lexical analysis would accept, which is
+a documented trade, not a soundness hole.
 
-## Implementation order (incremental, each step keeps tests green)
+### No dangling — the non-escaping rule
+A reference must never outlive its referent. Lime guarantees this structurally
+rather than with lifetime parameters: **references may not escape**. Concretely,
+the compiler rejects
+- returning a reference from a function,
+- storing a reference in a struct field, array element, or `kotak`,
+- reference types crossing the FFI boundary.
 
-1. Types + classification (`Type::Kotak`, `is_copy`).
-2. Syntax: `kotak<T>` type, `kotak(x)` / `isi(k)` builtins.
-3. Ownership analysis in sema (moves, use-after-move, drop obligations).
-4. IR + codegen for `kotak` allocation, `isi`, and drops (malloc/free).
-5. Tests (valid + invalid), examples, docs.
+References may only flow *downward* (into function calls) and be dereferenced.
+Because a non-escaping reference cannot leave the scope in which its referent is
+live, it can never dangle. Reference-returning functions (and thus generic
+`ambil_maksimum<T>(a: &T, b: &T) -> &T`) need lifetime inference and are
+explicitly deferred; the compiler rejects them with a clear diagnostic rather
+than accepting them unsoundly.
+
+### Ownership interaction
+- `ambil(x)` / `ambil_ubah(x)` borrow, they do not move `x`; `x` stays live.
+- A borrowed local may not be moved while the loan is active (caught as a loan
+  conflict), so a value is never freed while a reference to it exists.
+- References are Copy values (copying a reference is fine); the loan stays tied
+  to the original borrow's lexical region.
+
+### Generics
+`ambil`/`*`/`ambil_ubah` work when the referent type is a generic parameter `T`
+(checked per monomorphized instance). Returning a reference from a generic
+function is rejected like any reference return.
+
+## Implementation plan (incremental, tests stay green each step)
+
+1. **Types + syntax**: `Type::Ref { inner, mutable }`; parse `&T` / `&ubah T`
+   type forms; single `&` lexer token; prefix `*` deref expression and
+   `*r = v` assignment target; `ambil` / `ambil_ubah` builtins.
+2. **Type checking**: reference types, deref, `ambil`/`ambil_ubah`, `isi` on
+   references.
+3. **IR + codegen**: `AddrOf { slot }` (slot address), reuse `LoadPtr`/`StorePtr`
+   for deref read/write; `ty_str(Ref) = ptr`. Real native pointer ops.
+4. **Borrow checking** in `ownership.rs`: loans, aliasing conflicts, escape
+   rejection, FFI rejection, move-while-borrowed.
+5. **Tests** (valid + invalid), **examples**, **docs**.
+
+Nothing in the Copy/ownership paths changes, so existing structs, enums, arrays,
+strings, generics, FFI, and ownership behavior are preserved.

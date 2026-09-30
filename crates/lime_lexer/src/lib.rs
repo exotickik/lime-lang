@@ -132,7 +132,7 @@ impl<'a> Lexer<'a> {
                         codes::E_UNKNOWN_CHAR,
                         format!("karakter tidak dikenal '{ch}'"),
                     )
-                    .primary(sp, "tidak dapat dipahami di sini"),
+                    .primary(sp, "tidak dikenali di sini"),
                 );
                 None
             }
@@ -266,7 +266,7 @@ impl<'a> Lexer<'a> {
                 Err(_) => {
                     self.diags.emit(
                         Diagnostic::error(codes::E_BAD_NUMBER, "literal pecahan tidak valid")
-                            .primary(sp, "tidak dapat diurai"),
+                            .primary(sp, "tidak bisa diurai"),
                     );
                     None
                 }
@@ -483,6 +483,7 @@ impl<'a> Lexer<'a> {
             b'/' => TokenKind::Slash,
             b'%' => TokenKind::Percent,
             b'!' => TokenKind::Bang,
+            b'&' => TokenKind::Amp,
             _ => return None,
         };
         self.pos += 1;

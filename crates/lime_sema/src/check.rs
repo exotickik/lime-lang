@@ -156,7 +156,7 @@ impl<'a> Checker<'a> {
         for item in &program.items {
             match item {
                 Item::Function(f) if !f.type_params.is_empty() => {
-                    if self.globals.contains_key(&f.name.name)
+                    if is_builtin_name(&f.name.name)
                         || self.generic_fns.iter().any(|g| g.name.name == f.name.name)
                     {
                         self.diags.emit(
@@ -210,6 +210,16 @@ impl<'a> Checker<'a> {
     }
 
     fn push_fn(&mut self, sig: FnSig) {
+        if is_builtin_name(&sig.name) {
+            self.diags.emit(
+                Diagnostic::error(
+                    codes::E_REDEFINITION,
+                    format!("'{}' adalah nama builtin dan tidak bisa didefinisikan ulang", sig.name),
+                )
+                .primary(sig.def_span, "nama sudah dipakai builtin"),
+            );
+            return;
+        }
         if self.results.func_by_name(&sig.name).is_some() {
             self.diags.emit(
                 Diagnostic::error(
@@ -240,6 +250,8 @@ impl<'a> Checker<'a> {
         self.globals.insert("panjang".to_string(), Res::Builtin(Builtin::Panjang));
         self.globals.insert("kotak".to_string(), Res::Builtin(Builtin::Kotak));
         self.globals.insert("isi".to_string(), Res::Builtin(Builtin::Isi));
+        self.globals.insert("ambil".to_string(), Res::Builtin(Builtin::Ambil));
+        self.globals.insert("ambil_ubah".to_string(), Res::Builtin(Builtin::AmbilUbah));
     }
 
     fn check_bodies(&mut self, program: &Program) {
@@ -369,7 +381,7 @@ impl<'a> Checker<'a> {
                         Diagnostic::error(
                             codes::E_TYPE_MISMATCH_ASSIGN,
                             format!(
-                                "tidak dapat menetapkan '{}' ke target '{}'",
+                                "tidak bisa menetapkan '{}' ke target '{}'",
                                 value_ty.display(),
                                 target_ty.display()
                             ),
@@ -515,9 +527,9 @@ impl<'a> Checker<'a> {
                 self.diags.emit(
                     Diagnostic::error(
                         codes::E_NOT_ITERABLE,
-                        format!("nilai bertipe '{}' tidak dapat diiterasi", other.display()),
+                        format!("nilai bertipe '{}' tidak bisa diiterasi", other.display()),
                     )
-                    .primary(fe.iterable.span, "hanya larik yang dapat diiterasi dengan 'pada'"),
+                    .primary(fe.iterable.span, "hanya larik yang bisa diiterasi dengan 'pada'"),
                 );
                 Type::Error
             }
@@ -606,6 +618,7 @@ impl<'a> Checker<'a> {
             ExprKind::StructLit { name, fields } => self.check_struct_lit(name, fields),
             ExprKind::ArrayLit(elems) => self.check_array_lit(elems, expected),
             ExprKind::Index { base, index } => self.check_index(base, index),
+            ExprKind::Deref(inner) => self.check_deref(inner),
         }
     }
 
@@ -668,9 +681,9 @@ impl<'a> Checker<'a> {
                 self.diags.emit(
                     Diagnostic::error(
                         codes::E_NOT_INDEXABLE,
-                        format!("nilai bertipe '{}' tidak dapat diindeks", other.display()),
+                        format!("nilai bertipe '{}' tidak bisa diindeks", other.display()),
                     )
-                    .primary(base.span, "hanya larik yang dapat diindeks"),
+                    .primary(base.span, "hanya larik yang bisa diindeks"),
                 );
                 Type::Error
             }
@@ -682,7 +695,7 @@ impl<'a> Checker<'a> {
             Some(&id) => id,
             None => {
                 let msg = if Type::from_builtin_name(&name.name).is_some() {
-                    format!("tipe bawaan '{}' tidak dapat dibangun dengan '{{ }}'", name.name)
+                    format!("tipe bawaan '{}' tidak bisa dibangun dengan '{{ }}'", name.name)
                 } else {
                     format!("'{}' bukan tipe struct", name.name)
                 };
@@ -853,7 +866,7 @@ impl<'a> Checker<'a> {
         let ExprKind::Name(name) = &callee.kind else {
             self.check_expr(callee, None);
             self.diags.emit(
-                Diagnostic::error(codes::E_NOT_CALLABLE, "ekspresi ini tidak dapat dipanggil")
+                Diagnostic::error(codes::E_NOT_CALLABLE, "ekspresi ini tidak bisa dipanggil")
                     .primary(callee.span, "bukan sebuah fungsi"),
             );
             for a in args {
@@ -901,8 +914,16 @@ impl<'a> Checker<'a> {
                     return Type::Error;
                 }
                 let at = self.check_expr(&args[0], None);
-                match at {
-                    Type::Kotak(inner) => {
+                let boxed = match &at {
+                    Type::Kotak(inner) => Some((**inner).clone()),
+                    Type::Ref { inner, .. } => match &**inner {
+                        Type::Kotak(k) => Some((**k).clone()),
+                        _ => None,
+                    },
+                    _ => None,
+                };
+                match boxed {
+                    Some(inner) => {
                         if !self.is_copy(&inner) {
                             self.diags.emit(
                                 Diagnostic::error(
@@ -916,20 +937,28 @@ impl<'a> Checker<'a> {
                                 .help("nilai bertipe milik harus dipindahkan, bukan disalin keluar"),
                             );
                         }
-                        (*inner).clone()
+                        inner
                     }
-                    Type::Error => Type::Error,
-                    other => {
+                    None if at.is_error() => Type::Error,
+                    None => {
                         self.diags.emit(
                             Diagnostic::error(
                                 codes::E_INVALID_OPERAND,
-                                format!("'isi' butuh 'kotak<T>', bukan '{}'", other.display()),
+                                format!("'isi' butuh 'kotak<T>' atau reference-nya, bukan '{}'", at.display()),
                             )
                             .primary(args[0].span, "bukan kotak"),
                         );
                         Type::Error
                     }
                 }
+            }
+            Some(Res::Builtin(Builtin::Ambil)) => {
+                self.results.name_res.insert(callee.id, Res::Builtin(Builtin::Ambil));
+                self.check_borrow(call, args, false)
+            }
+            Some(Res::Builtin(Builtin::AmbilUbah)) => {
+                self.results.name_res.insert(callee.id, Res::Builtin(Builtin::AmbilUbah));
+                self.check_borrow(call, args, true)
             }
             Some(Res::Builtin(Builtin::Panjang)) => {
                 self.results.name_res.insert(callee.id, Res::Builtin(Builtin::Panjang));
@@ -990,7 +1019,7 @@ impl<'a> Checker<'a> {
                             codes::E_INVALID_OPERAND,
                             format!("'tampilkan' tidak mendukung tipe '{}'", at.display()),
                         )
-                        .primary(args[0].span, "tipe tidak dapat dicetak"),
+                        .primary(args[0].span, "tipe tidak bisa dicetak"),
                     );
                 }
                 Type::Unit
@@ -1043,7 +1072,7 @@ impl<'a> Checker<'a> {
                 self.diags.emit(
                     Diagnostic::error(
                         codes::E_NOT_CALLABLE,
-                        format!("'{}' bukan fungsi yang dapat dipanggil", name),
+                        format!("'{}' bukan fungsi yang bisa dipanggil", name),
                     )
                     .primary(callee.span, "bukan fungsi"),
                 );
@@ -1121,7 +1150,7 @@ impl<'a> Checker<'a> {
                     Diagnostic::error(
                         codes::E_CANNOT_INFER,
                         format!(
-                            "tidak dapat menyimpulkan parameter tipe untuk '{}'",
+                            "tidak bisa menyimpulkan parameter tipe untuk '{}'",
                             template.name.name
                         ),
                     )
@@ -1205,6 +1234,10 @@ impl<'a> Checker<'a> {
                 Type::Kotak(Box::new(self.resolve_type_generic(&args[0], type_params)))
             }
             TypeExprKind::Applied { .. } => Type::Error,
+            TypeExprKind::Ref { inner, mutable } => Type::Ref {
+                inner: Box::new(self.resolve_type_generic(inner, type_params)),
+                mutable: *mutable,
+            },
         }
     }
 
@@ -1213,6 +1246,97 @@ impl<'a> Checker<'a> {
         for p in &mut f.params {
             p.id = NodeId(self.next_mono_node);
             self.next_mono_node += 1;
+        }
+    }
+
+    fn check_borrow(&mut self, call: &Expr, args: &[Expr], mutable: bool) -> Type {
+        let name = if mutable { "ambil_ubah" } else { "ambil" };
+        if args.len() != 1 {
+            self.diags.emit(
+                Diagnostic::error(
+                    codes::E_ARITY_MISMATCH,
+                    format!("'{}' butuh 1 argumen, diberi {}", name, args.len()),
+                )
+                .primary(call.span, "jumlah argumen salah"),
+            );
+            for a in args {
+                self.check_expr(a, None);
+            }
+            return Type::Error;
+        }
+        let target = &args[0];
+        let ty = self.check_expr(target, None);
+        if ty.is_error() {
+            return Type::Error;
+        }
+        if !target.is_lvalue() {
+            self.diags.emit(
+                Diagnostic::error(
+                    codes::E_BORROW_NOT_PLACE,
+                    format!("'{}' hanya bisa ambil reference dari sebuah variabel", name),
+                )
+                .primary(target.span, "ini bukan variabel yang bisa diambil reference-nya"),
+            );
+            return Type::Error;
+        }
+        if mutable && !self.place_is_mutable(target) {
+            self.diags.emit(
+                Diagnostic::error(
+                    codes::E_BORROW_IMMUTABLE,
+                    "'&ubah' butuh variabel yang bisa diubah ('ubah')",
+                )
+                .primary(target.span, "ini dideklarasikan dengan 'nilai'")
+                .help("pakai 'ubah' supaya bisa diambil reference mutable"),
+            );
+        }
+        Type::Ref { inner: Box::new(ty), mutable }
+    }
+
+    fn place_is_mutable(&self, expr: &Expr) -> bool {
+        match &expr.kind {
+            ExprKind::Name(_) => match self.results.name_res.get(&expr.id) {
+                Some(Res::Local(id)) => self.results.locals[id].mutable,
+                _ => false,
+            },
+            ExprKind::Field { base, .. } => self.place_is_mutable(base),
+            ExprKind::Index { base, .. } => self.place_is_mutable(base),
+            ExprKind::Deref(inner) => {
+                matches!(self.results.expr_type(inner.id), Type::Ref { mutable: true, .. })
+            }
+            _ => false,
+        }
+    }
+
+    fn check_deref(&mut self, inner: &Expr) -> Type {
+        let it = self.check_expr(inner, None);
+        match self.ref_deref_target(&it) {
+            Some((pointee, _)) => {
+                if !self.is_copy(&pointee) {
+                    self.diags.emit(
+                        Diagnostic::error(
+                            codes::E_DEREF_NON_COPY,
+                            format!(
+                                "tidak bisa membaca nilai bertipe milik '{}' lewat reference",
+                                pointee.display()
+                            ),
+                        )
+                        .primary(inner.span, "isi reference bertipe milik"),
+                    );
+                }
+                pointee
+            }
+            None => {
+                if !it.is_error() {
+                    self.diags.emit(
+                        Diagnostic::error(
+                            codes::E_DEREF_NON_REF,
+                            format!("'*' hanya untuk reference, bukan '{}'", it.display()),
+                        )
+                        .primary(inner.span, "bukan reference"),
+                    );
+                }
+                Type::Error
+            }
         }
     }
 
@@ -1281,10 +1405,10 @@ impl<'a> Checker<'a> {
                         self.diags.emit(
                             Diagnostic::error(
                                 codes::E_ASSIGN_IMMUTABLE,
-                                format!("tidak dapat menetapkan ke '{}' yang immutable", nm),
+                                format!("'{}' immutable, tidak bisa diubah", nm),
                             )
                             .primary(target.span, "dideklarasikan dengan 'nilai'")
-                            .help("gunakan 'ubah' agar dapat diubah"),
+                            .help("pakai 'ubah' supaya bisa diubah"),
                         );
                     }
                 }
@@ -1301,6 +1425,20 @@ impl<'a> Checker<'a> {
             },
             ExprKind::Field { base, .. } => self.check_assignable(base),
             ExprKind::Index { base, .. } => self.check_assignable(base),
+            ExprKind::Deref(inner) => {
+                let it = self.results.expr_type(inner.id).clone();
+                if let Type::Ref { mutable, .. } = it {
+                    if !mutable {
+                        self.diags.emit(
+                            Diagnostic::error(
+                                codes::E_STORE_THROUGH_SHARED,
+                                "tidak bisa menulis lewat reference '&' (harus '&ubah')",
+                            )
+                            .primary(target.span, "reference ini hanya untuk baca"),
+                        );
+                    }
+                }
+            }
             _ => {}
         }
     }
@@ -1344,6 +1482,10 @@ impl<'a> Checker<'a> {
                 );
                 Type::Error
             }
+            TypeExprKind::Ref { inner, mutable } => {
+                let inner = self.resolve_type(inner);
+                Type::Ref { inner: Box::new(inner), mutable: *mutable }
+            }
         }
     }
 
@@ -1356,6 +1498,14 @@ impl<'a> Checker<'a> {
             Type::Array { elem, .. } => self.is_copy(elem),
             Type::Param(_) => true,
             _ => true,
+        }
+    }
+
+    fn ref_deref_target(&self, ty: &Type) -> Option<(Type, bool)> {
+        if let Type::Ref { inner, mutable } = ty {
+            Some(((**inner).clone(), *mutable))
+        } else {
+            None
         }
     }
 
@@ -1422,6 +1572,13 @@ impl<'a> Checker<'a> {
     }
 }
 
+fn is_builtin_name(name: &str) -> bool {
+    matches!(
+        name,
+        "tampilkan" | "panjang" | "kotak" | "isi" | "ambil" | "ambil_ubah"
+    )
+}
+
 fn unify(pat: &Type, actual: &Type, subst: &mut HashMap<String, Type>) -> bool {
     match pat {
         Type::Param(name) => match subst.get(name) {
@@ -1434,6 +1591,13 @@ fn unify(pat: &Type, actual: &Type, subst: &mut HashMap<String, Type>) -> bool {
         Type::Array { elem, size } => {
             if let Type::Array { elem: e2, size: s2 } = actual {
                 size == s2 && unify(elem, e2, subst)
+            } else {
+                false
+            }
+        }
+        Type::Ref { inner, mutable } => {
+            if let Type::Ref { inner: i2, mutable: m2 } = actual {
+                mutable == m2 && unify(inner, i2, subst)
             } else {
                 false
             }
@@ -1472,6 +1636,13 @@ fn type_to_type_expr_kind(ty: &Type, results: &TypeckResults) -> TypeExprKind {
                 span: dummy_span(),
             }],
         },
+        Type::Ref { inner, mutable } => TypeExprKind::Ref {
+            inner: Box::new(TypeExpr {
+                kind: type_to_type_expr_kind(inner, results),
+                span: dummy_span(),
+            }),
+            mutable: *mutable,
+        },
         other => TypeExprKind::Named(other.display()),
     }
 }
@@ -1493,6 +1664,7 @@ fn substitute_type_expr(te: &mut TypeExpr, subst: &HashMap<String, Type>, result
                 substitute_type_expr(a, subst, results);
             }
         }
+        TypeExprKind::Ref { inner, .. } => substitute_type_expr(inner, subst, results),
         TypeExprKind::Named(_) => {}
     }
 }
@@ -1621,6 +1793,7 @@ fn renumber_expr(e: &mut Expr, counter: &mut u32) {
             renumber_expr(base, counter);
             renumber_expr(index, counter);
         }
+        ExprKind::Deref(inner) => renumber_expr(inner, counter),
         ExprKind::Int { .. }
         | ExprKind::Float { .. }
         | ExprKind::Str(_)

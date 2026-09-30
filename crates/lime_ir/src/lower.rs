@@ -305,6 +305,12 @@ impl<'a> FnLowerer<'a> {
                 }
                 ExprKind::Field { .. } => self.lower_field_assign(target, value),
                 ExprKind::Index { .. } => self.lower_indexed_assign(target, value),
+                ExprKind::Deref(inner) => {
+                    let pointee = self.results.expr_type(target.id).clone();
+                    let ptr = self.lower_expr(inner);
+                    let val = self.lower_expr(value);
+                    self.emit(None, InstrKind::StorePtr { ptr, ty: pointee, value: val });
+                }
                 _ => self.unsupported(target.span, "target penugasan tidak didukung backend"),
             },
             Stmt::Expr(e) => {
@@ -503,7 +509,7 @@ impl<'a> FnLowerer<'a> {
                     Operand::Val(val)
                 }
                 _ => {
-                    self.unsupported(expr.span, "referensi nilai ini belum didukung backend");
+                    self.unsupported(expr.span, "reference nilai ini belum didukung backend");
                     Operand::ConstInt(0, Type::I64)
                 }
             },
@@ -520,6 +526,47 @@ impl<'a> FnLowerer<'a> {
             ExprKind::StructLit { .. } => self.lower_struct_lit(expr),
             ExprKind::ArrayLit(elems) => self.lower_array_lit(elems, expr),
             ExprKind::Index { base, index } => self.lower_index_read(base, index, expr),
+            ExprKind::Deref(inner) => {
+                let pointee = self.results.expr_type(expr.id).clone();
+                let ptr = self.lower_expr(inner);
+                let dst = self.fresh_value();
+                self.emit(Some(dst), InstrKind::LoadPtr { ptr, ty: pointee });
+                Operand::Val(dst)
+            }
+        }
+    }
+
+    fn lower_place_addr(&mut self, place: &Expr) -> Operand {
+        match &place.kind {
+            ExprKind::Name(_) => match self.results.name_res.get(&place.id) {
+                Some(Res::Local(id)) => {
+                    let slot = self.slot_of_local[&id.0];
+                    let ty = self.results.locals[id].ty.clone();
+                    let dst = self.fresh_value();
+                    self.emit(Some(dst), InstrKind::AddrOf { slot, ty });
+                    Operand::Val(dst)
+                }
+                _ => {
+                    self.unsupported(place.span, "alamat reference ini belum didukung backend");
+                    Operand::ConstInt(0, Type::I64)
+                }
+            },
+            ExprKind::Deref(inner) => self.lower_expr(inner),
+            ExprKind::Field { .. } | ExprKind::Index { .. } => {
+                if let Some((slot, path)) = self.resolve_place(place) {
+                    let agg_ty = self.slots[slot.0 as usize].ty.clone();
+                    let dst = self.fresh_value();
+                    self.emit(Some(dst), InstrKind::Gep { slot, agg_ty, indices: path });
+                    Operand::Val(dst)
+                } else {
+                    self.unsupported(place.span, "alamat tempat ini belum didukung backend");
+                    Operand::ConstInt(0, Type::I64)
+                }
+            }
+            _ => {
+                self.unsupported(place.span, "alamat ekspresi ini tidak valid");
+                Operand::ConstInt(0, Type::I64)
+            }
         }
     }
 
@@ -982,10 +1029,22 @@ impl<'a> FnLowerer<'a> {
             }
             Some(Res::Builtin(Builtin::Isi)) => {
                 let inner_ty = self.results.expr_type(expr.id).clone();
-                let ptr = self.lower_expr(&args[0]);
+                let arg_ty = self.results.expr_type(args[0].id).clone();
+                let mut ptr = self.lower_expr(&args[0]);
+                if let Type::Ref { .. } = arg_ty {
+                    let boxptr = self.fresh_value();
+                    self.emit(
+                        Some(boxptr),
+                        InstrKind::LoadPtr { ptr, ty: Type::Kotak(Box::new(inner_ty.clone())) },
+                    );
+                    ptr = Operand::Val(boxptr);
+                }
                 let dst = self.fresh_value();
                 self.emit(Some(dst), InstrKind::LoadPtr { ptr, ty: inner_ty });
                 Operand::Val(dst)
+            }
+            Some(Res::Builtin(Builtin::Ambil)) | Some(Res::Builtin(Builtin::AmbilUbah)) => {
+                self.lower_place_addr(&args[0])
             }
             Some(Res::Builtin(Builtin::Panjang)) => {
                 let arg_ty = self.results.expr_type(args[0].id).clone();
@@ -1104,7 +1163,7 @@ impl<'a> FnLowerer<'a> {
                 let fmt = self.fmt_global("%s\n");
                 self.call_printf(fmt, vec![name_op]);
             }
-            _ => self.unsupported(arg.span, "tipe ini tidak dapat dicetak backend"),
+            _ => self.unsupported(arg.span, "tipe ini tidak bisa dicetak backend"),
         }
     }
 

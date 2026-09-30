@@ -3,11 +3,11 @@
 ## The `lime` command
 
 ```
-lime build <berkas>     kompilasi ke executable native
-lime run <berkas>       kompilasi lalu jalankan
-lime check <berkas>     periksa sintaks dan tipe tanpa kompilasi
-lime fmt <berkas>       format kode sumber (tambahkan --write untuk menimpa)
-lime emit-ir <berkas>   cetak LLVM IR yang dihasilkan
+lime build <file>     kompilasi ke executable native
+lime run <file>       kompilasi lalu jalankan
+lime check <file>     periksa sintaks dan tipe tanpa kompilasi
+lime fmt <file>       format kode sumber (tambahkan --write untuk menimpa)
+lime emit-ir <file>   cetak LLVM IR yang dihasilkan
 lime init [nama]        buat proyek Lime baru (lime.toml + src/main.lime)
 lime clean              hapus artefak build (.lime-build)
 lime version            tampilkan versi

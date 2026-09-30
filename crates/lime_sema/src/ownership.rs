@@ -12,16 +12,29 @@ pub fn is_copy(ty: &Type, results: &TypeckResults) -> bool {
             results.structs[id.0 as usize].fields.iter().all(|f| is_copy(&f.ty, results))
         }
         Type::Array { elem, .. } => is_copy(elem, results),
+        Type::Ref { .. } => true,
         _ => true,
     }
 }
 
 pub fn check_program(program: &Program, results: &TypeckResults, diags: &mut DiagnosticEngine) -> HashSet<NodeId> {
-    let mut checker = Own { results, diags, moved: HashMap::new(), declared: HashSet::new(), moved_uses: HashSet::new() };
+    let mut checker = Own {
+        results,
+        diags,
+        moved: HashMap::new(),
+        declared: HashSet::new(),
+        moved_uses: HashSet::new(),
+        stmt_loans: Vec::new(),
+        block_loans: Vec::new(),
+        borrow_is_binding: false,
+    };
     for item in &program.items {
         match item {
             Item::Function(f) if f.type_params.is_empty() => checker.check_fn(f),
-            Item::Main(m) => checker.check_block(&m.body),
+            Item::Main(m) => {
+                checker.reset_fn();
+                checker.check_block(&m.body);
+            }
             Item::Extern(e) => checker.check_extern(e),
             _ => {}
         }
@@ -32,17 +45,56 @@ pub fn check_program(program: &Program, results: &TypeckResults, diags: &mut Dia
     checker.moved_uses
 }
 
+#[derive(Clone)]
+struct Loan {
+    local: LocalId,
+    mutable: bool,
+    span: Span,
+}
+
 struct Own<'a> {
     results: &'a TypeckResults,
     diags: &'a mut DiagnosticEngine,
     moved: HashMap<LocalId, Span>,
     declared: HashSet<LocalId>,
     moved_uses: HashSet<NodeId>,
+    stmt_loans: Vec<Loan>,
+    block_loans: Vec<Vec<Loan>>,
+    borrow_is_binding: bool,
 }
 
 impl<'a> Own<'a> {
     fn owned(&self, ty: &Type) -> bool {
         !is_copy(ty, self.results)
+    }
+
+    fn reset_fn(&mut self) {
+        self.moved.clear();
+        self.declared.clear();
+        self.stmt_loans.clear();
+        self.block_loans.clear();
+        self.borrow_is_binding = false;
+    }
+
+    fn active_loans_on(&self, local: LocalId) -> Vec<Loan> {
+        let mut v: Vec<Loan> = self.stmt_loans.iter().filter(|l| l.local == local).cloned().collect();
+        for scope in &self.block_loans {
+            for l in scope {
+                if l.local == local {
+                    v.push(l.clone());
+                }
+            }
+        }
+        v
+    }
+
+    fn place_root_local(&self, expr: &Expr) -> Option<LocalId> {
+        match &expr.kind {
+            ExprKind::Name(_) => self.local_of(expr),
+            ExprKind::Field { base, .. } => self.place_root_local(base),
+            ExprKind::Index { base, .. } => self.place_root_local(base),
+            _ => None,
+        }
     }
 
     fn local_of(&self, expr: &Expr) -> Option<LocalId> {
@@ -59,7 +111,15 @@ impl<'a> Own<'a> {
         let param_tys: Vec<Type> = sig.params.iter().map(|(_, t)| t.clone()).collect();
         let ret_owned = self.owned(&sig.ret);
         for (p, ty) in e.params.iter().zip(param_tys.iter()) {
-            if self.owned(ty) {
+            if matches!(ty, Type::Ref { .. }) {
+                self.diags.emit(
+                    Diagnostic::error(
+                        codes::E_REF_IN_FFI,
+                        "reference Lime tidak boleh melewati batas FFI",
+                    )
+                    .primary(p.span, "parameter ekstern bertipe reference"),
+                );
+            } else if self.owned(ty) {
                 self.diags.emit(
                     Diagnostic::error(
                         codes::E_OWNED_IN_FFI,
@@ -69,7 +129,15 @@ impl<'a> Own<'a> {
                 );
             }
         }
-        if ret_owned {
+        if matches!(sig.ret, Type::Ref { .. }) {
+            self.diags.emit(
+                Diagnostic::error(
+                    codes::E_REF_IN_FFI,
+                    "fungsi ekstern tidak boleh mengembalikan reference",
+                )
+                .primary(e.span, "nilai kembalian ekstern bertipe reference"),
+            );
+        } else if ret_owned {
             self.diags.emit(
                 Diagnostic::error(
                     codes::E_OWNED_IN_FFI,
@@ -81,8 +149,7 @@ impl<'a> Own<'a> {
     }
 
     fn check_fn(&mut self, f: &Function) {
-        self.moved.clear();
-        self.declared.clear();
+        self.reset_fn();
         for p in &f.params {
             if let Some(&id) = self.results.local_of_binding.get(&p.id) {
                 self.declared.insert(id);
@@ -92,15 +159,20 @@ impl<'a> Own<'a> {
     }
 
     fn check_block(&mut self, block: &Block) {
+        self.block_loans.push(Vec::new());
         for stmt in &block.stmts {
             self.check_stmt(stmt);
+            self.stmt_loans.clear();
         }
+        self.block_loans.pop();
     }
 
     fn check_stmt(&mut self, stmt: &Stmt) {
         match stmt {
             Stmt::Let { init, id, .. } => {
+                self.borrow_is_binding = is_borrow_call(init);
                 self.visit(init, true);
+                self.borrow_is_binding = false;
                 if let Some(&local) = self.results.local_of_binding.get(id) {
                     self.declared.insert(local);
                     self.moved.remove(&local);
@@ -113,11 +185,25 @@ impl<'a> Own<'a> {
                     self.diags.emit(
                         Diagnostic::error(
                             codes::E_OWNED_REASSIGN,
-                            "penetapan ulang nilai bertipe milik belum didukung",
+                            "nilai bertipe milik belum bisa ditetapkan ulang",
                         )
                         .primary(target.span, "target bertipe milik")
-                        .help("nilai bertipe milik dibuat sekali lalu dipindahkan"),
+                        .help("nilai bertipe milik dibuat sekali, lalu dipindahkan"),
                     );
+                }
+                if let ExprKind::Deref(inner) = &target.kind {
+                    self.visit(inner, false);
+                } else if let Some(root) = self.place_root_local(target) {
+                    if !self.active_loans_on(root).is_empty() {
+                        self.diags.emit(
+                            Diagnostic::error(
+                                codes::E_MUTATE_WHILE_BORROWED,
+                                "nilai ini masih dipakai oleh reference lain",
+                            )
+                            .primary(target.span, "nilai diubah di sini")
+                            .secondary(self.active_loans_on(root)[0].span, "reference mulai dipakai di sini"),
+                        );
+                    }
                 }
                 if let ExprKind::Field { base, .. } = &target.kind {
                     self.visit(base, false);
@@ -158,6 +244,17 @@ impl<'a> Own<'a> {
             }
             Stmt::Return { value, .. } => {
                 if let Some(e) = value {
+                    let ty = self.results.expr_type(e.id).clone();
+                    if matches!(ty, Type::Ref { .. }) {
+                        self.diags.emit(
+                            Diagnostic::error(
+                                codes::E_REF_ESCAPE,
+                                "reference tidak boleh dikembalikan dari fungsi",
+                            )
+                            .primary(e.span, "reference ini bisa menggantung")
+                            .help("kembalikan nilainya, bukan reference-nya"),
+                        );
+                    }
                     self.visit(e, true);
                 }
             }
@@ -177,10 +274,10 @@ impl<'a> Own<'a> {
             self.diags.emit(
                 Diagnostic::error(
                     codes::E_MOVE_IN_LOOP,
-                    "nilai yang dideklarasikan di luar perulangan dipindahkan di dalamnya",
+                    "nilai dari luar perulangan dipindahkan di dalam perulangan",
                 )
-                .primary(span, "dipindahkan di sini pada setiap iterasi")
-                .help("nilai bertipe milik hanya dapat dipindahkan sekali"),
+                .primary(span, "dipindahkan di sini tiap iterasi")
+                .help("nilai bertipe milik hanya bisa dipindahkan sekali"),
             );
         }
     }
@@ -227,11 +324,11 @@ impl<'a> Own<'a> {
                     self.diags.emit(
                         Diagnostic::error(
                             codes::E_INCONSISTENT_MOVE,
-                            "nilai dipindahkan pada sebagian cabang saja",
+                            "nilai hanya dipindahkan di sebagian cabang",
                         )
                         .primary(span, "dipindahkan di cabang ini")
                         .secondary(i.span, "cabang lain tidak memindahkannya")
-                        .help("pindahkan nilai pada semua cabang atau tidak sama sekali"),
+                        .help("pindahkan nilai di semua cabang atau tidak sama sekali"),
                     );
                 }
             }
@@ -255,15 +352,28 @@ impl<'a> Own<'a> {
         match &expr.kind {
             ExprKind::Name(_) => {
                 if let Some(local) = self.local_of(expr) {
+                    let loans = self.active_loans_on(local);
+                    let conflict = loans.iter().find(|l| l.mutable || consumed);
+                    if let Some(l) = conflict {
+                        let span = l.span;
+                        self.diags.emit(
+                            Diagnostic::error(
+                                codes::E_BORROW_CONFLICT,
+                                "nilai ini masih dipakai oleh reference lain",
+                            )
+                            .primary(expr.span, "nilai digunakan di sini")
+                            .secondary(span, "reference mulai dipakai di sini"),
+                        );
+                    }
                     let ty = self.results.locals[&local].ty.clone();
                     if self.owned(&ty) {
                         if let Some(prev) = self.moved.get(&local).copied() {
                             self.diags.emit(
                                 Diagnostic::error(
                                     codes::E_USE_AFTER_MOVE,
-                                    "nilai digunakan setelah dipindahkan",
+                                    "nilai ini sudah dipindahkan",
                                 )
-                                .primary(expr.span, "digunakan di sini setelah dipindahkan")
+                                .primary(expr.span, "dipakai lagi di sini")
                                 .secondary(prev, "dipindahkan di sini"),
                             );
                         } else if consumed {
@@ -286,14 +396,17 @@ impl<'a> Own<'a> {
             }
             ExprKind::StructLit { fields, .. } => {
                 for f in fields {
+                    self.reject_ref_escape(&f.value, "field struct");
                     self.visit(&f.value, true);
                 }
             }
             ExprKind::ArrayLit(elems) => {
                 for e in elems {
+                    self.reject_ref_escape(e, "elemen larik");
                     self.visit(e, true);
                 }
             }
+            ExprKind::Deref(inner) => self.visit(inner, false),
             ExprKind::Int { .. }
             | ExprKind::Float { .. }
             | ExprKind::Str(_)
@@ -304,7 +417,18 @@ impl<'a> Own<'a> {
 
     fn visit_call(&mut self, callee: &Expr, args: &[Expr]) {
         let res = self.results.name_res.get(&callee.id).cloned();
+
+        if matches!(res, Some(Res::Builtin(Builtin::Ambil))) {
+            self.handle_borrow(&args[0], false);
+            return;
+        }
+        if matches!(res, Some(Res::Builtin(Builtin::AmbilUbah))) {
+            self.handle_borrow(&args[0], true);
+            return;
+        }
+
         let is_extern = matches!(&res, Some(Res::Func(idx)) if self.results.functions[*idx].is_extern);
+        let is_kotak = matches!(res, Some(Res::Builtin(Builtin::Kotak)));
         let borrow_only = matches!(
             res,
             Some(Res::Builtin(Builtin::Isi))
@@ -322,7 +446,100 @@ impl<'a> Own<'a> {
                     .primary(a.span, "argumen ekstern bertipe milik"),
                 );
             }
+            if is_extern && matches!(at, Type::Ref { .. }) {
+                self.diags.emit(
+                    Diagnostic::error(
+                        codes::E_REF_IN_FFI,
+                        "reference Lime tidak boleh melewati batas FFI",
+                    )
+                    .primary(a.span, "argumen ekstern bertipe reference"),
+                );
+            }
+            if is_kotak {
+                self.reject_ref_escape(a, "kotak");
+            }
             self.visit(a, !borrow_only);
         }
     }
+
+    fn handle_borrow(&mut self, target: &Expr, mutable: bool) {
+        for sub in index_exprs(target) {
+            self.visit(sub, false);
+        }
+        let Some(root) = self.place_root_local(target) else { return };
+
+        if let Some(prev) = self.moved.get(&root).copied() {
+            self.diags.emit(
+                Diagnostic::error(
+                    codes::E_USE_AFTER_MOVE,
+                    "nilai ini sudah dipindahkan, tidak bisa diambil reference-nya",
+                )
+                .primary(target.span, "reference diambil di sini")
+                .secondary(prev, "dipindahkan di sini"),
+            );
+            return;
+        }
+
+        let existing = self.active_loans_on(root);
+        let conflict = existing.iter().find(|l| mutable || l.mutable);
+        if let Some(l) = conflict {
+            let span = l.span;
+            self.diags.emit(
+                Diagnostic::error(
+                    codes::E_BORROW_CONFLICT,
+                    if mutable {
+                        "nilai ini masih dipakai reference lain, tidak bisa diambil reference mutable"
+                    } else {
+                        "nilai ini sudah dipakai reference mutable"
+                    },
+                )
+                .primary(target.span, "reference baru diambil di sini")
+                .secondary(span, "reference mulai dipakai di sini"),
+            );
+        }
+
+        let loan = Loan { local: root, mutable, span: target.span };
+        if self.borrow_is_binding {
+            if let Some(scope) = self.block_loans.last_mut() {
+                scope.push(loan);
+            } else {
+                self.stmt_loans.push(loan);
+            }
+        } else {
+            self.stmt_loans.push(loan);
+        }
+    }
+
+    fn reject_ref_escape(&mut self, e: &Expr, context: &str) {
+        if matches!(self.results.expr_type(e.id), Type::Ref { .. }) {
+            self.diags.emit(
+                Diagnostic::error(
+                    codes::E_REF_ESCAPE,
+                    format!("reference tidak boleh disimpan di {}", context),
+                )
+                .primary(e.span, "reference bisa hidup lebih lama dari nilainya")
+                .help("simpan nilainya, bukan reference-nya"),
+            );
+        }
+    }
+}
+
+fn is_borrow_call(e: &Expr) -> bool {
+    matches!(&e.kind, ExprKind::Call { callee, .. } if matches!(&callee.kind, ExprKind::Name(n) if n == "ambil" || n == "ambil_ubah"))
+}
+
+fn index_exprs(target: &Expr) -> Vec<&Expr> {
+    let mut v = Vec::new();
+    let mut node = target;
+    loop {
+        match &node.kind {
+            ExprKind::Field { base, .. } => node = base,
+            ExprKind::Index { base, index } => {
+                v.push(index.as_ref());
+                node = base;
+            }
+            _ => break,
+        }
+    }
+    v
 }

@@ -70,6 +70,7 @@ pub enum InstrKind {
     StorePtr { ptr: Operand, ty: Type, value: Operand },
     KotakNew { inner_ty: Type, value: Operand },
     Free { ptr: Operand },
+    AddrOf { slot: SlotId, ty: Type },
 }
 
 #[derive(Clone, Debug)]

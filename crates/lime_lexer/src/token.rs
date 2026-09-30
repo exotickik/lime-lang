@@ -145,6 +145,7 @@ pub enum TokenKind {
     Slash,
     Percent,
     AmpAmp,
+    Amp,
     PipePipe,
     Bang,
 
@@ -182,9 +183,10 @@ impl TokenKind {
             TokenKind::Slash => "'/'".to_string(),
             TokenKind::Percent => "'%'".to_string(),
             TokenKind::AmpAmp => "'&&'".to_string(),
+            TokenKind::Amp => "'&'".to_string(),
             TokenKind::PipePipe => "'||'".to_string(),
             TokenKind::Bang => "'!'".to_string(),
-            TokenKind::Eof => "akhir berkas".to_string(),
+            TokenKind::Eof => "akhir file".to_string(),
         }
     }
 }

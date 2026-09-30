@@ -132,6 +132,16 @@ impl<'a> Parser<'a> {
     fn expect_type(&mut self) -> PResult<TypeExpr> {
 
         match self.peek().clone() {
+            TokenKind::Amp => {
+                let start = self.peek_span();
+                self.bump();
+                let mutable = self.eat_kw(Keyword::Ubah);
+                let inner = self.expect_type()?;
+                return Ok(TypeExpr {
+                    kind: TypeExprKind::Ref { inner: Box::new(inner), mutable },
+                    span: start.to(self.tokens[self.pos.saturating_sub(1)].span),
+                });
+            }
             TokenKind::Ident(name) => {
                 let sp = self.peek_span();
                 self.bump();
@@ -197,7 +207,7 @@ impl<'a> Parser<'a> {
             self.diags.emit(
                 Diagnostic::error(
                     codes::E_MISSING_PROGRAM_HEADER,
-                    "berkas Lime harus diawali dengan 'program <Nama>'",
+                    "file Lime harus diawali dengan 'program <Nama>'",
                 )
                 .primary(sp, "tambahkan header program di sini")
                 .help("contoh: program Halo"),
@@ -538,7 +548,7 @@ impl<'a> Parser<'a> {
                         codes::E_INVALID_ASSIGN_TARGET,
                         "target penugasan tidak valid",
                     )
-                    .primary(expr.span, "hanya nama atau field yang dapat ditetapkan"),
+                    .primary(expr.span, "hanya nama atau field yang bisa ditetapkan"),
                 );
             }
             self.eat(&TokenKind::Semicolon);
@@ -648,6 +658,14 @@ impl<'a> Parser<'a> {
     }
 
     fn parse_unary(&mut self) -> PResult<Expr> {
+        if matches!(self.peek(), TokenKind::Star) {
+            let start = self.peek_span();
+            self.bump();
+            let operand = self.parse_unary()?;
+            let span = start.to(operand.span);
+            let id = self.node_id();
+            return Ok(Expr { id, kind: ExprKind::Deref(Box::new(operand)), span });
+        }
         let (op, start) = match self.peek() {
             TokenKind::Minus => (Some(UnOp::Neg), self.peek_span()),
             TokenKind::Bang | TokenKind::Keyword(Keyword::Bukan) => {

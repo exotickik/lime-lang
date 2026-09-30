@@ -12,6 +12,8 @@ pub enum Builtin {
     Panjang,
     Kotak,
     Isi,
+    Ambil,
+    AmbilUbah,
 }
 
 #[derive(Clone, Debug)]

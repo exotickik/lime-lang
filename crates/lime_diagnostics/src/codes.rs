@@ -45,6 +45,15 @@ pub const E_INCONSISTENT_MOVE: Code = Code("E0281");
 pub const E_MOVE_IN_LOOP: Code = Code("E0282");
 pub const E_OWNED_IN_FFI: Code = Code("E0283");
 pub const E_OWNED_REASSIGN: Code = Code("E0284");
+pub const E_BORROW_NOT_PLACE: Code = Code("E0290");
+pub const E_BORROW_IMMUTABLE: Code = Code("E0291");
+pub const E_DEREF_NON_REF: Code = Code("E0292");
+pub const E_DEREF_NON_COPY: Code = Code("E0293");
+pub const E_STORE_THROUGH_SHARED: Code = Code("E0294");
+pub const E_BORROW_CONFLICT: Code = Code("E0295");
+pub const E_MUTATE_WHILE_BORROWED: Code = Code("E0296");
+pub const E_REF_ESCAPE: Code = Code("E0297");
+pub const E_REF_IN_FFI: Code = Code("E0298");
 
 pub const E_INVALID_ASSIGN_TARGET: Code = Code("E0301");
 

@@ -309,7 +309,7 @@ binding is an error:
 ```lime
 nilai b = kotak(5)
 nilai c = b              // b moved into c
-tampilkan(isi(b))        // error E0280: nilai digunakan setelah dipindahkan
+tampilkan(isi(b))        // error E0280: nilai ini sudah dipindahkan
 ```
 An Owned value is **dropped** (its heap freed, recursively for nested owned
 values) when its owner goes out of scope or before an early `kembalikan` /
@@ -319,8 +319,39 @@ reference counting and no garbage collector.
 Additional rules: moves must be consistent across `jika` arms (`E0281`); a loop
 body may not move a binding declared outside it (`E0282`); Owned bindings are
 single-assignment (`E0284`); Owned types may not cross the FFI boundary
-(`E0283`). First-class references (`&`) are Phase 9. The full model is in
+(`E0283`). References that borrow a value are §3.10. The full model is in
 `docs/MEMORY_MODEL.md`.
+
+### 3.10 References (`&T`, `&ubah T`)
+A reference borrows an existing value without owning it. `&T` is a shared
+(read-only) reference; `&ubah T` is a mutable one. References are created with
+the builtins `ambil` / `ambil_ubah`, read with `*r`, and (for `&ubah`) written
+with `*r = e`:
+```lime
+fungsi naik(x: &ubah angka) {
+    *x = *x + 1           // write through a mutable reference
+}
+utama {
+    ubah n = 10
+    naik(ambil_ubah(n))   // borrow n mutably for this call
+    tampilkan(n)          // 11 — n was mutated in place
+}
+```
+- `ambil(x)` yields `&T`; `ambil_ubah(x)` yields `&ubah T`. The argument must be
+  a place — a variable, field, or array element — else `E0290`; `ambil_ubah`
+  needs a `ubah` place, else `E0291`.
+- Borrowing never moves or copies: `x` stays fully owned and usable afterwards,
+  and borrowing a `kotak<T>` does not transfer ownership.
+- **Aliasing:** any number of shared references may be live together, but a
+  mutable reference is exclusive — while it is live no other reference may be
+  taken (`E0295`) and the value may not be changed through its owner (`E0296`).
+- **No escape:** a reference may not be returned, stored in a struct/array or a
+  `kotak`, or cross FFI (`E0297`/`E0298`). This keeps every reference shorter
+  lived than its value, so none can dangle — no lifetime annotations are needed.
+- A reference is a native pointer: `*r` lowers to a `load` and `*r = e` to a
+  `store`, with no allocation, tag, or reference count.
+
+See `docs/MEMORY_MODEL.md` for the complete borrowing rules and their rationale.
 
 ---
 
@@ -350,7 +381,7 @@ Precedence, high to low:
 | Level | Operators | Assoc |
 |---|---|---|
 | 1 | `f(...)` call, `.field` access | left |
-| 2 | unary `-` `bukan`/`!` | right |
+| 2 | unary `-` `bukan`/`!`, deref `*` | right |
 | 3 | `*` `/` `%` | left |
 | 4 | `+` `-` | left |
 | 5 | `<` `<=` `>` `>=` | left |
@@ -370,6 +401,11 @@ convert explicitly.
 `tampilkan(x)` — print `x` followed by a newline. Accepts `teks`, any integer
 type, `f32`/`f64`, `boolean`, and `karakter`. Lowered to a `printf`-family call
 against libc through Lime's FFI path (native ABI, not C source).
+
+`panjang(x)` — length of an array or `teks`. `kotak(x)` / `isi(k)` — build and
+read an owned heap cell (§3.9). `ambil(x)` / `ambil_ubah(x)` — borrow a place as
+a shared or mutable reference (§3.10). These names are reserved builtins and
+cannot be redefined.
 
 ---
 

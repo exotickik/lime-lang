@@ -340,6 +340,16 @@ fn emit_instr(
         InstrKind::Free { ptr } => {
             writeln!(out, "  call void @free(ptr {})", val_str(ptr, vt)).ok();
         }
+        InstrKind::AddrOf { slot, ty } => {
+            writeln!(
+                out,
+                "  {} = getelementptr {}, ptr %slot{}, i64 0",
+                dst.unwrap(),
+                ty_str(ty),
+                slot.0
+            )
+            .ok();
+        }
     }
 }
 
@@ -395,7 +405,12 @@ fn collect_value_types(func: &Func) -> HashMap<u32, Type> {
                 }
                 InstrKind::LoadPtr { ty, .. } => ty.clone(),
                 InstrKind::KotakNew { inner_ty, .. } => Type::Kotak(Box::new(inner_ty.clone())),
-                InstrKind::Gep { .. } => continue,
+                InstrKind::AddrOf { ty, .. } => {
+                    Type::Ref { inner: Box::new(ty.clone()), mutable: false }
+                }
+                InstrKind::Gep { agg_ty, indices, .. } => {
+                    Type::Ref { inner: Box::new(gep_result_type(agg_ty, indices)), mutable: false }
+                }
                 InstrKind::StorePtr { .. } => continue,
                 InstrKind::Free { .. } => continue,
                 InstrKind::Store { .. } => continue,
@@ -404,6 +419,20 @@ fn collect_value_types(func: &Func) -> HashMap<u32, Type> {
         }
     }
     m
+}
+
+fn gep_result_type(agg_ty: &Type, indices: &[GepIndex]) -> Type {
+    let mut ty = agg_ty.clone();
+    for idx in indices {
+        match idx {
+            GepIndex::Field(_) => return ty,
+            GepIndex::ArrayConst(_) | GepIndex::ArrayVal(_) => match ty {
+                Type::Array { elem, .. } => ty = *elem,
+                _ => return ty,
+            },
+        }
+    }
+    ty
 }
 
 fn ty_str(ty: &Type) -> String {
@@ -424,6 +453,7 @@ fn ty_str(ty: &Type) -> String {
         Type::Enum(_) => "i32".to_string(),
         Type::Array { elem, size } => format!("[{} x {}]", size, ty_str(elem)),
         Type::Kotak(_) => "ptr".to_string(),
+        Type::Ref { .. } => "ptr".to_string(),
         Type::Param(_) => "void".to_string(),
         Type::Fn { .. } => "ptr".to_string(),
         Type::Error => "void".to_string(),

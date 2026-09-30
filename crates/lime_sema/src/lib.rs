@@ -349,8 +349,8 @@ mod tests {
     fn valid_ownership_move_and_read() {
         let d = check(
             "program P\n\
-             fungsi ambil(k: kotak<i64>) -> i64 { kembalikan isi(k) }\n\
-             utama { nilai b = kotak(5) tampilkan(ambil(b)) }",
+             fungsi konsum(k: kotak<i64>) -> i64 { kembalikan isi(k) }\n\
+             utama { nilai b = kotak(5) tampilkan(konsum(b)) }",
         );
         assert!(!d.has_errors(), "{:?}", d.diagnostics());
     }
@@ -359,8 +359,8 @@ mod tests {
     fn use_after_move_rejected() {
         let d = check(
             "program P\n\
-             fungsi ambil(k: kotak<i64>) -> i64 { kembalikan isi(k) }\n\
-             utama { nilai b = kotak(5) nilai c = b tampilkan(ambil(b)) }",
+             fungsi konsum(k: kotak<i64>) -> i64 { kembalikan isi(k) }\n\
+             utama { nilai b = kotak(5) nilai c = b tampilkan(konsum(b)) }",
         );
         assert!(has_code(&d, codes::E_USE_AFTER_MOVE));
     }
@@ -369,8 +369,8 @@ mod tests {
     fn move_in_loop_rejected() {
         let d = check(
             "program P\n\
-             fungsi ambil(k: kotak<i64>) -> i64 { kembalikan isi(k) }\n\
-             utama { nilai b = kotak(5) untuk i dari 0 sampai 3 { tampilkan(ambil(b)) } }",
+             fungsi konsum(k: kotak<i64>) -> i64 { kembalikan isi(k) }\n\
+             utama { nilai b = kotak(5) untuk i dari 0 sampai 3 { tampilkan(konsum(b)) } }",
         );
         assert!(has_code(&d, codes::E_MOVE_IN_LOOP));
     }
@@ -379,8 +379,8 @@ mod tests {
     fn inconsistent_move_rejected() {
         let d = check(
             "program P\n\
-             fungsi ambil(k: kotak<i64>) -> i64 { kembalikan isi(k) }\n\
-             utama { nilai b = kotak(5) nilai c = 1 jika c > 0 { tampilkan(ambil(b)) } }",
+             fungsi konsum(k: kotak<i64>) -> i64 { kembalikan isi(k) }\n\
+             utama { nilai b = kotak(5) nilai c = 1 jika c > 0 { tampilkan(konsum(b)) } }",
         );
         assert!(has_code(&d, codes::E_INCONSISTENT_MOVE));
     }
@@ -389,8 +389,8 @@ mod tests {
     fn consistent_move_both_branches_ok() {
         let d = check(
             "program P\n\
-             fungsi ambil(k: kotak<i64>) -> i64 { kembalikan isi(k) }\n\
-             utama { nilai b = kotak(5) nilai c = 1 jika c > 0 { tampilkan(ambil(b)) } lain { tampilkan(ambil(b)) } }",
+             fungsi konsum(k: kotak<i64>) -> i64 { kembalikan isi(k) }\n\
+             utama { nilai b = kotak(5) nilai c = 1 jika c > 0 { tampilkan(konsum(b)) } lain { tampilkan(konsum(b)) } }",
         );
         assert!(!d.has_errors(), "{:?}", d.diagnostics());
     }
@@ -425,5 +425,171 @@ mod tests {
              utama { nilai s = Simpul { data: kotak(9) } nilai t = s tampilkan(pakai(s)) }",
         );
         assert!(has_code(&d, codes::E_USE_AFTER_MOVE));
+    }
+
+    #[test]
+    fn shared_reference_read_ok() {
+        let d = check(
+            "program P\nfungsi baca(x: &angka) -> angka { kembalikan *x }\n\
+             utama { nilai n = 7 tampilkan(baca(ambil(n))) }",
+        );
+        assert!(!d.has_errors(), "{:?}", d.diagnostics());
+    }
+
+    #[test]
+    fn mutable_reference_write_ok() {
+        let d = check(
+            "program P\nfungsi naik(x: &ubah angka) { *x = *x + 1 }\n\
+             utama { ubah n = 41 naik(ambil_ubah(n)) tampilkan(n) }",
+        );
+        assert!(!d.has_errors(), "{:?}", d.diagnostics());
+    }
+
+    #[test]
+    fn many_shared_references_coexist() {
+        let d = check(
+            "program P\nfungsi jumlah(a: &angka, b: &angka) -> angka { kembalikan *a + *b }\n\
+             utama { nilai n = 5 tampilkan(jumlah(ambil(n), ambil(n))) }",
+        );
+        assert!(!d.has_errors(), "{:?}", d.diagnostics());
+    }
+
+    #[test]
+    fn sequential_mutable_references_ok() {
+        let d = check(
+            "program P\nfungsi naik(x: &ubah angka) { *x = *x + 1 }\n\
+             utama { ubah n = 0 naik(ambil_ubah(n)) naik(ambil_ubah(n)) tampilkan(n) }",
+        );
+        assert!(!d.has_errors(), "{:?}", d.diagnostics());
+    }
+
+    #[test]
+    fn borrow_of_non_place_rejected() {
+        let d = check(
+            "program P\nfungsi baca(x: &angka) -> angka { kembalikan *x }\n\
+             utama { tampilkan(baca(ambil(1 + 2))) }",
+        );
+        assert!(has_code(&d, codes::E_BORROW_NOT_PLACE));
+    }
+
+    #[test]
+    fn mutable_borrow_of_immutable_rejected() {
+        let d = check(
+            "program P\nfungsi naik(x: &ubah angka) { *x = *x + 1 }\n\
+             utama { nilai n = 5 naik(ambil_ubah(n)) tampilkan(n) }",
+        );
+        assert!(has_code(&d, codes::E_BORROW_IMMUTABLE));
+    }
+
+    #[test]
+    fn deref_of_non_reference_rejected() {
+        let d = check("program P\nutama { nilai n = 5 tampilkan(*n) }");
+        assert!(has_code(&d, codes::E_DEREF_NON_REF));
+    }
+
+    #[test]
+    fn read_owned_through_reference_rejected() {
+        let d = check(
+            "program P\nfungsi ambilkotak(b: &kotak<angka>) -> kotak<angka> { kembalikan *b }\n\
+             utama { }",
+        );
+        assert!(has_code(&d, codes::E_DEREF_NON_COPY));
+    }
+
+    #[test]
+    fn write_through_shared_reference_rejected() {
+        let d = check("program P\nfungsi f(x: &angka) { *x = 1 }\nutama { }");
+        assert!(has_code(&d, codes::E_STORE_THROUGH_SHARED));
+    }
+
+    #[test]
+    fn shared_then_mutable_borrow_conflict() {
+        let d = check(
+            "program P\nutama { ubah n = 5 nilai a = ambil(n) nilai b = ambil_ubah(n) tampilkan(*a) }",
+        );
+        assert!(has_code(&d, codes::E_BORROW_CONFLICT));
+    }
+
+    #[test]
+    fn mutable_then_shared_borrow_conflict() {
+        let d = check(
+            "program P\nutama { ubah n = 5 nilai a = ambil_ubah(n) nilai b = ambil(n) tampilkan(*b) }",
+        );
+        assert!(has_code(&d, codes::E_BORROW_CONFLICT));
+    }
+
+    #[test]
+    fn mutate_while_borrowed_rejected() {
+        let d = check(
+            "program P\nutama { ubah n = 5 nilai r = ambil(n) n = 10 tampilkan(*r) }",
+        );
+        assert!(has_code(&d, codes::E_MUTATE_WHILE_BORROWED));
+    }
+
+    #[test]
+    fn returning_reference_rejected() {
+        let d = check("program P\nfungsi bocor(n: angka) -> &angka { kembalikan ambil(n) }\nutama { }");
+        assert!(has_code(&d, codes::E_REF_ESCAPE));
+    }
+
+    #[test]
+    fn reference_in_struct_rejected() {
+        let d = check(
+            "program P\ntipe Bungkus { r: &angka }\n\
+             utama { nilai n = 5 nilai w = Bungkus { r: ambil(n) } tampilkan(*w.r) }",
+        );
+        assert!(has_code(&d, codes::E_REF_ESCAPE));
+    }
+
+    #[test]
+    fn reference_in_extern_rejected() {
+        let d = check("program P\nekstern fungsi c_pakai(x: &angka) -> angka\nutama { }");
+        assert!(has_code(&d, codes::E_REF_IN_FFI));
+    }
+
+    #[test]
+    fn borrow_after_move_rejected() {
+        let d = check(
+            "program P\nfungsi baca(b: &kotak<angka>) -> angka { kembalikan isi(b) }\n\
+             utama { nilai b = kotak(1) nilai c = b tampilkan(baca(ambil(b))) }",
+        );
+        assert!(has_code(&d, codes::E_USE_AFTER_MOVE));
+    }
+
+    #[test]
+    fn generic_reference_instantiation_ok() {
+        let d = check(
+            "program P\nfungsi baca<T>(x: &T) -> T { kembalikan *x }\n\
+             utama { nilai n = 3 tampilkan(baca(ambil(n))) }",
+        );
+        assert!(!d.has_errors(), "{:?}", d.diagnostics());
+    }
+
+    #[test]
+    fn generic_reference_owned_instantiation_rejected() {
+        let d = check(
+            "program P\nfungsi baca<T>(x: &T) -> T { kembalikan *x }\n\
+             utama { nilai b = kotak(5) tampilkan(isi(baca(ambil(b)))) }",
+        );
+        assert!(has_code(&d, codes::E_DEREF_NON_COPY));
+    }
+
+    #[test]
+    fn reference_to_struct_field_ok() {
+        let d = check(
+            "program P\ntipe Titik { x: angka, y: angka }\n\
+             fungsi naik(v: &ubah angka) { *v = *v + 1 }\n\
+             utama { ubah p = Titik { x: 1, y: 2 } naik(ambil_ubah(p.x)) tampilkan(p.x) }",
+        );
+        assert!(!d.has_errors(), "{:?}", d.diagnostics());
+    }
+
+    #[test]
+    fn reference_to_array_element_ok() {
+        let d = check(
+            "program P\nfungsi naik(x: &ubah angka) { *x = *x + 1 }\n\
+             utama { ubah a = [10, 20, 30] naik(ambil_ubah(a[1])) tampilkan(a[1]) }",
+        );
+        assert!(!d.has_errors(), "{:?}", d.diagnostics());
     }
 }

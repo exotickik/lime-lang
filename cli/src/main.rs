@@ -54,7 +54,7 @@ fn parse_common(args: &[String], want_file: bool) -> Common {
                 if let Some(v) = args.get(i) {
                     out = Some(PathBuf::from(v));
                 } else {
-                    fail("opsi '-o' membutuhkan nilai");
+                    fail("opsi '-o' butuh nilai");
                 }
             }
             "--target" => {
@@ -88,7 +88,7 @@ fn parse_common(args: &[String], want_file: bool) -> Common {
         Some(f) => f,
         None => {
             if want_file {
-                fail("dibutuhkan berkas sumber .lime");
+                fail("butuh file sumber .lime");
             }
             PathBuf::new()
         }
@@ -145,16 +145,16 @@ fn cmd_fmt(args: &[String]) {
             other => fail(&format!("opsi tidak dikenal '{}'", other)),
         }
     }
-    let Some(file) = file else { fail("dibutuhkan berkas sumber .lime") };
+    let Some(file) = file else { fail("butuh file sumber .lime") };
     let src = match std::fs::read_to_string(&file) {
         Ok(s) => s,
-        Err(e) => fail(&format!("tidak dapat membaca '{}': {}", file.display(), e)),
+        Err(e) => fail(&format!("tidak bisa membaca '{}': {}", file.display(), e)),
     };
     match lime_fmt::format_source(&file.to_string_lossy(), &src) {
         Ok(formatted) => {
             if write {
                 if let Err(e) = std::fs::write(&file, &formatted) {
-                    fail(&format!("tidak dapat menulis '{}': {}", file.display(), e));
+                    fail(&format!("tidak bisa menulis '{}': {}", file.display(), e));
                 }
                 eprintln!("terformat: {}", file.display());
             } else {
@@ -180,7 +180,7 @@ fn cmd_init(args: &[String]) {
         capitalize(&name)
     );
     if let Err(e) = std::fs::create_dir_all("src") {
-        fail(&format!("tidak dapat membuat direktori 'src': {}", e));
+        fail(&format!("tidak bisa membuat direktori 'src': {}", e));
     }
     write_new_file("lime.toml", &manifest);
     write_new_file("src/main.lime", &main_src);
@@ -199,7 +199,7 @@ fn write_new_file(path: &str, contents: &str) {
         return;
     }
     if let Err(e) = std::fs::write(path, contents) {
-        fail(&format!("tidak dapat menulis '{}': {}", path, e));
+        fail(&format!("tidak bisa menulis '{}': {}", path, e));
     }
 }
 
@@ -224,18 +224,18 @@ PENGGUNAAN:\n\
     lime <perintah> [argumen]\n\
 \n\
 PERINTAH:\n\
-    build <berkas>     kompilasi ke executable native\n\
-    run <berkas>       kompilasi lalu jalankan\n\
-    check <berkas>     periksa sintaks dan tipe tanpa kompilasi\n\
-    fmt <berkas>       format kode sumber Lime\n\
-    emit-ir <berkas>   cetak LLVM IR yang dihasilkan\n\
+    build <file>     kompilasi ke executable native\n\
+    run <file>       kompilasi lalu jalankan\n\
+    check <file>     periksa sintaks dan tipe tanpa kompilasi\n\
+    fmt <file>       format kode sumber Lime\n\
+    emit-ir <file>   cetak LLVM IR yang dihasilkan\n\
     init [nama]        buat proyek Lime baru\n\
     clean              hapus artefak build\n\
     version            tampilkan versi\n\
     help               tampilkan bantuan ini\n\
 \n\
 OPSI (build/run/check):\n\
-    -o, --output <berkas>   nama executable keluaran\n\
+    -o, --output <file>   nama executable keluaran\n\
     --target <nama>         host | linux-x64 | windows-x64\n\
     -O0 -O1 -O2 -O3         tingkat optimasi (default -O2)\n\
     -- <args...>            argumen diteruskan ke program (run)\n"

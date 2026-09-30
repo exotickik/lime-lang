@@ -26,7 +26,20 @@ claims to exist before it does.
   into it. The box is an owned value: it moves rather than copies and is freed
   (libc `free`) at its owner's drop point. See `docs/MEMORY_MODEL.md`.
 - `isi(k)` — read a copy of the contents of a `kotak<T>` (requires `T` to be a
-  Copy type). Borrows `k` without consuming it.
+  Copy type). Borrows `k` without consuming it; also accepts a reference to a box
+  (`&kotak<T>` / `&ubah kotak<T>`).
+
+### References
+- `ambil(x)` — create a shared reference `&T` to the place `x` (a variable,
+  field, or array element). Read-only; any number may be live at once. Borrowing
+  does not move or copy `x`.
+- `ambil_ubah(x)` — create a mutable reference `&ubah T` to `x`; requires `x` to
+  be reachable through a `ubah` binding. A mutable reference is exclusive.
+
+  Dereference a reference with `*r` (read) and, for `&ubah`, `*r = e` (write). A
+  reference is a native pointer, costs nothing at runtime, and may not outlive or
+  escape the scope of the value it points at. See `docs/MEMORY_MODEL.md` for the
+  full borrowing rules.
 
 The heap runtime for owned values is libc `malloc`/`free`, reached through Lime's
 own C-ABI FFI path — no separate allocator library. Growable containers

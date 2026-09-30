@@ -31,7 +31,7 @@ aggregates built only from these — is **Copy (`salinan`)**.
 - **Owned values** **move**: assignment, argument passing, returning, and placing
   one into a struct/array literal or a `kotak(...)` transfer ownership and leave
   the source binding **moved-out**. Using a moved-out binding is a compile error
-  (`E0280`, *nilai digunakan setelah dipindahkan*).
+  (`E0280`, *nilai ini sudah dipindahkan*).
 
 ## `kotak<T>` — the owned heap cell
 
@@ -40,8 +40,8 @@ exactly one binding.
 
 - `kotak(x)` allocates (libc `malloc`), moves `x` in, and yields a `kotak<T>`.
 - `isi(k)` reads a **copy** of the contents (requires `T` to be Copy); it borrows
-  `k` without consuming it — the read path while first-class references are
-  pending (Phase 9).
+  `k` without consuming it, and also accepts a reference (`&kotak<T>` /
+  `&ubah kotak<T>`) so a box can be read through a borrow.
 - When a `kotak<T>` goes out of scope while still owning, it is dropped: if `T`
   is itself Owned its contents are dropped first, then the allocation is released
   (libc `free`). Structs/arrays containing Owned fields drop those fields
@@ -79,14 +79,76 @@ moved out first, so it is not dropped by the returning frame.
 - **FFI.** Owned types may not appear in an `ekstern` signature or be passed to
   an extern function (`E0283`): the C ABI has no knowledge of Lime ownership.
 
-## References (Phase 9)
+## References and borrowing
 
-First-class borrows (`&T` shared, `&ubah T` mutable) with aliasing rules are a
-separate subsystem and are scheduled for Phase 9. The Phase 8 model is coherent
-without them: Owned values move, are read with `isi`, and are handed back by
-returning them. The planned reference rules — a shared borrow may alias freely
-but not coexist with a mutable borrow, a mutable borrow is unique, and no borrow
-may outlive its owner — will be checked in `lime_sema` on the same typed AST.
+A reference is a native pointer to an existing value that does **not** own it.
+`&T` is a shared (read-only) reference; `&ubah T` is a mutable reference. They
+are created with the builtins `ambil(x)` and `ambil_ubah(x)`, read with `*r`,
+and written (only through `&ubah`) with `*r = e`. A reference is Copy: borrowing
+allocates nothing, drops nothing, and touches no reference count — the referent
+is left exactly as it was.
+
+### Aliasing rules
+
+A *loan* is an outstanding borrow of a place. The checker keeps, per place:
+
+- **Shared loans may coexist.** Any number of `&T` to the same value can be live
+  at once, and the value may be read while they are.
+- **A mutable loan is exclusive.** While a `&ubah T` is live, no other reference
+  (shared or mutable) to that value may be created (`E0295`), and the value may
+  not be read or moved through its owner.
+- **No mutation through the owner while borrowed.** Assigning to a value (or a
+  field/element of it) while any loan on it is live is `E0296`.
+
+### Loan lifetime (lexical, non-escaping)
+
+Loan extent is lexical and deliberately simple:
+
+- A reference **bound with `nilai`** lives until the end of its enclosing block.
+- A reference **created only as a call argument** lives just for that statement,
+  so sequential borrows compose: `naik(ambil_ubah(n)) naik(ambil_ubah(n))` is two
+  separate, non-overlapping mutable loans.
+
+References are **non-escaping**: a reference may not be returned from a function,
+stored in a struct or array literal, put in a `kotak`, or cross an FFI boundary
+(`E0297`, and `E0298` at the FFI boundary). Because a reference can never leave
+the scope in which its referent is live, it can never outlive that value — this
+is what makes the model sound without lifetime parameters or annotations.
+
+### Interaction with ownership
+
+- **Borrowing never moves.** `ambil(x)` / `ambil_ubah(x)` leave `x` fully owned
+  and usable after the borrow ends; borrowing a `kotak<T>` does not duplicate or
+  transfer ownership.
+- **A moved value cannot be borrowed.** Taking a reference to a moved-out binding
+  is `E0280`.
+- **Drops stay safe.** Non-escaping loans guarantee every reference is dead
+  before its referent's drop point, so the deterministic-drop rules above are
+  unchanged and no value is freed while a reference to it exists.
+
+### Reading through references
+
+`*r` copies `T` out of the reference, so it requires `T` to be Copy; reading an
+Owned value out through a reference (e.g. `*b` for `b: &kotak<i64>`) is `E0293`.
+Use `isi(b)` to read the Copy payload of a borrowed box instead.
+
+### Generics and FFI
+
+- **Generics.** References work in generic functions: `&T` / `&ubah T` parameters
+  infer `T`, and the borrow and Copy-through-deref rules are checked per
+  monomorphized instance, so `fungsi baca<T>(x: &T) -> T { kembalikan *x }` is
+  accepted for a Copy `T` and rejected (`E0293`) when instantiated with an Owned
+  `T`.
+- **FFI.** References are a Lime-internal aliasing concept the C ABI cannot
+  honor, so they are rejected at the boundary rather than silently reinterpreted
+  as pointers or ownership (`E0298`).
+
+### Lowering (zero cost)
+
+`ambil`/`ambil_ubah` lower to the address of the referent's stack slot (or a
+`getelementptr` into a field/element); `*r` lowers to a native `load`, and
+`*r = e` to a native `store`. There is no wrapper, tag, or count — a reference is
+exactly a machine pointer, and reference-only code performs no heap traffic.
 
 ## Strings
 

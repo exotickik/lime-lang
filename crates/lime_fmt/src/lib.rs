@@ -235,6 +235,13 @@ fn type_str(t: &TypeExpr) -> String {
             let a: Vec<String> = args.iter().map(type_str).collect();
             format!("{}<{}>", name, a.join(", "))
         }
+        TypeExprKind::Ref { inner, mutable } => {
+            if *mutable {
+                format!("&ubah {}", type_str(inner))
+            } else {
+                format!("&{}", type_str(inner))
+            }
+        }
     }
 }
 
@@ -306,6 +313,7 @@ fn expr_str(expr: &Expr, parent_prec: u8) -> String {
         ExprKind::Index { base, index } => {
             format!("{}[{}]", expr_str(base, 8), expr_str(index, 0))
         }
+        ExprKind::Deref(inner) => format!("*{}", expr_str(inner, 7)),
     }
 }
 

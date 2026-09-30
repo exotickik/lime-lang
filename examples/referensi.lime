@@ -1,0 +1,47 @@
+program Referensi
+
+tipe Titik {
+    x: angka
+    y: angka
+}
+
+fungsi geser(pos: &ubah angka, delta: angka) {
+    *pos = *pos + delta
+}
+
+fungsi baca(r: &angka) -> angka {
+    kembalikan *r
+}
+
+fungsi jumlah(a: &angka, b: &angka) -> angka {
+    kembalikan *a + *b
+}
+
+fungsi lihat_kotak(b: &kotak<angka>) -> angka {
+    kembalikan isi(b)
+}
+
+fungsi ambil_nilai<T>(r: &T) -> T {
+    kembalikan *r
+}
+
+utama {
+    ubah n = 10
+    geser(ambil_ubah(n), 5)
+    geser(ambil_ubah(n), 5)
+    tampilkan(n)
+    nilai m = 7
+    tampilkan(baca(ambil(m)))
+    tampilkan(jumlah(ambil(m), ambil(n)))
+    ubah p = Titik { x: 1, y: 2 }
+    geser(ambil_ubah(p.x), 100)
+    tampilkan(p.x)
+    tampilkan(p.y)
+    ubah data = [3, 6, 9]
+    geser(ambil_ubah(data[2]), 1)
+    tampilkan(data[2])
+    nilai b = kotak(42)
+    tampilkan(lihat_kotak(ambil(b)))
+    tampilkan(isi(b))
+    tampilkan(ambil_nilai(ambil(m)))
+}

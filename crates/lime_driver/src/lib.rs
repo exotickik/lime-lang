@@ -29,7 +29,7 @@ struct Frontend {
 impl Compiler {
     fn read(&self, path: &Path) -> Result<String, String> {
         std::fs::read_to_string(path)
-            .map_err(|e| format!("tidak dapat membaca '{}': {}", path.display(), e))
+            .map_err(|e| format!("tidak bisa membaca '{}': {}", path.display(), e))
     }
 
     fn frontend(&self, path: &Path) -> Result<Frontend, String> {
@@ -117,7 +117,7 @@ impl Compiler {
         match std::process::Command::new(&exe).args(args).status() {
             Ok(status) => status.code().unwrap_or(1),
             Err(e) => {
-                eprintln!("error: tidak dapat menjalankan '{}': {}", exe.display(), e);
+                eprintln!("error: tidak bisa menjalankan '{}': {}", exe.display(), e);
                 1
             }
         }

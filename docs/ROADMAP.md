@@ -35,7 +35,11 @@ Legend: ✅ done · 🟡 in progress · ⬜ planned
   owned heap cell, move semantics, use-after-move detection, branch-consistent
   moves, deterministic drop (malloc/free), recursive drop of nested owned
   values, ownership through calls/returns, generics & FFI boundaries
-- 🟡 References `&`/`&ubah` with borrow checking (Phase 9)
+- ✅ References `&`/`&ubah` with borrow checking (Phase 9): `ambil`/`ambil_ubah`
+  borrows, `*r` read / `*r = e` write, shared-vs-mutable aliasing rules, lexical
+  non-escaping loans (no dangling without lifetime annotations), mutation through
+  native pointers (`load`/`store`), references over struct fields / array
+  elements / generics, and FFI rejection
 
 ## Phase 3 — Native backend
 - ✅ Lime IR (SSA) + lowering (`lime_ir`)

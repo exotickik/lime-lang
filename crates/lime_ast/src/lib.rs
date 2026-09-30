@@ -20,6 +20,7 @@ pub enum TypeExprKind {
     Named(String),
     Array { elem: Box<TypeExpr>, size: u64 },
     Applied { name: String, args: Vec<TypeExpr> },
+    Ref { inner: Box<TypeExpr>, mutable: bool },
 }
 
 #[derive(Clone, Debug)]
@@ -246,6 +247,8 @@ pub enum ExprKind {
 
     ArrayLit(Vec<Expr>),
     Index { base: Box<Expr>, index: Box<Expr> },
+
+    Deref(Box<Expr>),
 }
 
 #[derive(Clone, Debug)]
@@ -259,7 +262,10 @@ impl Expr {
     pub fn is_lvalue(&self) -> bool {
         matches!(
             self.kind,
-            ExprKind::Name(_) | ExprKind::Field { .. } | ExprKind::Index { .. }
+            ExprKind::Name(_)
+                | ExprKind::Field { .. }
+                | ExprKind::Index { .. }
+                | ExprKind::Deref(_)
         )
     }
 }

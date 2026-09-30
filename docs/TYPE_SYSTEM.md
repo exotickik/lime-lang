@@ -18,6 +18,7 @@ Type =
   | Enum(EnumId)                                  // named tagged type (i32 tag)
   | Array { elem: Type, size: u64 }               // fixed-size array [T; N]
   | Kotak(Type)                                   // owned heap cell kotak<T>
+  | Ref { inner: Type, mutable: bool }            // reference &T / &ubah T (native pointer)
   | Fn { params: [Type], ret: Type }              // function type
   | Param(String)                                 // generic type variable
   | Error                                         // poison type (post-error)
@@ -79,6 +80,28 @@ are suppressed to avoid cascading diagnostics.
 - **`untuk x pada e`**: `e` must be an array (else `E0267`); `x` is bound to the
   element type for the loop body.
 
+## References
+
+A reference is a native, non-owning pointer to an existing value. `&T` is a
+shared (read-only) reference; `&ubah T` is a mutable reference. A reference is
+always Copy — it is a machine pointer — and it never owns the value it points
+at, so borrowing never allocates and never drops.
+
+- **Creation.** `ambil(x)` yields `&typeof(x)`; `ambil_ubah(x)` yields
+  `&ubah typeof(x)`. The argument must be a *place* (a variable, field, or index
+  access), else `E0290`. `ambil_ubah` additionally requires the place to be
+  reachable through a `ubah` binding, else `E0291`.
+- **Dereference.** `*r` requires `r : &T` or `&ubah T` (else `E0292`) and has
+  type `T`. Reading `*r` copies `T` out, so `T` must be Copy — dereferencing a
+  reference to an Owned value (e.g. `&kotak<i64>`) for its value is `E0293`.
+- **Write through reference.** `*r = e` requires `r : &ubah T` (a shared `&T`
+  target is `E0294`) and `e` assignable to `T`.
+- **`isi` through a reference.** `isi` accepts `&kotak<T>` / `&ubah kotak<T>` in
+  addition to `kotak<T>`, reading the Copy payload without moving the box.
+
+The borrow checker (see `docs/MEMORY_MODEL.md`) enforces the aliasing and
+lifetime rules on top of these typing rules.
+
 ## Assignability
 
 The bootstrap uses **invariant, name-based** assignability: `S` is assignable to
@@ -107,7 +130,9 @@ fungsi maksimum<T>(a: T, b: T) -> T {
   used anywhere a type is written in the signature or body.
 - **Type-argument inference**: a call carries no explicit type arguments; each
   type parameter is inferred by unifying the declared parameter types against the
-  concrete argument types. Unbound parameters → `E0270`; conflicting bindings for
+  concrete argument types. Unification recurses through `[T; N]` and through
+  references, so `&T`/`&ubah T` parameters infer `T` from `&U`/`&ubah U`
+  arguments (a shared argument does not satisfy a `&ubah` parameter). Unbound parameters → `E0270`; conflicting bindings for
   one parameter (e.g. calling `maksimum` with an `i32` and an `i64`) → a type
   error. Because literal arguments take their default type (`angka`/`f64`) during
   inference, arguments bound to the same type parameter must already share a
@@ -146,11 +171,20 @@ generic calls (a generic calling another generic) are supported.
 | E0262 | ada field struct yang belum diisi pada literal |
 | E0263 | field struct diisi lebih dari sekali pada literal |
 | E0265 | varian enum tidak dikenal |
-| E0266 | nilai bukan larik tidak dapat diindeks |
-| E0267 | nilai bukan larik tidak dapat diiterasi ('pada') |
-| E0270 | parameter tipe generik tidak dapat disimpulkan |
-| E0280 | nilai digunakan setelah dipindahkan |
+| E0266 | nilai bukan larik tidak bisa diindeks |
+| E0267 | nilai bukan larik tidak bisa diiterasi ('pada') |
+| E0270 | parameter tipe generik tidak bisa disimpulkan |
+| E0280 | nilai ini sudah dipindahkan |
 | E0281 | nilai dipindahkan pada sebagian cabang saja |
 | E0282 | nilai luar dipindahkan di dalam perulangan |
 | E0283 | tipe milik melewati batas FFI |
-| E0284 | penetapan ulang nilai bertipe milik |
+| E0284 | nilai bertipe milik ditetapkan ulang |
+| E0290 | ambil/ambil_ubah pada sesuatu yang bukan variabel/field/elemen |
+| E0291 | ambil_ubah pada binding immutable ('nilai') |
+| E0292 | '*' pada nilai yang bukan reference |
+| E0293 | membaca nilai bertipe milik lewat reference |
+| E0294 | menulis lewat reference '&' (bukan '&ubah') |
+| E0295 | reference bentrok (mutable vs reference lain) |
+| E0296 | nilai diubah padahal masih dipakai reference |
+| E0297 | reference keluar dari scope nilainya (kembalian/struct/larik) |
+| E0298 | reference melewati batas FFI |

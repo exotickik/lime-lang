@@ -221,7 +221,7 @@ fn subst_kind(kind: &mut InstrKind, known: &HashMap<u32, Operand>) -> bool {
         }
         InstrKind::KotakNew { value, .. } => changed |= subst_operand(value, known),
         InstrKind::Free { ptr } => changed |= subst_operand(ptr, known),
-        InstrKind::Load { .. } => {}
+        InstrKind::Load { .. } | InstrKind::AddrOf { .. } => {}
     }
     changed
 }
@@ -275,6 +275,7 @@ fn is_pure(kind: &InstrKind) -> bool {
             | InstrKind::MakeArray { .. }
             | InstrKind::Gep { .. }
             | InstrKind::LoadPtr { .. }
+            | InstrKind::AddrOf { .. }
     )
 }
 
@@ -333,7 +334,7 @@ fn collect_uses(kind: &InstrKind, used: &mut HashSet<u32>) {
         }
         InstrKind::KotakNew { value, .. } => note_use(value, used),
         InstrKind::Free { ptr } => note_use(ptr, used),
-        InstrKind::Load { .. } => {}
+        InstrKind::Load { .. } | InstrKind::AddrOf { .. } => {}
     }
 }
 
