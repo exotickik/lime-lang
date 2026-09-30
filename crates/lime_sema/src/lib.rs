@@ -866,4 +866,28 @@ mod tests {
         );
         assert!(has_code(&d, codes::E_ARITY_MISMATCH));
     }
+
+    #[test]
+    fn thread_spawn_and_join_ok() {
+        let d = check(
+            "program P\nfungsi kerja(n: angka) -> angka { kembalikan n * 2 }\n\
+             utama { nilai h = mulai(kerja, 21) tampilkan(tunggu(h)) }",
+        );
+        assert!(!d.has_errors(), "{:?}", d.diagnostics());
+    }
+
+    #[test]
+    fn thread_worker_must_be_angka_fn() {
+        let d = check(
+            "program P\nfungsi kerja(s: teks) -> angka { kembalikan 0 }\n\
+             utama { nilai h = mulai(kerja, 1) }",
+        );
+        assert!(has_code(&d, codes::E_THREAD_MISUSE));
+    }
+
+    #[test]
+    fn tunggu_on_non_thread_rejected() {
+        let d = check("program P\nutama { nilai x = 5 tampilkan(tunggu(x)) }");
+        assert!(has_code(&d, codes::E_THREAD_MISUSE));
+    }
 }

@@ -19,6 +19,8 @@ pub enum Builtin {
     Berhasil,
     NilaiAtau,
     GagalAtau,
+    Mulai,
+    Tunggu,
 }
 
 #[derive(Clone, Debug)]

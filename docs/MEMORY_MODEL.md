@@ -161,6 +161,19 @@ drop obligations. Owned payloads (which would need the ok field dropped only on
 success and the err field only on failure — a conditional drop) are a documented
 later extension, rejected with a diagnostic today rather than mishandled.
 
+### Concurrency and data races
+
+`mulai(f, n)` spawns a real OS thread (via `pthread`) running `f` with the Copy
+argument `n`, and `tunggu(h)` joins it and returns the result. Safety is
+structural, not lock-based: the argument is **moved in by value** and the result
+comes back **through the join**, so a spawned thread shares no mutable state with
+its parent — and Lime has no shared mutable globals, while references are
+non-escaping and so cannot be captured into a thread. There is therefore no
+data-race surface to guard. The current cut supports `angka -> angka` workers on
+POSIX hosts; passing richer (Copy) payloads, channels for message passing, and
+Windows threads are follow-ups, each gated behind a real design rather than a
+lock bolted onto shared mutable memory.
+
 ### Method receivers
 
 Trait and inherent methods (`docs/TYPE_SYSTEM.md`) take their receiver as the

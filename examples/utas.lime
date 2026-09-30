@@ -1,0 +1,24 @@
+program Utas
+
+fungsi jumlah_kuadrat(n: angka) -> angka {
+    ubah total = 0
+    ubah i = 1
+    selama i <= n {
+        total = total + i * i
+        i = i + 1
+    }
+    kembalikan total
+}
+
+utama {
+    nilai a = mulai(jumlah_kuadrat, 100)
+    nilai b = mulai(jumlah_kuadrat, 200)
+    nilai c = mulai(jumlah_kuadrat, 300)
+    nilai ra = tunggu(a)
+    nilai rb = tunggu(b)
+    nilai rc = tunggu(c)
+    tampilkan(ra)
+    tampilkan(rb)
+    tampilkan(rc)
+    tampilkan(ra + rb + rc)
+}

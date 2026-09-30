@@ -20,6 +20,7 @@ pub enum Operand {
     ConstBool(bool),
     Str(GlobalId),
     Func(String),
+    Null,
     Unit,
 }
 
@@ -161,6 +162,7 @@ pub struct Module {
     pub needs_strlen: bool,
     pub needs_malloc: bool,
     pub needs_free: bool,
+    pub needs_pthread: bool,
 }
 
 impl Module {

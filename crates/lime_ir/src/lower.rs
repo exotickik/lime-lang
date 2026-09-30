@@ -1243,6 +1243,43 @@ impl<'a> FnLowerer<'a> {
                     self.make_hasil(&hasil_ty, 1, undef_ok, payload)
                 }
             }
+            Some(Res::Builtin(Builtin::Mulai)) => {
+                self.module.needs_pthread = true;
+                let f = self.lower_expr(&args[0]);
+                let arg = self.lower_expr(&args[1]);
+                let tid_slot = self.new_slot(Type::I64);
+                let tid_addr = self.fresh_value();
+                self.emit(Some(tid_addr), InstrKind::AddrOf { slot: tid_slot, ty: Type::I64 });
+                self.emit(
+                    None,
+                    InstrKind::Call {
+                        callee: "pthread_create".to_string(),
+                        args: vec![Operand::Val(tid_addr), Operand::Null, f, arg],
+                        ret: Type::I32,
+                        variadic_from: None,
+                    },
+                );
+                let tid = self.load_slot(tid_slot, Type::I64);
+                Operand::Val(tid)
+            }
+            Some(Res::Builtin(Builtin::Tunggu)) => {
+                self.module.needs_pthread = true;
+                let tid = self.lower_expr(&args[0]);
+                let ret_slot = self.new_slot(Type::I64);
+                let ret_addr = self.fresh_value();
+                self.emit(Some(ret_addr), InstrKind::AddrOf { slot: ret_slot, ty: Type::I64 });
+                self.emit(
+                    None,
+                    InstrKind::Call {
+                        callee: "pthread_join".to_string(),
+                        args: vec![tid, Operand::Val(ret_addr)],
+                        ret: Type::I32,
+                        variadic_from: None,
+                    },
+                );
+                let result = self.load_slot(ret_slot, Type::I64);
+                Operand::Val(result)
+            }
             Some(Res::Builtin(Builtin::Berhasil)) => {
                 let hasil_ty = self.results.expr_type(args[0].id).clone();
                 let val = self.lower_expr(&args[0]);

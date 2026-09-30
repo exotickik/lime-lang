@@ -478,7 +478,27 @@ against libc through Lime's FFI path (native ABI, not C source).
 read an owned heap cell (§3.9). `ambil(x)` / `ambil_ubah(x)` — borrow a place as
 a shared or mutable reference (§3.10). `sukses(x)` / `gagal(e)` build a
 `Hasil<T, R>`, and `berhasil(r)` / `nilai_atau(r, d)` / `gagal_atau(r, d)`
-inspect one (§3.12). These names are reserved builtins and cannot be redefined.
+inspect one (§3.12). `mulai(f, n)` / `tunggu(h)` spawn and join an OS thread
+(§7.1). These names are reserved builtins and cannot be redefined.
+
+### 7.1 Concurrency (`mulai` / `tunggu`)
+`mulai(f, n)` runs the function `f` (a `fungsi(angka) -> angka`) on a new OS
+thread with argument `n`, returning a thread handle `Utas<angka>`. `tunggu(h)`
+joins the thread and returns its result:
+```lime
+fungsi kerja(n: angka) -> angka { kembalikan n * n }
+utama {
+    nilai a = mulai(kerja, 10)
+    nilai b = mulai(kerja, 20)
+    tampilkan(tunggu(a) + tunggu(b))     // runs kerja on two threads: 500
+}
+```
+Threads are real OS threads (via `pthread`). The argument is passed by value
+(a Copy `angka`) and the result is returned through the join, so there is no
+shared mutable state and therefore no data races — the safety comes from Lime's
+ownership rules, not a lock. This first cut supports `angka -> angka` workers on
+POSIX hosts; richer payloads, channels, and Windows threads are documented
+follow-ups (`docs/MEMORY_MODEL.md`).
 
 ---
 

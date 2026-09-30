@@ -20,7 +20,8 @@ Type =
   | Kotak(Type)                                   // owned heap cell kotak<T>
   | Ref { inner: Type, mutable: bool }            // reference &T / &ubah T (native pointer)
   | Hasil { ok: Type, err: Type }                 // recoverable result Hasil<T, R>
-  | Fn { params: [Type], ret: Type }              // function type
+  | Utas(Type)                                    // OS-thread handle Utas<R>
+  | Fn { params: [Type], ret: Type }              // function value type fungsi(A)->R
   | Param(String)                                 // generic type variable
   | Error                                         // poison type (post-error)
 ```
@@ -266,3 +267,5 @@ method bodies, associated types/constants, and blanket or generic impls.
 | E02B3 | muatan `Hasil<T, R>` bertipe milik (belum didukung) |
 | E02B4 | penyalahgunaan `berhasil`/`nilai_atau`/`gagal_atau` |
 | E02B5 | nilai `sukses`/`gagal` bentrok dengan `Hasil` yang diharapkan |
+| E02C0 | akses item lintas modul yang tidak `publik` atau belum di-`impor` |
+| E02D0 | penyalahgunaan `mulai`/`tunggu` (pekerja/argumen/handle salah) |

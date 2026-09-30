@@ -1,50 +1,57 @@
-# Phase 14 (Standard Library) — Design Assessment
+# Phase 15 (Concurrency) — Design Assessment
 
-Baseline: `main` at the Modules checkpoint — 221 tests, 0 warnings.
+Baseline: `main` after first-class function values — 235 tests, 0 warnings.
 
 ## Goal
 
-A real standard library, written **in Lime** wherever practical, so it also
-serves the eventual self-hosting path. No placeholder APIs: ship only functions
-the language and runtime can implement honestly today.
+A real, data-race-free concurrency primitive that fits Lime's ownership model —
+actual OS threads, no faked parallelism, no lock bolted onto shared mutable
+memory.
 
-## What Lime can support today
+## Dependency handled first
 
-Numbers, `teks` (immutable strings), fixed arrays, `kotak<T>`, structs, enums,
-generics, traits, references, `Hasil<T, R>`, modules, and libc FFI. That is
-enough for **numeric / integer-math** utilities and result-returning helpers, all
-expressible in Lime. Growable collections, mutable/owned strings, and file /
-process I/O need runtime features still on the roadmap and are deferred (listed
-as planned, not stubbed).
+Spawning a thread needs to hand a function to the runtime, which required
+**first-class function values** (`fungsi(A) -> R`). That was implemented and
+validated as its own step (functions passed/stored/returned/called indirectly),
+and is also the prerequisite for FFI callbacks.
 
-## Delivery mechanism
+## Model
 
-Standard modules live under `std/` as ordinary `modul` files and are **embedded
-into the compiler** with `include_str!` (a small registry in `lime_driver`). A
-program pulls one in with `gunakan <Nama>`, which the driver resolves against the
-embedded registry exactly as `impor` resolves a sibling file — same merge, same
-module metadata, same visibility rules. This keeps the library always available
-(no search path), and, because it is plain Lime, it is compiled and checked by
-the same pipeline as user code.
+- `mulai(f, n)` runs `f` (a `fungsi(angka) -> angka`) on a new OS thread with the
+  Copy argument `n`, returning a handle `Utas<angka>`.
+- `tunggu(h)` joins the thread and returns its result.
 
-## Modules shipped this phase
+Safety is **structural**: the argument is moved in by value and the result
+returns through the join, so a thread shares no mutable state with its parent.
+Lime has no shared mutable globals, and references are non-escaping (they cannot
+be captured into a thread), so there is no data-race surface — the guarantee
+comes from the ownership rules, not a mutex.
 
-- **`Inti`** — `maks`, `min`, `mutlak`, `batas` (clamp), `tanda` (sign).
-- **`Matematika`** — `pangkat` (integer power), `fpb`/`kpk` (gcd/lcm),
-  `apakah_prima`, and `faktorial` returning `Hasil<angka, teks>` (exercising the
-  error model inside the library).
+## Implementation
+
+- New `Type::Utas(R)` (thread handle) and builtins `mulai` / `tunggu`, checked in
+  sema (`mulai` requires an `angka -> angka` function and an `angka` argument;
+  `tunggu` requires an `Utas`), diagnostics `E02D0`.
+- Lowering uses libc `pthread` directly. The key insight: on x86-64 an
+  `i64(i64)` function is ABI-compatible with pthread's `void*(void*)` start
+  routine, so the Lime worker is passed **straight** to `pthread_create` and the
+  `angka` argument straight as the `void*` — **no trampoline and no boxing**. The
+  handle is the `pthread_t`; `tunggu` calls `pthread_join` and reads the returned
+  value. `Utas<R>` lowers to `i64`.
+- Codegen declares `pthread_create` / `pthread_join`; on modern glibc `pthread`
+  lives in libc, so no extra link flag is needed on the host.
 
 ## Validation
 
-Programs `gunakan` the modules and run natively; visibility and the flat
-namespace behave as for user modules. CLI tests cover each function and the
-error paths (unknown library module; using a library function without `gunakan`).
-An example (`examples/pustaka.lime`) runs.
+Multi-thread programs compute deterministic results across threads and join them
+(`examples/utas.lime`); CLI and sema tests cover spawning, joining, many threads,
+and the misuse diagnostics; the IR shows real `pthread_create`/`pthread_join`.
 
-## Non-goals this phase (documented)
+## Non-goals this phase (documented, not faked)
 
-- Collections (`daftar<T>` vector, maps) — need a dynamic-allocation API beyond
-  the single-cell `kotak<T>`.
-- String module (concat/slice/owned strings) — needs the owned-string runtime.
-- io / filesystem / process / time / net — need the FFI surface and runtime for
-  each, taken up in later roadmap phases.
+- Richer (Copy) payloads and multiple arguments — need boxing / a small
+  trampoline, deferred rather than faked.
+- Channels / message passing and atomics — need shared, synchronized runtime
+  state, taken up with a proper design later.
+- Windows threads (`CreateThread`) — part of the native-platform milestone;
+  the current primitive targets POSIX hosts.

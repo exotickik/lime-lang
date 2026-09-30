@@ -86,7 +86,11 @@ Legend: ✅ done · 🟡 in progress · ⬜ planned
   Flat namespace for now; qualified names are a follow-up
 - ✅ C-ABI FFI (`ekstern fungsi`, including variadic; links against libc) —
   see `docs/FFI.md`
-- ⬜ Concurrency
+- ✅ Concurrency (Phase 15): real OS threads via `pthread` — `mulai(f, n)` spawns
+  a `fungsi(angka) -> angka` worker, `tunggu(h)` joins and returns its result
+  (`Utas<R>` handle). Data-race-free by construction (value passed in, result
+  through join, no shared mutable state); zero-trampoline (x86-64 ABI). Richer
+  payloads, channels, and Windows threads are follow-ups
 
 ## Phase 6 — Developer tooling
 - ✅ Formatter core (`lime fmt`, parse-based)

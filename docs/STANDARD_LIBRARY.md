@@ -87,6 +87,15 @@ The heap runtime for owned values is libc `malloc`/`free`, reached through Lime'
 own C-ABI FFI path — no separate allocator library. Growable containers
 (`daftar<T>`) will be standard-library types built on `kotak` and this runtime.
 
+### Concurrency
+- `mulai(f, n)` — run `f` (a `fungsi(angka) -> angka`) on a new OS thread with
+  argument `n`; returns a thread handle `Utas<angka>`.
+- `tunggu(h)` — join the thread `h` and return its result.
+
+  Real `pthread` threads; the argument is passed by value and the result comes
+  back through the join, so there is no shared mutable state (see
+  `docs/MEMORY_MODEL.md`). POSIX hosts, `angka -> angka` workers for now.
+
 ### Strings
 - Content comparison with `==` / `!=` (via libc `strcmp`). See
   `docs/LANGUAGE_SPEC.md` §2.3 for the full string model. Concatenation, slicing

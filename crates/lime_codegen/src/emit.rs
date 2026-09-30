@@ -43,6 +43,10 @@ pub fn emit_module(module: &Module, target: &Target) -> String {
     if module.needs_free {
         writeln!(out, "declare void @free(ptr)").ok();
     }
+    if module.needs_pthread {
+        writeln!(out, "declare i32 @pthread_create(ptr, ptr, ptr, i64)").ok();
+        writeln!(out, "declare i32 @pthread_join(i64, ptr)").ok();
+    }
     for e in &module.externs {
         emit_extern_decl(&mut out, e);
     }
@@ -484,6 +488,7 @@ fn ty_str(ty: &Type) -> String {
         Type::Kotak(_) => "ptr".to_string(),
         Type::Ref { .. } => "ptr".to_string(),
         Type::Hasil { ok, err } => format!("{{ i32, {}, {} }}", ty_str(ok), ty_str(err)),
+        Type::Utas(_) => "i64".to_string(),
         Type::Param(_) => "void".to_string(),
         Type::Fn { .. } => "ptr".to_string(),
         Type::Error => "void".to_string(),
@@ -498,6 +503,7 @@ fn operand_ty_str(op: &Operand, vt: &HashMap<u32, Type>) -> String {
         Operand::ConstBool(_) => "i1".to_string(),
         Operand::Str(_) => "ptr".to_string(),
         Operand::Func(_) => "ptr".to_string(),
+        Operand::Null => "ptr".to_string(),
         Operand::Unit => "void".to_string(),
     }
 }
@@ -510,6 +516,7 @@ fn val_str(op: &Operand, _vt: &HashMap<u32, Type>) -> String {
         Operand::ConstBool(b) => if *b { "true".to_string() } else { "false".to_string() },
         Operand::Str(id) => format!("@.str{}", id.0),
         Operand::Func(name) => format!("@{}", name),
+        Operand::Null => "null".to_string(),
         Operand::Unit => "void".to_string(),
     }
 }

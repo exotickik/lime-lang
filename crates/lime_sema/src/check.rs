@@ -654,6 +654,8 @@ impl<'a> Checker<'a> {
         self.globals.insert("berhasil".to_string(), Res::Builtin(Builtin::Berhasil));
         self.globals.insert("nilai_atau".to_string(), Res::Builtin(Builtin::NilaiAtau));
         self.globals.insert("gagal_atau".to_string(), Res::Builtin(Builtin::GagalAtau));
+        self.globals.insert("mulai".to_string(), Res::Builtin(Builtin::Mulai));
+        self.globals.insert("tunggu".to_string(), Res::Builtin(Builtin::Tunggu));
     }
 
     fn check_bodies(&mut self, program: &Program) {
@@ -1498,6 +1500,14 @@ impl<'a> Checker<'a> {
                 }
                 sig.ret.clone()
             }
+            Some(Res::Builtin(Builtin::Mulai)) => {
+                self.results.name_res.insert(callee.id, Res::Builtin(Builtin::Mulai));
+                self.check_mulai(call, args)
+            }
+            Some(Res::Builtin(Builtin::Tunggu)) => {
+                self.results.name_res.insert(callee.id, Res::Builtin(Builtin::Tunggu));
+                self.check_tunggu(call, args)
+            }
             Some(Res::Local(_)) => self.check_indirect_call(call, callee, args),
             Some(_) | None => {
                 self.diags.emit(
@@ -1510,6 +1520,77 @@ impl<'a> Checker<'a> {
                 for a in args {
                     self.check_expr(a, None);
                 }
+                Type::Error
+            }
+        }
+    }
+
+    fn check_mulai(&mut self, call: &Expr, args: &[Expr]) -> Type {
+        if args.len() != 2 {
+            self.diags.emit(
+                Diagnostic::error(
+                    codes::E_ARITY_MISMATCH,
+                    format!("'mulai' butuh 2 argumen (fungsi, nilai), diberi {}", args.len()),
+                )
+                .primary(call.span, "jumlah argumen salah"),
+            );
+            for a in args {
+                self.check_expr(a, None);
+            }
+            return Type::Utas(Box::new(Type::I64));
+        }
+        let ft = self.check_expr(&args[0], None);
+        let at = self.check_expr(&args[1], Some(&Type::I64));
+        let ok = matches!(&ft, Type::Fn { params, ret }
+            if params.len() == 1 && params[0] == Type::I64 && **ret == Type::I64);
+        if !ok && !ft.is_error() {
+            self.diags.emit(
+                Diagnostic::error(
+                    codes::E_THREAD_MISUSE,
+                    "'mulai' butuh fungsi 'fungsi(angka) -> angka' pada argumen pertama",
+                )
+                .primary(args[0].span, format!("bertipe '{}'", ft.display()))
+                .help("versi awal utas hanya mendukung pekerja angka -> angka"),
+            );
+        }
+        if !at.is_error() && at != Type::I64 {
+            self.diags.emit(
+                Diagnostic::error(
+                    codes::E_THREAD_MISUSE,
+                    format!("argumen utas harus 'angka', bukan '{}'", at.display()),
+                )
+                .primary(args[1].span, "bukan angka"),
+            );
+        }
+        Type::Utas(Box::new(Type::I64))
+    }
+
+    fn check_tunggu(&mut self, call: &Expr, args: &[Expr]) -> Type {
+        if args.len() != 1 {
+            self.diags.emit(
+                Diagnostic::error(
+                    codes::E_ARITY_MISMATCH,
+                    format!("'tunggu' butuh 1 argumen, diberi {}", args.len()),
+                )
+                .primary(call.span, "jumlah argumen salah"),
+            );
+            for a in args {
+                self.check_expr(a, None);
+            }
+            return Type::I64;
+        }
+        let ht = self.check_expr(&args[0], None);
+        match ht {
+            Type::Utas(r) => *r,
+            Type::Error => Type::Error,
+            other => {
+                self.diags.emit(
+                    Diagnostic::error(
+                        codes::E_THREAD_MISUSE,
+                        format!("'tunggu' butuh 'Utas<R>', bukan '{}'", other.display()),
+                    )
+                    .primary(args[0].span, "bukan utas"),
+                );
                 Type::Error
             }
         }
@@ -1745,6 +1826,9 @@ impl<'a> Checker<'a> {
                     ok: Box::new(self.resolve_type_generic(&args[0], type_params)),
                     err: Box::new(self.resolve_type_generic(&args[1], type_params)),
                 }
+            }
+            TypeExprKind::Applied { name, args } if name == "Utas" && args.len() == 1 => {
+                Type::Utas(Box::new(self.resolve_type_generic(&args[0], type_params)))
             }
             TypeExprKind::Applied { .. } => Type::Error,
             TypeExprKind::Ref { inner, mutable } => Type::Ref {
@@ -2226,6 +2310,10 @@ impl<'a> Checker<'a> {
                     let err = self.resolve_type(&args[1]);
                     return Type::Hasil { ok: Box::new(ok), err: Box::new(err) };
                 }
+                if name == "Utas" && args.len() == 1 {
+                    let r = self.resolve_type(&args[0]);
+                    return Type::Utas(Box::new(r));
+                }
                 self.diags.emit(
                     Diagnostic::error(
                         codes::E_UNKNOWN_TYPE,
@@ -2255,6 +2343,7 @@ impl<'a> Checker<'a> {
             }
             Type::Array { elem, .. } => self.is_copy(elem),
             Type::Hasil { ok, err } => self.is_copy(ok) && self.is_copy(err),
+            Type::Utas(_) => true,
             Type::Param(_) => true,
             _ => true,
         }
@@ -2345,6 +2434,8 @@ fn is_builtin_name(name: &str) -> bool {
             | "berhasil"
             | "nilai_atau"
             | "gagal_atau"
+            | "mulai"
+            | "tunggu"
     )
 }
 
