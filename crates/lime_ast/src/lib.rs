@@ -28,6 +28,7 @@ pub struct Program {
     pub name: Ident,
     pub header_span: Span,
     pub items: Vec<Item>,
+    pub is_module: bool,
 }
 
 #[derive(Clone, Debug)]

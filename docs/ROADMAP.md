@@ -73,7 +73,10 @@ Legend: ✅ done · 🟡 in progress · ⬜ planned
   `nilai_atau`/`gagal_atau` inspection, generic integration, native tagged-value
   lowering (no exceptions, no allocation). Owned payloads and `cocok`
   destructuring are documented follow-ups
-- ⬜ Modules across files
+- ✅ Modules across files (Phase 13): `modul` library files, `impor <Nama>`
+  transitive loading with cycle detection, `publik` visibility enforced across
+  module boundaries (functions/structs/enums/traits), multi-file native builds.
+  Flat namespace for now; qualified names are a follow-up
 - ✅ C-ABI FFI (`ekstern fungsi`, including variadic; links against libc) —
   see `docs/FFI.md`
 - ⬜ Concurrency

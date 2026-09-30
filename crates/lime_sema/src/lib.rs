@@ -11,9 +11,28 @@ pub use results::{
 
 use lime_ast::Program;
 use lime_diagnostics::DiagnosticEngine;
+use lime_span::FileId;
+use std::collections::{HashMap, HashSet};
+
+#[derive(Default, Clone)]
+pub struct ModuleInfo {
+    pub module_names: Vec<String>,
+    pub file_module: HashMap<FileId, usize>,
+    pub imports: Vec<HashSet<String>>,
+}
 
 pub fn analyze(program: &Program, diags: &mut DiagnosticEngine) -> TypeckResults {
     Checker::new(diags).analyze(program)
+}
+
+pub fn analyze_modules(
+    program: &Program,
+    modules: &ModuleInfo,
+    diags: &mut DiagnosticEngine,
+) -> TypeckResults {
+    let mut checker = Checker::new(diags);
+    checker.set_modules(modules.clone());
+    checker.analyze(program)
 }
 
 #[cfg(test)]

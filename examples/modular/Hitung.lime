@@ -1,0 +1,7 @@
+modul Hitung
+
+impor Bentuk
+
+publik fungsi total_dua(a: Persegi, b: Persegi) -> angka {
+    kembalikan a.luas() + b.luas()
+}

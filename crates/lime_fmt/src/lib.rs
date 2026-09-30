@@ -44,7 +44,8 @@ impl Printer {
     }
 
     fn print_program(mut self, program: &Program) -> String {
-        self.line(&format!("program {}", program.name.name));
+        let kw = if program.is_module { "modul" } else { "program" };
+        self.line(&format!("{} {}", kw, program.name.name));
         for item in &program.items {
             self.blank();
             self.print_item(item);

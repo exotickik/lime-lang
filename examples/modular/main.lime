@@ -1,0 +1,12 @@
+program Modular
+
+impor Bentuk
+
+impor Hitung
+
+utama {
+    nilai a = Persegi { sisi: 3 }
+    nilai b = Persegi { sisi: 4 }
+    tampilkan(a.luas())
+    tampilkan(total_dua(a, b))
+}

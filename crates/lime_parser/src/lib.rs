@@ -19,6 +19,19 @@ impl<'a> Parser<'a> {
         Parser { tokens, pos: 0, diags, next_node: 0, allow_struct_lit: true }
     }
 
+    pub fn with_base(
+        _file: FileId,
+        tokens: Vec<Token>,
+        diags: &'a mut DiagnosticEngine,
+        base: u32,
+    ) -> Parser<'a> {
+        Parser { tokens, pos: 0, diags, next_node: base, allow_struct_lit: true }
+    }
+
+    pub fn next_node(&self) -> u32 {
+        self.next_node
+    }
+
     fn node_id(&mut self) -> NodeId {
         let id = NodeId(self.next_node);
         self.next_node += 1;
@@ -189,7 +202,8 @@ impl<'a> Parser<'a> {
 
     pub fn parse_program(&mut self) -> Program {
 
-        let (name, header_span) = if self.is_kw(Keyword::Program) {
+        let is_module = self.is_kw(Keyword::Modul);
+        let (name, header_span) = if self.is_kw(Keyword::Program) || is_module {
             let start = self.peek_span();
             self.bump();
             match self.expect_ident() {
@@ -207,10 +221,10 @@ impl<'a> Parser<'a> {
             self.diags.emit(
                 Diagnostic::error(
                     codes::E_MISSING_PROGRAM_HEADER,
-                    "file Lime harus diawali dengan 'program <Nama>'",
+                    "file Lime harus diawali dengan 'program <Nama>' atau 'modul <Nama>'",
                 )
-                .primary(sp, "tambahkan header program di sini")
-                .help("contoh: program Halo"),
+                .primary(sp, "tambahkan header di sini")
+                .help("contoh: program Halo (entri) atau modul Matematika (pustaka)"),
             );
             (Ident { name: "<error>".into(), span: sp }, sp)
         };
@@ -223,7 +237,7 @@ impl<'a> Parser<'a> {
             }
         }
 
-        Program { name, header_span, items }
+        Program { name, header_span, items, is_module }
     }
 
     fn parse_item(&mut self) -> PResult<Item> {
@@ -926,6 +940,18 @@ impl<'a> Parser<'a> {
 
 pub fn parse(file: FileId, tokens: Vec<Token>, diags: &mut DiagnosticEngine) -> Program {
     Parser::new(file, tokens, diags).parse_program()
+}
+
+pub fn parse_with_base(
+    file: FileId,
+    tokens: Vec<Token>,
+    diags: &mut DiagnosticEngine,
+    base: u32,
+) -> (Program, u32) {
+    let mut p = Parser::with_base(file, tokens, diags, base);
+    let program = p.parse_program();
+    let next = p.next_node();
+    (program, next)
 }
 
 #[cfg(test)]

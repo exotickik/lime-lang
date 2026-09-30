@@ -7,7 +7,7 @@ newline-insensitive except that statements are separated by their own structure
 (no semicolons required); an optional `;` is accepted as a statement terminator.
 
 ```ebnf
-program        = "program" Ident { item } ;
+program        = ( "program" | "modul" ) Ident { item } ;   (* "modul" for a library file *)
 
 item           = function
                | struct

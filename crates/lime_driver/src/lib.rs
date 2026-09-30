@@ -1,11 +1,12 @@
-use lime_ast::Program;
+use lime_ast::{Item, Program};
 use lime_codegen::{build_executable, emit_llvm_ir, Target};
-use lime_diagnostics::{render, DiagnosticEngine};
+use lime_diagnostics::{codes, render, Diagnostic, DiagnosticEngine};
 use lime_ir::{lower, optimize};
 use lime_lexer::tokenize;
-use lime_parser::parse;
-use lime_sema::{analyze, TypeckResults};
+use lime_parser::parse_with_base;
+use lime_sema::{analyze_modules, ModuleInfo, TypeckResults};
 use lime_span::SourceMap;
+use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 
 pub struct Compiler {
@@ -33,14 +34,76 @@ impl Compiler {
     }
 
     fn frontend(&self, path: &Path) -> Result<Frontend, String> {
-        let src = self.read(path)?;
-        let name = path.to_string_lossy().to_string();
         let mut sm = SourceMap::new();
-        let file = sm.add(name, src.clone());
         let mut diags = DiagnosticEngine::new();
-        let toks = tokenize(file, &src, &mut diags);
-        let program = parse(file, toks, &mut diags);
-        let results = analyze(&program, &mut diags);
+        let mut info = ModuleInfo::default();
+        let mut items: Vec<Item> = Vec::new();
+        let mut entry_name: Option<lime_ast::Ident> = None;
+        let mut entry_span = None;
+
+        let dir = path.parent().map(|p| p.to_path_buf()).unwrap_or_default();
+        let mut loaded: HashSet<String> = HashSet::new();
+        let mut queue: Vec<(PathBuf, bool)> = vec![(path.to_path_buf(), true)];
+        let mut next_node: u32 = 0;
+
+        while let Some((mpath, is_entry)) = queue.pop() {
+            let key = mpath.to_string_lossy().to_string();
+            if !loaded.insert(key.clone()) {
+                continue;
+            }
+            let src = self.read(&mpath)?;
+            let file = sm.add(key, src.clone());
+            let toks = tokenize(file, &src, &mut diags);
+            let (program, next) = parse_with_base(file, toks, &mut diags, next_node);
+            next_node = next;
+
+            let mod_id = info.module_names.len();
+            info.module_names.push(program.name.name.clone());
+            info.file_module.insert(file, mod_id);
+            info.imports.push(HashSet::new());
+
+            if is_entry {
+                entry_name = Some(program.name.clone());
+                entry_span = Some(program.header_span);
+            } else if program.items.iter().any(|i| matches!(i, Item::Main(_))) {
+                diags.emit(
+                    Diagnostic::error(
+                        codes::E_UNSUPPORTED,
+                        format!("modul '{}' tidak boleh punya blok 'utama'", program.name.name),
+                    )
+                    .primary(program.header_span, "hanya file 'program' yang boleh punya 'utama'"),
+                );
+            }
+
+            for item in &program.items {
+                if let Item::Import(name) = item {
+                    info.imports[mod_id].insert(name.name.clone());
+                    let child = dir.join(format!("{}.lime", name.name));
+                    if !child.exists() {
+                        diags.emit(
+                            Diagnostic::error(
+                                codes::E_UNSUPPORTED,
+                                format!("modul '{}' tidak ditemukan ('{}')", name.name, child.display()),
+                            )
+                            .primary(name.span, "file modul tidak ada"),
+                        );
+                    } else {
+                        queue.push((child, false));
+                    }
+                }
+            }
+            items.extend(program.items);
+        }
+
+        let (name, header_span) = match (entry_name, entry_span) {
+            (Some(n), Some(s)) => (n, s),
+            _ => (
+                lime_ast::Ident { name: "program".into(), span: lime_span::Span::point(lime_span::FileId(0), 0) },
+                lime_span::Span::point(lime_span::FileId(0), 0),
+            ),
+        };
+        let program = Program { name, header_span, items, is_module: false };
+        let results = analyze_modules(&program, &info, &mut diags);
         Ok(Frontend { sm, diags, program, results })
     }
 

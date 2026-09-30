@@ -3,6 +3,7 @@ use lime_span::Span;
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum Keyword {
     Program,
+    Modul,
     Utama,
     Fungsi,
     Kembalikan,
@@ -40,6 +41,7 @@ impl Keyword {
         use Keyword::*;
         Some(match s {
             "program" => Program,
+            "modul" => Modul,
             "utama" => Utama,
             "fungsi" => Fungsi,
             "kembalikan" => Kembalikan,
@@ -78,6 +80,7 @@ impl Keyword {
         use Keyword::*;
         match self {
             Program => "program",
+            Modul => "modul",
             Utama => "utama",
             Fungsi => "fungsi",
             Kembalikan => "kembalikan",

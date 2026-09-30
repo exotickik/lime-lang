@@ -21,6 +21,10 @@ pub struct Checker<'a> {
     current_self: Option<Type>,
     trait_ids: HashMap<String, usize>,
     loop_depth: u32,
+    modules: crate::ModuleInfo,
+    sym_module: HashMap<String, usize>,
+    sym_public: HashMap<String, bool>,
+    current_module: usize,
 }
 
 impl<'a> Checker<'a> {
@@ -41,6 +45,77 @@ impl<'a> Checker<'a> {
             current_self: None,
             trait_ids: HashMap::new(),
             loop_depth: 0,
+            modules: crate::ModuleInfo::default(),
+            sym_module: HashMap::new(),
+            sym_public: HashMap::new(),
+            current_module: 0,
+        }
+    }
+
+    pub fn set_modules(&mut self, info: crate::ModuleInfo) {
+        self.modules = info;
+    }
+
+    fn module_of_span(&self, span: Span) -> usize {
+        self.modules.file_module.get(&span.file).copied().unwrap_or(0)
+    }
+
+    fn accessible(&self, name: &str) -> bool {
+        let Some(&m) = self.sym_module.get(name) else {
+            return true;
+        };
+        if m == self.current_module {
+            return true;
+        }
+        if !self.sym_public.get(name).copied().unwrap_or(false) {
+            return false;
+        }
+        match self.modules.module_names.get(m) {
+            Some(mod_name) => self
+                .modules
+                .imports
+                .get(self.current_module)
+                .map(|imps| imps.contains(mod_name))
+                .unwrap_or(false),
+            None => false,
+        }
+    }
+
+    fn check_visibility(&mut self, name: &str, span: Span) {
+        if self.modules.module_names.is_empty() || self.accessible(name) {
+            return;
+        }
+        let owner = self
+            .sym_module
+            .get(name)
+            .and_then(|&m| self.modules.module_names.get(m))
+            .cloned()
+            .unwrap_or_default();
+        let public = self.sym_public.get(name).copied().unwrap_or(false);
+        let msg = if public {
+            format!("'{}' ada di modul '{}' yang belum di-'impor'", name, owner)
+        } else {
+            format!("'{}' bukan 'publik' di modul '{}'", name, owner)
+        };
+        self.diags.emit(
+            Diagnostic::error(codes::E_VISIBILITY, msg)
+                .primary(span, "tidak bisa diakses dari modul ini")
+                .help("jadikan item 'publik' dan 'impor' modulnya"),
+        );
+    }
+
+    fn record_symbols(&mut self, program: &Program) {
+        for item in &program.items {
+            let (name, span, public) = match item {
+                Item::Function(f) => (f.name.name.clone(), f.name.span, f.public),
+                Item::Struct(s) => (s.name.name.clone(), s.name.span, s.public),
+                Item::Enum(e) => (e.name.name.clone(), e.name.span, e.public),
+                Item::Trait(t) => (t.name.name.clone(), t.name.span, t.public),
+                _ => continue,
+            };
+            let m = self.module_of_span(span);
+            self.sym_module.insert(name.clone(), m);
+            self.sym_public.insert(name, public);
         }
     }
 
@@ -51,6 +126,7 @@ impl<'a> Checker<'a> {
         self.collect_functions(program);
         self.collect_traits(program);
         self.collect_impls(program);
+        self.record_symbols(program);
         self.register_globals();
         self.check_bodies(program);
         self.process_mono_worklist();
@@ -594,6 +670,7 @@ impl<'a> Checker<'a> {
         let sig = self.results.func_by_name(&f.name.name).map(|(_, s)| s.clone());
         let Some(sig) = sig else { return };
         self.current_ret = sig.ret.clone();
+        self.current_module = self.module_of_span(f.name.span);
         self.loop_depth = 0;
         self.enter_scope();
         for (p, (pname, pty)) in f.params.iter().zip(sig.params.iter()) {
@@ -622,6 +699,7 @@ impl<'a> Checker<'a> {
 
     fn check_main(&mut self, m: &MainBlock) {
         self.current_ret = Type::I64;
+        self.current_module = self.module_of_span(m.span);
         self.loop_depth = 0;
         self.enter_scope();
         self.check_block(&m.body);
@@ -910,6 +988,9 @@ impl<'a> Checker<'a> {
             ExprKind::Name(name) => match self.lookup(name) {
                 Some(res) => {
                     self.results.name_res.insert(expr.id, res.clone());
+                    if !matches!(res, Res::Local(_) | Res::Builtin(_)) {
+                        self.check_visibility(name, expr.span);
+                    }
                     match res {
                         Res::Local(id) => self.results.locals[&id].ty.clone(),
                         Res::Func(idx) => self.results.functions[idx].fn_type(),
@@ -1019,7 +1100,10 @@ impl<'a> Checker<'a> {
 
     fn check_struct_lit(&mut self, name: &Ident, fields: &[StructLitField]) -> Type {
         let id = match self.struct_ids.get(&name.name) {
-            Some(&id) => id,
+            Some(&id) => {
+                self.check_visibility(&name.name, name.span);
+                id
+            }
             None => {
                 let msg = if Type::from_builtin_name(&name.name).is_some() {
                     format!("tipe bawaan '{}' tidak bisa dibangun dengan '{{ }}'", name.name)
@@ -1223,6 +1307,9 @@ impl<'a> Checker<'a> {
             return Type::Error;
         };
 
+        if matches!(self.lookup(name), Some(Res::Func(_)) | Some(Res::GenericFn(_))) {
+            self.check_visibility(name, callee.span);
+        }
         match self.lookup(name) {
             Some(Res::GenericFn(gidx)) => self.check_generic_call(gidx, call, callee, args),
             Some(Res::Builtin(Builtin::Kotak)) => {
@@ -2062,9 +2149,11 @@ impl<'a> Checker<'a> {
                     return t;
                 }
                 if let Some(&id) = self.struct_ids.get(name) {
+                    self.check_visibility(name, ty.span);
                     return Type::Struct(id);
                 }
                 if let Some(&id) = self.enum_ids.get(name) {
+                    self.check_visibility(name, ty.span);
                     return Type::Enum(id);
                 }
                 self.diags.emit(

@@ -1,0 +1,15 @@
+modul Bentuk
+
+publik tipe Persegi {
+    sisi: angka
+}
+
+publik sifat Luas {
+    fungsi luas(diri: &Diri) -> angka
+}
+
+implementasi Luas untuk Persegi {
+    fungsi luas(diri: &Diri) -> angka {
+        kembalikan diri.sisi * diri.sisi
+    }
+}

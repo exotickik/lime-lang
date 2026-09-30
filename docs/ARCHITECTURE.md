@@ -75,13 +75,25 @@ main.lime:12:15: error[E0201]: variabel 'umur' belum didefinisikan
       |           ^^^^ tidak ditemukan pada scope ini
 ```
 
-## Module & name resolution (design)
+## Module & name resolution
 
-- A `program` is one compilation unit. `gunakan <std module>` pulls a standard
-  library module; `impor <name>` resolves a sibling `.lime` file.
-- Resolution builds a module graph; a DFS with a "visiting" color set detects
-  circular imports and reports `E0110`.
-- Visibility: items are module-private unless prefixed with `publik`.
+- A file is a module: a library file begins with `modul <Nama>`, the entry file
+  with `program <Nama>` (and holds `utama`). `impor <Nama>` resolves the sibling
+  file `<Nama>.lime`.
+- The driver loads the entry file and every transitively `impor`ed file, sharing
+  one AST node-id counter so ids stay unique, and merges all items into a single
+  `Program`. A `loaded` set makes the load cycle-safe; a missing module file is a
+  diagnostic. Each file keeps its own `SourceMap` id for diagnostics, and the
+  driver records, per module, its name and its import set.
+- `lime_sema` receives this `ModuleInfo`. During collection it records each
+  top-level symbol's owning module (by span file id) and its `publik` flag. While
+  checking a body it sets the current module, and the name/type resolvers reject a
+  reference to a symbol the current module cannot reach — not its own and not a
+  `publik` item of an `impor`ed module — as `E02C0`. Name resolution itself stays
+  flat, so type checking, ownership, generics and traits work unchanged across
+  module boundaries.
+- Visibility: items are module-private unless prefixed with `publik`. `gunakan`
+  is reserved for future standard-library modules.
 
 ## Target abstraction
 

@@ -35,7 +35,7 @@ alphabetic character. Identifiers are case-sensitive.
 Reserved and cannot be used as identifiers:
 
 ```
-program  utama    fungsi   kembalikan
+program  modul    utama    fungsi   kembalikan
 nilai    ubah
 jika     lain     selama   untuk    dari   sampai   hingga
 berhenti    lanjut
@@ -475,16 +475,37 @@ inspect one (§3.12). These names are reserved builtins and cannot be redefined.
 
 ---
 
-## 7. Modules & FFI **(planned surface, partially wired)**
+## 7. Modules & FFI
+
+A program can span several files. A **library file** begins with `modul <Nama>`;
+the **entry file** begins with `program <Nama>` and holds `utama`. `impor <Nama>`
+loads `<Nama>.lime` from the importing file's directory:
 
 ```lime
-gunakan matematika        // standard-library module
-impor utilitas            // user module (path-resolved)
+// file Matematika.lime
+modul Matematika
+publik fungsi tambah(a: angka, b: angka) -> angka { kembalikan a + b }
+fungsi rahasia() -> angka { kembalikan 0 }        // module-private
 
+// file main.lime
+program Aplikasi
+impor Matematika
+utama { tampilkan(tambah(2, 3)) }                 // 5
+```
+
+- `impor` is transitive and cycle-safe; a missing module file is a diagnostic.
+- Only `publik` items (functions, structs, enums, traits) cross a module
+  boundary, and only into a module that `impor`s the defining one; otherwise
+  `E02C0`. `utama` is only allowed in the entry `program` file.
+- All modules currently share one flat name space (two modules cannot define the
+  same top-level name). Per-module namespaces and qualified names (`Modul.item`)
+  are a documented follow-up. `gunakan` is reserved for future standard-library
+  modules.
+
+```lime
 ekstern fungsi printf(fmt: teks, ...) -> i32   // C ABI FFI declaration
 ```
-Module resolution, visibility and circular-import detection are specified in
-`docs/ARCHITECTURE.md`.
+Module resolution and visibility are specified in `docs/ARCHITECTURE.md`.
 
 ---
 
