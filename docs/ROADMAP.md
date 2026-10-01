@@ -30,7 +30,10 @@ Legend: ✅ done · 🟡 in progress · ⬜ planned
 - ✅ Fixed-size arrays `[T; N]`: literals, indexing, mutation, `panjang`,
   for-each (`pada`) and index iteration, runtime bounds checking, arrays of
   structs / arrays as params & returns
-- ⬜ Dynamically sized arrays / slices (`[T]` views)
+- ✅ Dynamic lists `daftar<T>` (Phase 16): growable heap-backed vector,
+  `daftar()`/`dorong`/`elemen`/`atur`/`panjang`, `realloc` growth, runtime
+  bounds checks, Owned (buffer freed on drop), moves. Copy element types for now
+- ⬜ Dynamically sized array *slices* (`[T]` views); maps/sets
 - ✅ Ownership model (Phase 8): `salinan`/`milik` classification, `kotak<T>`
   owned heap cell, move semantics, use-after-move detection, branch-consistent
   moves, deterministic drop (malloc/free), recursive drop of nested owned

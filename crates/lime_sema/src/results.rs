@@ -21,6 +21,10 @@ pub enum Builtin {
     GagalAtau,
     Mulai,
     Tunggu,
+    DaftarBaru,
+    Dorong,
+    Pada,
+    Atur,
 }
 
 #[derive(Clone, Debug)]

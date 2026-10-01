@@ -890,4 +890,50 @@ mod tests {
         let d = check("program P\nutama { nilai x = 5 tampilkan(tunggu(x)) }");
         assert!(has_code(&d, codes::E_THREAD_MISUSE));
     }
+
+    #[test]
+    fn daftar_build_and_read_ok() {
+        let d = check(
+            "program P\nutama { ubah d: daftar<angka> = daftar() \
+             dorong(ambil_ubah(d), 1) dorong(ambil_ubah(d), 2) \
+             atur(ambil_ubah(d), 0, 9) \
+             tampilkan(elemen(ambil(d), 0)) tampilkan(panjang(ambil(d))) }",
+        );
+        assert!(!d.has_errors(), "{:?}", d.diagnostics());
+    }
+
+    #[test]
+    fn daftar_without_context_rejected() {
+        let d = check("program P\nutama { ubah d = daftar() }");
+        assert!(has_code(&d, codes::E_COLLECTION_MISUSE));
+    }
+
+    #[test]
+    fn daftar_wrong_element_type_rejected() {
+        let d = check(
+            "program P\nutama { ubah d: daftar<angka> = daftar() dorong(ambil_ubah(d), \"x\") }",
+        );
+        assert!(has_code(&d, codes::E_COLLECTION_MISUSE));
+    }
+
+    #[test]
+    fn elemen_on_non_daftar_rejected() {
+        let d = check("program P\nutama { nilai x = 5 tampilkan(elemen(ambil(x), 0)) }");
+        assert!(has_code(&d, codes::E_COLLECTION_MISUSE));
+    }
+
+    #[test]
+    fn daftar_owned_element_rejected() {
+        let d = check("program P\nutama { ubah d: daftar<kotak<angka>> = daftar() }");
+        assert!(has_code(&d, codes::E_COLLECTION_MISUSE));
+    }
+
+    #[test]
+    fn daftar_moves_like_owned() {
+        let d = check(
+            "program P\nfungsi konsumsi(d: daftar<angka>) -> angka { kembalikan panjang(ambil(d)) }\n\
+             utama { ubah d: daftar<angka> = daftar() nilai n = konsumsi(d) tampilkan(panjang(ambil(d))) }",
+        );
+        assert!(has_code(&d, codes::E_USE_AFTER_MOVE));
+    }
 }

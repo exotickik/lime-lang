@@ -153,6 +153,20 @@ impl<'a> FnLowerer<'a> {
 
     fn emit_drop_value(&mut self, value: Operand, ty: &Type) {
         match ty {
+            Type::Daftar(elem) => {
+                let data = self.fresh_value();
+                self.emit(
+                    Some(data),
+                    InstrKind::ExtractField {
+                        agg: value,
+                        agg_ty: ty.clone(),
+                        index: 0,
+                        field_ty: Type::Ref { inner: elem.clone(), mutable: true },
+                    },
+                );
+                self.module.needs_free = true;
+                self.emit(None, InstrKind::Free { ptr: Operand::Val(data) });
+            }
             Type::Kotak(inner) => {
                 if !self.is_copy_ty(inner) {
                     let iv = self.fresh_value();
@@ -1243,6 +1257,31 @@ impl<'a> FnLowerer<'a> {
                     self.make_hasil(&hasil_ty, 1, undef_ok, payload)
                 }
             }
+            Some(Res::Builtin(Builtin::DaftarBaru)) => {
+                let ty = self.results.expr_type(expr.id).clone();
+                let dst = self.fresh_value();
+                self.emit(
+                    Some(dst),
+                    InstrKind::MakeStruct {
+                        ty,
+                        fields: vec![
+                            Operand::Null,
+                            Operand::ConstInt(0, Type::I64),
+                            Operand::ConstInt(0, Type::I64),
+                        ],
+                    },
+                );
+                Operand::Val(dst)
+            }
+            Some(Res::Builtin(Builtin::Dorong)) => {
+                self.lower_dorong(&args[0], &args[1]);
+                Operand::Unit
+            }
+            Some(Res::Builtin(Builtin::Pada)) => self.lower_pada(&args[0], &args[1]),
+            Some(Res::Builtin(Builtin::Atur)) => {
+                self.lower_atur(&args[0], &args[1], &args[2]);
+                Operand::Unit
+            }
             Some(Res::Builtin(Builtin::Mulai)) => {
                 self.module.needs_pthread = true;
                 let f = self.lower_expr(&args[0]);
@@ -1355,6 +1394,13 @@ impl<'a> FnLowerer<'a> {
                         self.lower_expr(&args[0]);
                         Operand::ConstInt(size as u128, Type::I64)
                     }
+                    Type::Ref { inner, .. } if matches!(*inner, Type::Daftar(_)) => {
+                        let (ref_ptr, daftar_ty, _) = self.daftar_parts(&args[0]);
+                        let lenp = self.daftar_field_ptr(ref_ptr, &daftar_ty, 1);
+                        let dst = self.fresh_value();
+                        self.emit(Some(dst), InstrKind::LoadPtr { ptr: lenp, ty: Type::I64 });
+                        Operand::Val(dst)
+                    }
                     _ => Operand::ConstInt(0, Type::I64),
                 }
             }
@@ -1461,6 +1507,224 @@ impl<'a> FnLowerer<'a> {
             self.emit(Some(dst), InstrKind::AddrOf { slot, ty: base_ty });
             Operand::Val(dst)
         }
+    }
+
+    fn daftar_parts(&mut self, dref: &Expr) -> (Operand, Type, Type) {
+        let arg_ty = self.results.expr_type(dref.id).clone();
+        let daftar_ty = match &arg_ty {
+            Type::Ref { inner, .. } => (**inner).clone(),
+            other => other.clone(),
+        };
+        let elem_ty = match &daftar_ty {
+            Type::Daftar(t) => (**t).clone(),
+            _ => Type::I64,
+        };
+        let ref_ptr = self.lower_expr(dref);
+        (ref_ptr, daftar_ty, elem_ty)
+    }
+
+    fn daftar_field_ptr(&mut self, ref_ptr: Operand, daftar_ty: &Type, field: u32) -> Operand {
+        let dst = self.fresh_value();
+        self.emit(
+            Some(dst),
+            InstrKind::GepPtr {
+                base: ref_ptr,
+                agg_ty: daftar_ty.clone(),
+                indices: vec![GepIndex::Field(field)],
+            },
+        );
+        Operand::Val(dst)
+    }
+
+    fn bounds_check_op(&mut self, idx: Operand, len: Operand) {
+        self.module.needs_abort = true;
+        let fail = self.new_block();
+        let cont = self.new_block();
+        let ok = self.new_block();
+        let lo = self.fresh_value();
+        self.emit(
+            Some(lo),
+            InstrKind::Cmp {
+                pred: CmpPred::Lt,
+                ty: Type::I64,
+                signed: true,
+                lhs: idx.clone(),
+                rhs: Operand::ConstInt(0, Type::I64),
+            },
+        );
+        self.set_term(Terminator::CondBr { cond: Operand::Val(lo), then_bb: fail, else_bb: cont });
+        self.current = cont;
+        let hi = self.fresh_value();
+        self.emit(
+            Some(hi),
+            InstrKind::Cmp { pred: CmpPred::Ge, ty: Type::I64, signed: true, lhs: idx, rhs: len },
+        );
+        self.set_term(Terminator::CondBr { cond: Operand::Val(hi), then_bb: fail, else_bb: ok });
+        self.current = fail;
+        self.emit(
+            None,
+            InstrKind::Call {
+                callee: "abort".to_string(),
+                args: Vec::new(),
+                ret: Type::Unit,
+                variadic_from: None,
+            },
+        );
+        self.set_term(Terminator::Unreachable);
+        self.current = ok;
+    }
+
+    fn lower_dorong(&mut self, dref: &Expr, xexpr: &Expr) {
+        self.module.needs_realloc = true;
+        let (ref_ptr, daftar_ty, elem_ty) = self.daftar_parts(dref);
+        let pty = Type::Ref { inner: Box::new(elem_ty.clone()), mutable: true };
+        let datap = self.daftar_field_ptr(ref_ptr.clone(), &daftar_ty, 0);
+        let lenp = self.daftar_field_ptr(ref_ptr.clone(), &daftar_ty, 1);
+        let capp = self.daftar_field_ptr(ref_ptr, &daftar_ty, 2);
+        let len = self.fresh_value();
+        self.emit(Some(len), InstrKind::LoadPtr { ptr: lenp.clone(), ty: Type::I64 });
+        let cap = self.fresh_value();
+        self.emit(Some(cap), InstrKind::LoadPtr { ptr: capp.clone(), ty: Type::I64 });
+        let full = self.fresh_value();
+        self.emit(
+            Some(full),
+            InstrKind::Cmp {
+                pred: CmpPred::Eq,
+                ty: Type::I64,
+                signed: true,
+                lhs: Operand::Val(len),
+                rhs: Operand::Val(cap),
+            },
+        );
+        let grow = self.new_block();
+        let cont = self.new_block();
+        self.set_term(Terminator::CondBr { cond: Operand::Val(full), then_bb: grow, else_bb: cont });
+
+        self.current = grow;
+        let iszero = self.fresh_value();
+        self.emit(
+            Some(iszero),
+            InstrKind::Cmp {
+                pred: CmpPred::Eq,
+                ty: Type::I64,
+                signed: true,
+                lhs: Operand::Val(cap),
+                rhs: Operand::ConstInt(0, Type::I64),
+            },
+        );
+        let cap2 = self.fresh_value();
+        self.emit(
+            Some(cap2),
+            InstrKind::Bin {
+                op: ArithOp::Mul,
+                ty: Type::I64,
+                signed: true,
+                lhs: Operand::Val(cap),
+                rhs: Operand::ConstInt(2, Type::I64),
+            },
+        );
+        let newcap = self.fresh_value();
+        self.emit(
+            Some(newcap),
+            InstrKind::Select {
+                cond: Operand::Val(iszero),
+                then_val: Operand::ConstInt(4, Type::I64),
+                else_val: Operand::Val(cap2),
+                ty: Type::I64,
+            },
+        );
+        let esz = self.fresh_value();
+        self.emit(Some(esz), InstrKind::SizeOf { ty: elem_ty.clone() });
+        let bytes = self.fresh_value();
+        self.emit(
+            Some(bytes),
+            InstrKind::Bin {
+                op: ArithOp::Mul,
+                ty: Type::I64,
+                signed: true,
+                lhs: Operand::Val(newcap),
+                rhs: Operand::Val(esz),
+            },
+        );
+        let olddata = self.fresh_value();
+        self.emit(Some(olddata), InstrKind::LoadPtr { ptr: datap.clone(), ty: pty.clone() });
+        let newdata = self.fresh_value();
+        self.emit(
+            Some(newdata),
+            InstrKind::Call {
+                callee: "realloc".to_string(),
+                args: vec![Operand::Val(olddata), Operand::Val(bytes)],
+                ret: pty.clone(),
+                variadic_from: None,
+            },
+        );
+        self.emit(
+            None,
+            InstrKind::StorePtr { ptr: datap.clone(), ty: pty.clone(), value: Operand::Val(newdata) },
+        );
+        self.emit(None, InstrKind::StorePtr { ptr: capp, ty: Type::I64, value: Operand::Val(newcap) });
+        self.set_term(Terminator::Br(cont));
+
+        self.current = cont;
+        let data = self.fresh_value();
+        self.emit(Some(data), InstrKind::LoadPtr { ptr: datap, ty: pty });
+        let slot = self.fresh_value();
+        self.emit(
+            Some(slot),
+            InstrKind::GepElem {
+                base: Operand::Val(data),
+                elem_ty: elem_ty.clone(),
+                index: Operand::Val(len),
+            },
+        );
+        let x = self.lower_expr(xexpr);
+        self.emit(None, InstrKind::StorePtr { ptr: Operand::Val(slot), ty: elem_ty, value: x });
+        let len1 = self.fresh_value();
+        self.emit(
+            Some(len1),
+            InstrKind::Bin {
+                op: ArithOp::Add,
+                ty: Type::I64,
+                signed: true,
+                lhs: Operand::Val(len),
+                rhs: Operand::ConstInt(1, Type::I64),
+            },
+        );
+        self.emit(None, InstrKind::StorePtr { ptr: lenp, ty: Type::I64, value: Operand::Val(len1) });
+    }
+
+    fn daftar_elem_slot(&mut self, dref: &Expr, iexpr: &Expr) -> (Operand, Type) {
+        let (ref_ptr, daftar_ty, elem_ty) = self.daftar_parts(dref);
+        let pty = Type::Ref { inner: Box::new(elem_ty.clone()), mutable: true };
+        let datap = self.daftar_field_ptr(ref_ptr.clone(), &daftar_ty, 0);
+        let lenp = self.daftar_field_ptr(ref_ptr, &daftar_ty, 1);
+        let data = self.fresh_value();
+        self.emit(Some(data), InstrKind::LoadPtr { ptr: datap, ty: pty });
+        let len = self.fresh_value();
+        self.emit(Some(len), InstrKind::LoadPtr { ptr: lenp, ty: Type::I64 });
+        let idx_ty = self.results.expr_type(iexpr.id).clone();
+        let raw = self.lower_expr(iexpr);
+        let idx = self.cast(raw, idx_ty, Type::I64);
+        self.bounds_check_op(idx.clone(), Operand::Val(len));
+        let slot = self.fresh_value();
+        self.emit(
+            Some(slot),
+            InstrKind::GepElem { base: Operand::Val(data), elem_ty: elem_ty.clone(), index: idx },
+        );
+        (Operand::Val(slot), elem_ty)
+    }
+
+    fn lower_pada(&mut self, dref: &Expr, iexpr: &Expr) -> Operand {
+        let (slot, elem_ty) = self.daftar_elem_slot(dref, iexpr);
+        let dst = self.fresh_value();
+        self.emit(Some(dst), InstrKind::LoadPtr { ptr: slot, ty: elem_ty });
+        Operand::Val(dst)
+    }
+
+    fn lower_atur(&mut self, dref: &Expr, iexpr: &Expr, xexpr: &Expr) {
+        let (slot, elem_ty) = self.daftar_elem_slot(dref, iexpr);
+        let x = self.lower_expr(xexpr);
+        self.emit(None, InstrKind::StorePtr { ptr: slot, ty: elem_ty, value: x });
     }
 
     fn lower_print(&mut self, arg: &Expr) {

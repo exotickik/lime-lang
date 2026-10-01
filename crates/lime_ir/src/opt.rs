@@ -250,6 +250,11 @@ fn subst_kind(kind: &mut InstrKind, known: &HashMap<u32, Operand>) -> bool {
                 }
             }
         }
+        InstrKind::GepElem { base, index, .. } => {
+            changed |= subst_operand(base, known);
+            changed |= subst_operand(index, known);
+        }
+        InstrKind::SizeOf { .. } => {}
         InstrKind::LoadPtr { ptr, .. } => changed |= subst_operand(ptr, known),
         InstrKind::StorePtr { ptr, value, .. } => {
             changed |= subst_operand(ptr, known);
@@ -311,6 +316,8 @@ fn is_pure(kind: &InstrKind) -> bool {
             | InstrKind::MakeArray { .. }
             | InstrKind::Gep { .. }
             | InstrKind::GepPtr { .. }
+            | InstrKind::GepElem { .. }
+            | InstrKind::SizeOf { .. }
             | InstrKind::LoadPtr { .. }
             | InstrKind::AddrOf { .. }
     )
@@ -378,6 +385,11 @@ fn collect_uses(kind: &InstrKind, used: &mut HashSet<u32>) {
                 }
             }
         }
+        InstrKind::GepElem { base, index, .. } => {
+            note_use(base, used);
+            note_use(index, used);
+        }
+        InstrKind::SizeOf { .. } => {}
         InstrKind::LoadPtr { ptr, .. } => note_use(ptr, used),
         InstrKind::StorePtr { ptr, value, .. } => {
             note_use(ptr, used);

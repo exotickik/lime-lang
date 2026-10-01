@@ -21,6 +21,7 @@ Type =
   | Ref { inner: Type, mutable: bool }            // reference &T / &ubah T (native pointer)
   | Hasil { ok: Type, err: Type }                 // recoverable result Hasil<T, R>
   | Utas(Type)                                    // OS-thread handle Utas<R>
+  | Daftar(Type)                                  // growable list daftar<T>
   | Fn { params: [Type], ret: Type }              // function value type fungsi(A)->R
   | Param(String)                                 // generic type variable
   | Error                                         // poison type (post-error)
@@ -269,3 +270,4 @@ method bodies, associated types/constants, and blanket or generic impls.
 | E02B5 | nilai `sukses`/`gagal` bentrok dengan `Hasil` yang diharapkan |
 | E02C0 | akses item lintas modul yang tidak `publik` atau belum di-`impor` |
 | E02D0 | penyalahgunaan `mulai`/`tunggu` (pekerja/argumen/handle salah) |
+| E02E0 | penyalahgunaan builtin `daftar` (arity/penerima/elemen milik) |

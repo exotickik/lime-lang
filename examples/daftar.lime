@@ -1,0 +1,33 @@
+program DaftarDinamis
+
+fungsi saring_genap(sumber: &daftar<angka>) -> daftar<angka> {
+    ubah hasil: daftar<angka> = daftar()
+    ubah i = 0
+    selama i < panjang(sumber) {
+        nilai n = elemen(sumber, i)
+        jika n % 2 == 0 {
+            dorong(ambil_ubah(hasil), n)
+        }
+        i = i + 1
+    }
+    kembalikan hasil
+}
+
+utama {
+    ubah angka_angka: daftar<angka> = daftar()
+    ubah i = 1
+    selama i <= 10 {
+        dorong(ambil_ubah(angka_angka), i)
+        i = i + 1
+    }
+    tampilkan(panjang(ambil(angka_angka)))
+    nilai genap = saring_genap(ambil(angka_angka))
+    tampilkan(panjang(ambil(genap)))
+    ubah jumlah = 0
+    ubah k = 0
+    selama k < panjang(ambil(genap)) {
+        jumlah = jumlah + elemen(ambil(genap), k)
+        k = k + 1
+    }
+    tampilkan(jumlah)
+}

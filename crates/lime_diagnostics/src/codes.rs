@@ -74,6 +74,8 @@ pub const E_VISIBILITY: Code = Code("E02C0");
 
 pub const E_THREAD_MISUSE: Code = Code("E02D0");
 
+pub const E_COLLECTION_MISUSE: Code = Code("E02E0");
+
 pub const E_INVALID_ASSIGN_TARGET: Code = Code("E0301");
 
 pub const E_TOOLCHAIN: Code = Code("E0901");

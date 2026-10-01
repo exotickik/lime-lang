@@ -87,6 +87,16 @@ The heap runtime for owned values is libc `malloc`/`free`, reached through Lime'
 own C-ABI FFI path — no separate allocator library. Growable containers
 (`daftar<T>`) will be standard-library types built on `kotak` and this runtime.
 
+### Collections
+- `daftar()` — a new empty growable list `daftar<T>` (element type from context).
+- `dorong(ambil_ubah(d), x)` — append `x` (grows via `realloc`).
+- `elemen(ambil(d), i) -> T` — element `i` (runtime bounds-checked).
+- `atur(ambil_ubah(d), i, x)` — overwrite element `i`.
+- `panjang(ambil(d)) -> angka` — length.
+
+  `daftar<T>` is Owned (frees its buffer on drop); `T` must be Copy for now. See
+  `docs/MEMORY_MODEL.md`.
+
 ### Concurrency
 - `mulai(f, n)` — run `f` (a `fungsi(angka) -> angka`) on a new OS thread with
   argument `n`; returns a thread handle `Utas<angka>`.

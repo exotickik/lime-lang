@@ -53,6 +53,7 @@ pub enum Type {
     Ref { inner: Box<Type>, mutable: bool },
     Hasil { ok: Box<Type>, err: Box<Type> },
     Utas(Box<Type>),
+    Daftar(Box<Type>),
     Fn { params: Vec<Type>, ret: Box<Type> },
     Param(String),
 
@@ -141,6 +142,7 @@ impl Type {
             }
             Type::Hasil { ok, err } => format!("Hasil<{}, {}>", ok.display(), err.display()),
             Type::Utas(r) => format!("Utas<{}>", r.display()),
+            Type::Daftar(t) => format!("daftar<{}>", t.display()),
             Type::Param(name) => name.clone(),
             Type::Fn { params, ret } => {
                 let ps: Vec<String> = params.iter().map(|t| t.display()).collect();

@@ -161,6 +161,18 @@ drop obligations. Owned payloads (which would need the ok field dropped only on
 success and the err field only on failure — a conditional drop) are a documented
 later extension, rejected with a diagnostic today rather than mishandled.
 
+### Dynamic lists (`daftar<T>`)
+
+`daftar<T>` is the growable collection: an Owned value laid out as
+`{ data: *T, len, cap }` that owns a heap buffer. It is built with `daftar()`,
+grown with `dorong` (which `realloc`s, doubling capacity), read with `elemen`
+and `panjang`, and written with `atur`; indices are runtime bounds-checked. Being
+Owned, it moves rather than copies and is dropped deterministically — its drop
+frees the buffer with `free`, so there is one `free` per list and no leak. For
+now `T` must be Copy, so the buffer needs no per-element drop (the same rule
+`Hasil` uses); Owned element types, which would require dropping each live
+element before freeing the buffer, are a documented follow-up.
+
 ### Concurrency and data races
 
 `mulai(f, n)` spawns a real OS thread (via `pthread`) running `f` with the Copy

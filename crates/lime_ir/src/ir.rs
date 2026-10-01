@@ -70,6 +70,8 @@ pub enum InstrKind {
     MakeArray { elem_ty: Type, elems: Vec<Operand> },
     Gep { slot: SlotId, agg_ty: Type, indices: Vec<GepIndex> },
     GepPtr { base: Operand, agg_ty: Type, indices: Vec<GepIndex> },
+    GepElem { base: Operand, elem_ty: Type, index: Operand },
+    SizeOf { ty: Type },
     LoadPtr { ptr: Operand, ty: Type },
     StorePtr { ptr: Operand, ty: Type, value: Operand },
     KotakNew { inner_ty: Type, value: Operand },
@@ -163,6 +165,7 @@ pub struct Module {
     pub needs_malloc: bool,
     pub needs_free: bool,
     pub needs_pthread: bool,
+    pub needs_realloc: bool,
 }
 
 impl Module {

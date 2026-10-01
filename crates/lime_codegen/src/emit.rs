@@ -47,6 +47,9 @@ pub fn emit_module(module: &Module, target: &Target) -> String {
         writeln!(out, "declare i32 @pthread_create(ptr, ptr, ptr, i64)").ok();
         writeln!(out, "declare i32 @pthread_join(i64, ptr)").ok();
     }
+    if module.needs_realloc {
+        writeln!(out, "declare ptr @realloc(ptr, i64)").ok();
+    }
     for e in &module.externs {
         emit_extern_decl(&mut out, e);
     }
@@ -254,6 +257,11 @@ fn emit_instr(
             let field_types: Vec<Type> = match ty {
                 Type::Struct(id) => structs[id.0 as usize].fields.clone(),
                 Type::Hasil { ok, err } => vec![Type::I32, (**ok).clone(), (**err).clone()],
+                Type::Daftar(t) => vec![
+                    Type::Ref { inner: t.clone(), mutable: true },
+                    Type::I64,
+                    Type::I64,
+                ],
                 _ => Vec::new(),
             };
             let d = dst.unwrap();
@@ -353,6 +361,22 @@ fn emit_instr(
             }
             writeln!(out, "  {} = getelementptr {}", dst.unwrap(), parts.join(", ")).ok();
         }
+        InstrKind::GepElem { base, elem_ty, index } => {
+            writeln!(
+                out,
+                "  {} = getelementptr {}, ptr {}, i64 {}",
+                dst.unwrap(),
+                ty_str(elem_ty),
+                val_str(base, vt),
+                val_str(index, vt)
+            )
+            .ok();
+        }
+        InstrKind::SizeOf { ty } => {
+            let d = dst.unwrap();
+            writeln!(out, "  {}.g = getelementptr {}, ptr null, i64 1", d, ty_str(ty)).ok();
+            writeln!(out, "  {} = ptrtoint ptr {}.g to i64", d, d).ok();
+        }
         InstrKind::LoadPtr { ptr, ty } => {
             writeln!(out, "  {} = load {}, ptr {}", dst.unwrap(), ty_str(ty), val_str(ptr, vt)).ok();
         }
@@ -444,6 +468,10 @@ fn collect_value_types(func: &Func) -> HashMap<u32, Type> {
                 | InstrKind::GepPtr { agg_ty, indices, .. } => {
                     Type::Ref { inner: Box::new(gep_result_type(agg_ty, indices)), mutable: false }
                 }
+                InstrKind::GepElem { elem_ty, .. } => {
+                    Type::Ref { inner: Box::new(elem_ty.clone()), mutable: true }
+                }
+                InstrKind::SizeOf { .. } => Type::I64,
                 InstrKind::StorePtr { .. } => continue,
                 InstrKind::Free { .. } => continue,
                 InstrKind::Store { .. } => continue,
@@ -489,6 +517,7 @@ fn ty_str(ty: &Type) -> String {
         Type::Ref { .. } => "ptr".to_string(),
         Type::Hasil { ok, err } => format!("{{ i32, {}, {} }}", ty_str(ok), ty_str(err)),
         Type::Utas(_) => "i64".to_string(),
+        Type::Daftar(_) => "{ ptr, i64, i64 }".to_string(),
         Type::Param(_) => "void".to_string(),
         Type::Fn { .. } => "ptr".to_string(),
         Type::Error => "void".to_string(),

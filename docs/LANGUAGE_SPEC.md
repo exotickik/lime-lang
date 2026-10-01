@@ -97,6 +97,10 @@ generator selects signed vs unsigned instructions (`sdiv`/`udiv`,
 - **Array** `[T; N]`: fixed-size inline array (see §3.7). Slices (`[T]`) planned.
 - **`kotak<T>`**: an owned, heap-allocated cell holding one `T` (see §3.9). This
   is Lime's first **owned (`milik`)** type; it moves rather than copies.
+- **`daftar<T>`**: a growable, heap-backed list of `T` (a vector). Owned
+  (`milik`): it owns its buffer and frees it on drop. Built with `daftar()`;
+  `dorong`/`elemen`/`atur`/`panjang` append, read, write, and measure it. `T`
+  must be Copy for now. See §7.2.
 - **Function value** `fungsi(A, B) -> R`: a first-class reference to a function.
   A function name used as a value yields a function pointer; it can be stored,
   passed, returned, and called (`f(x)`). It is a bare machine pointer (Copy, no
@@ -479,7 +483,25 @@ read an owned heap cell (§3.9). `ambil(x)` / `ambil_ubah(x)` — borrow a place
 a shared or mutable reference (§3.10). `sukses(x)` / `gagal(e)` build a
 `Hasil<T, R>`, and `berhasil(r)` / `nilai_atau(r, d)` / `gagal_atau(r, d)`
 inspect one (§3.12). `mulai(f, n)` / `tunggu(h)` spawn and join an OS thread
-(§7.1). These names are reserved builtins and cannot be redefined.
+(§7.1). `daftar()` builds a list and `dorong`/`elemen`/`atur` (plus `panjang`)
+operate on it (§7.2). These names are reserved builtins and cannot be redefined.
+
+### 7.2 Dynamic lists (`daftar<T>`)
+`daftar<T>` is a growable, heap-backed list. It is Owned: it owns its buffer and
+frees it on drop, and moves rather than copies. Accessors take references, so
+they never consume the list:
+```lime
+ubah d: daftar<angka> = daftar()
+dorong(ambil_ubah(d), 10)          // append (grows the buffer as needed)
+dorong(ambil_ubah(d), 20)
+tampilkan(panjang(ambil(d)))        // 2
+tampilkan(elemen(ambil(d), 0))      // 10  (bounds-checked)
+atur(ambil_ubah(d), 1, 99)          // overwrite index 1
+```
+- `daftar()` — a new empty list; element type from the expected type in scope.
+- `dorong(&ubah d, x)`, `atur(&ubah d, i, x)`, `elemen(&d, i) -> T`,
+  `panjang(&d) -> angka`. Indices are runtime bounds-checked (abort on OOB).
+- `T` must be a Copy type for now; owned element types are a follow-up.
 
 ### 7.1 Concurrency (`mulai` / `tunggu`)
 `mulai(f, n)` runs the function `f` (a `fungsi(angka) -> angka`) on a new OS

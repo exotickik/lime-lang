@@ -8,10 +8,12 @@ use std::collections::{HashMap, HashSet};
 pub fn is_copy(ty: &Type, results: &TypeckResults) -> bool {
     match ty {
         Type::Kotak(_) => false,
+        Type::Daftar(_) => false,
         Type::Struct(id) => {
             results.structs[id.0 as usize].fields.iter().all(|f| is_copy(&f.ty, results))
         }
         Type::Array { elem, .. } => is_copy(elem, results),
+        Type::Hasil { ok, err } => is_copy(ok, results) && is_copy(err, results),
         Type::Ref { .. } => true,
         _ => true,
     }

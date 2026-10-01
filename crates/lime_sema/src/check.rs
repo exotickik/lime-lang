@@ -656,6 +656,10 @@ impl<'a> Checker<'a> {
         self.globals.insert("gagal_atau".to_string(), Res::Builtin(Builtin::GagalAtau));
         self.globals.insert("mulai".to_string(), Res::Builtin(Builtin::Mulai));
         self.globals.insert("tunggu".to_string(), Res::Builtin(Builtin::Tunggu));
+        self.globals.insert("daftar".to_string(), Res::Builtin(Builtin::DaftarBaru));
+        self.globals.insert("dorong".to_string(), Res::Builtin(Builtin::Dorong));
+        self.globals.insert("elemen".to_string(), Res::Builtin(Builtin::Pada));
+        self.globals.insert("atur".to_string(), Res::Builtin(Builtin::Atur));
     }
 
     fn check_bodies(&mut self, program: &Program) {
@@ -1408,13 +1412,17 @@ impl<'a> Checker<'a> {
                     return Type::I64;
                 }
                 let at = self.check_expr(&args[0], None);
-                if !at.is_error() && !matches!(at, Type::Array { .. } | Type::Str) {
+                let is_daftar_ref = self.ref_daftar(&at, false).is_some();
+                if !at.is_error()
+                    && !is_daftar_ref
+                    && !matches!(at, Type::Array { .. } | Type::Str)
+                {
                     self.diags.emit(
                         Diagnostic::error(
                             codes::E_INVALID_OPERAND,
-                            format!("'panjang' butuh larik atau teks, bukan '{}'", at.display()),
+                            format!("'panjang' butuh larik, teks, atau '&daftar<T>', bukan '{}'", at.display()),
                         )
-                        .primary(args[0].span, "bukan larik atau teks"),
+                        .primary(args[0].span, "bukan larik, teks, atau daftar"),
                     );
                 }
                 Type::I64
@@ -1508,6 +1516,13 @@ impl<'a> Checker<'a> {
                 self.results.name_res.insert(callee.id, Res::Builtin(Builtin::Tunggu));
                 self.check_tunggu(call, args)
             }
+            Some(Res::Builtin(b @ Builtin::DaftarBaru))
+            | Some(Res::Builtin(b @ Builtin::Dorong))
+            | Some(Res::Builtin(b @ Builtin::Pada))
+            | Some(Res::Builtin(b @ Builtin::Atur)) => {
+                self.results.name_res.insert(callee.id, Res::Builtin(b));
+                self.check_daftar_builtin(b, call, args, expected)
+            }
             Some(Res::Local(_)) => self.check_indirect_call(call, callee, args),
             Some(_) | None => {
                 self.diags.emit(
@@ -1522,6 +1537,149 @@ impl<'a> Checker<'a> {
                 }
                 Type::Error
             }
+        }
+    }
+
+    fn ref_daftar(&self, ty: &Type, need_mut: bool) -> Option<Type> {
+        if let Type::Ref { inner, mutable } = ty {
+            if need_mut && !*mutable {
+                return None;
+            }
+            if let Type::Daftar(t) = &**inner {
+                return Some((**t).clone());
+            }
+        }
+        None
+    }
+
+    fn collection_error(&mut self, span: Span, msg: impl Into<String>) {
+        self.diags.emit(
+            Diagnostic::error(codes::E_COLLECTION_MISUSE, msg.into()).primary(span, "penggunaan daftar salah"),
+        );
+    }
+
+    fn check_daftar_builtin(
+        &mut self,
+        b: Builtin,
+        call: &Expr,
+        args: &[Expr],
+        expected: Option<&Type>,
+    ) -> Type {
+        match b {
+            Builtin::DaftarBaru => {
+                if !args.is_empty() {
+                    self.collection_error(call.span, "'daftar()' tidak menerima argumen");
+                    for a in args {
+                        self.check_expr(a, None);
+                    }
+                }
+                match expected {
+                    Some(Type::Daftar(t)) => {
+                        if !self.is_copy(t) {
+                            self.collection_error(
+                                call.span,
+                                format!("'daftar' belum mendukung elemen bertipe milik '{}'", t.display()),
+                            );
+                        }
+                        Type::Daftar(t.clone())
+                    }
+                    _ => {
+                        self.collection_error(
+                            call.span,
+                            "tipe elemen 'daftar' tidak bisa disimpulkan di sini",
+                        );
+                        Type::Error
+                    }
+                }
+            }
+            Builtin::Dorong => {
+                if args.len() != 2 {
+                    self.collection_error(call.span, "'dorong' butuh 2 argumen (&ubah daftar, nilai)");
+                    for a in args {
+                        self.check_expr(a, None);
+                    }
+                    return Type::Unit;
+                }
+                let dt = self.check_expr(&args[0], None);
+                let elem = self.ref_daftar(&dt, true);
+                match elem {
+                    Some(t) => {
+                        let xt = self.check_expr(&args[1], Some(&t));
+                        if !xt.is_error() && !xt.assignable_to(&t) {
+                            self.collection_error(
+                                args[1].span,
+                                format!("elemen bertipe '{}', daftar berisi '{}'", xt.display(), t.display()),
+                            );
+                        }
+                    }
+                    None => {
+                        self.check_expr(&args[1], None);
+                        if !dt.is_error() {
+                            self.collection_error(
+                                args[0].span,
+                                "'dorong' butuh '&ubah daftar<T>' pada argumen pertama",
+                            );
+                        }
+                    }
+                }
+                Type::Unit
+            }
+            Builtin::Pada => {
+                if args.len() != 2 {
+                    self.collection_error(call.span, "'pada' butuh 2 argumen (&daftar, indeks)");
+                    for a in args {
+                        self.check_expr(a, None);
+                    }
+                    return Type::Error;
+                }
+                let dt = self.check_expr(&args[0], None);
+                let it = self.check_expr(&args[1], Some(&Type::I64));
+                if !it.is_error() && !it.is_integer() {
+                    self.collection_error(args[1].span, "indeks daftar harus bilangan bulat");
+                }
+                match self.ref_daftar(&dt, false) {
+                    Some(t) => t,
+                    None => {
+                        if !dt.is_error() {
+                            self.collection_error(args[0].span, "'pada' butuh '&daftar<T>' pada argumen pertama");
+                        }
+                        Type::Error
+                    }
+                }
+            }
+            Builtin::Atur => {
+                if args.len() != 3 {
+                    self.collection_error(call.span, "'atur' butuh 3 argumen (&ubah daftar, indeks, nilai)");
+                    for a in args {
+                        self.check_expr(a, None);
+                    }
+                    return Type::Unit;
+                }
+                let dt = self.check_expr(&args[0], None);
+                let it = self.check_expr(&args[1], Some(&Type::I64));
+                if !it.is_error() && !it.is_integer() {
+                    self.collection_error(args[1].span, "indeks daftar harus bilangan bulat");
+                }
+                match self.ref_daftar(&dt, true) {
+                    Some(t) => {
+                        let xt = self.check_expr(&args[2], Some(&t));
+                        if !xt.is_error() && !xt.assignable_to(&t) {
+                            self.collection_error(
+                                args[2].span,
+                                format!("elemen bertipe '{}', daftar berisi '{}'", xt.display(), t.display()),
+                            );
+                        }
+                    }
+                    None => {
+                        self.check_expr(&args[2], None);
+                        if !dt.is_error() {
+                            self.collection_error(args[0].span, "'atur' butuh '&ubah daftar<T>' pada argumen pertama");
+                        }
+                    }
+                }
+                Type::Unit
+            }
+            _ => Type::Error,
         }
     }
 
@@ -1829,6 +1987,9 @@ impl<'a> Checker<'a> {
             }
             TypeExprKind::Applied { name, args } if name == "Utas" && args.len() == 1 => {
                 Type::Utas(Box::new(self.resolve_type_generic(&args[0], type_params)))
+            }
+            TypeExprKind::Applied { name, args } if name == "daftar" && args.len() == 1 => {
+                Type::Daftar(Box::new(self.resolve_type_generic(&args[0], type_params)))
             }
             TypeExprKind::Applied { .. } => Type::Error,
             TypeExprKind::Ref { inner, mutable } => Type::Ref {
@@ -2314,6 +2475,10 @@ impl<'a> Checker<'a> {
                     let r = self.resolve_type(&args[0]);
                     return Type::Utas(Box::new(r));
                 }
+                if name == "daftar" && args.len() == 1 {
+                    let t = self.resolve_type(&args[0]);
+                    return Type::Daftar(Box::new(t));
+                }
                 self.diags.emit(
                     Diagnostic::error(
                         codes::E_UNKNOWN_TYPE,
@@ -2344,6 +2509,7 @@ impl<'a> Checker<'a> {
             Type::Array { elem, .. } => self.is_copy(elem),
             Type::Hasil { ok, err } => self.is_copy(ok) && self.is_copy(err),
             Type::Utas(_) => true,
+            Type::Daftar(_) => false,
             Type::Param(_) => true,
             _ => true,
         }
@@ -2436,6 +2602,10 @@ fn is_builtin_name(name: &str) -> bool {
             | "gagal_atau"
             | "mulai"
             | "tunggu"
+            | "daftar"
+            | "dorong"
+            | "elemen"
+            | "atur"
     )
 }
 
@@ -2465,6 +2635,20 @@ fn unify(pat: &Type, actual: &Type, subst: &mut HashMap<String, Type>) -> bool {
         Type::Hasil { ok, err } => {
             if let Type::Hasil { ok: o2, err: e2 } = actual {
                 unify(ok, o2, subst) && unify(err, e2, subst)
+            } else {
+                false
+            }
+        }
+        Type::Daftar(t) => {
+            if let Type::Daftar(t2) = actual {
+                unify(t, t2, subst)
+            } else {
+                false
+            }
+        }
+        Type::Utas(r) => {
+            if let Type::Utas(r2) = actual {
+                unify(r, r2, subst)
             } else {
                 false
             }
@@ -2503,6 +2687,8 @@ fn subst_type(ty: &Type, subst: &HashMap<String, Type>) -> Type {
             ok: Box::new(subst_type(ok, subst)),
             err: Box::new(subst_type(err, subst)),
         },
+        Type::Utas(r) => Type::Utas(Box::new(subst_type(r, subst))),
+        Type::Daftar(t) => Type::Daftar(Box::new(subst_type(t, subst))),
         Type::Fn { params, ret } => Type::Fn {
             params: params.iter().map(|p| subst_type(p, subst)).collect(),
             ret: Box::new(subst_type(ret, subst)),
@@ -2546,6 +2732,10 @@ fn type_to_type_expr_kind(ty: &Type, results: &TypeckResults) -> TypeExprKind {
                 TypeExpr { kind: type_to_type_expr_kind(ok, results), span: dummy_span() },
                 TypeExpr { kind: type_to_type_expr_kind(err, results), span: dummy_span() },
             ],
+        },
+        Type::Daftar(t) => TypeExprKind::Applied {
+            name: "daftar".to_string(),
+            args: vec![TypeExpr { kind: type_to_type_expr_kind(t, results), span: dummy_span() }],
         },
         other => TypeExprKind::Named(other.display()),
     }

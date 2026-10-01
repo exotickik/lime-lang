@@ -1,57 +1,55 @@
-# Phase 15 (Concurrency) — Design Assessment
+# Phase 16 (Collections) — Design Assessment
 
-Baseline: `main` after first-class function values — 235 tests, 0 warnings.
+Baseline: `main` after the optimizer — 245 tests, 0 warnings. This is the first
+self-hosting prerequisite: a growable collection.
 
 ## Goal
 
-A real, data-race-free concurrency primitive that fits Lime's ownership model —
-actual OS threads, no faked parallelism, no lock bolted onto shared mutable
-memory.
-
-## Dependency handled first
-
-Spawning a thread needs to hand a function to the runtime, which required
-**first-class function values** (`fungsi(A) -> R`). That was implemented and
-validated as its own step (functions passed/stored/returned/called indirectly),
-and is also the prerequisite for FFI callbacks.
+A real dynamic array `daftar<T>` (list/vector): heap-backed, growable, bounds
+checked, owned (freed on drop). Not a fixed `[T; N]` — it grows at runtime.
 
 ## Model
 
-- `mulai(f, n)` runs `f` (a `fungsi(angka) -> angka`) on a new OS thread with the
-  Copy argument `n`, returning a handle `Utas<angka>`.
-- `tunggu(h)` joins the thread and returns its result.
+`daftar<T>` is an **Owned** (`milik`) value laid out as `{ data: *T, len, cap }`.
+It owns its heap buffer and frees it deterministically on drop, exactly like
+`kotak<T>`. For this phase `T` must be Copy (`salinan`), so elements need no
+per-element drop — the same restriction `Hasil` uses, and enough for the
+self-hosting data (`daftar<angka>`, `daftar<teks>`, `daftar<struct-of-copy>`).
 
-Safety is **structural**: the argument is moved in by value and the result
-returns through the join, so a thread shares no mutable state with its parent.
-Lime has no shared mutable globals, and references are non-escaping (they cannot
-be captured into a thread), so there is no data-race surface — the guarantee
-comes from the ownership rules, not a mutex.
+## Operations (builtins, reference-based like the borrow model)
+
+- `daftar()` — a new empty list; element type from the expected type in scope.
+- `dorong(ambil_ubah(d), x)` — append `x`, growing (via `realloc`, doubling) when
+  full.
+- `pada(ambil(d), i) -> T` — element `i`, runtime bounds-checked (abort on OOB).
+- `atur(ambil_ubah(d), i, x)` — overwrite element `i`, bounds-checked.
+- `panjang(ambil(d)) -> angka` — current length (extends the existing `panjang`).
+
+Accessors take references so they never consume the list, consistent with the
+reference/borrow rules; the borrow checker already governs the loans.
 
 ## Implementation
 
-- New `Type::Utas(R)` (thread handle) and builtins `mulai` / `tunggu`, checked in
-  sema (`mulai` requires an `angka -> angka` function and an `angka` argument;
-  `tunggu` requires an `Utas`), diagnostics `E02D0`.
-- Lowering uses libc `pthread` directly. The key insight: on x86-64 an
-  `i64(i64)` function is ABI-compatible with pthread's `void*(void*)` start
-  routine, so the Lime worker is passed **straight** to `pthread_create` and the
-  `angka` argument straight as the `void*` — **no trampoline and no boxing**. The
-  handle is the `pthread_t`; `tunggu` calls `pthread_join` and reads the returned
-  value. `Utas<R>` lowers to `i64`.
-- Codegen declares `pthread_create` / `pthread_join`; on modern glibc `pthread`
-  lives in libc, so no extra link flag is needed on the host.
+Reuses the tested Lime-IR → LLVM path rather than hand-written LLVM:
 
-## Validation
+- New `Type::Daftar(T)`, lowered to the aggregate `{ ptr, i64, i64 }`.
+- Two new IR ops: `SizeOf { ty }` (byte size of `T`, via the null-GEP/ptrtoint
+  trick already used by `kotak`) and `GepElem { base, elem_ty, index }` (a flat
+  `getelementptr T, ptr base, i64 index` for buffer indexing).
+- `dorong` lowers to real IR: load `len`/`cap` through the `&ubah` reference,
+  branch to a grow block that `realloc`s and doubles capacity, then store the
+  element and bump `len`. `elemen`/`atur` bounds-check `i` against the runtime `len`
+  and load/store through `GepElem`. `daftar()` builds `{ null, 0, 0 }`.
+- Ownership: `daftar<T>` is Owned; its drop frees the buffer (`free`). Moves,
+  use-after-move, and drops reuse the existing ownership machinery.
 
-Multi-thread programs compute deterministic results across threads and join them
-(`examples/utas.lime`); CLI and sema tests cover spawning, joining, many threads,
-and the misuse diagnostics; the IR shows real `pthread_create`/`pthread_join`.
+## Diagnostics
 
-## Non-goals this phase (documented, not faked)
+`E02E0` — collection builtin misuse (wrong arity/receiver, non-Copy element, or a
+`daftar()` with no inferable element type).
 
-- Richer (Copy) payloads and multiple arguments — need boxing / a small
-  trampoline, deferred rather than faked.
-- Channels / message passing and atomics — need shared, synchronized runtime
-  state, taken up with a proper design later.
-- Windows threads (`CreateThread`) — part of the native-platform milestone;
-  the current primitive targets POSIX hosts.
+## Non-goals this phase (documented)
+
+- Owned element types (need per-element drop over the buffer).
+- Insert/remove-at, iteration sugar, capacity control — follow-ups.
+- Maps/sets — a later collection once hashing/strings are richer.
