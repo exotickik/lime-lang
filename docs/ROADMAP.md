@@ -104,6 +104,10 @@ Legend: ✅ done · 🟡 in progress · ⬜ planned
 
 ## Phase 6 — Developer tooling
 - ✅ Formatter core (`lime fmt`, parse-based)
+- ✅ Test runner (`lime test`, Phase 19): discovers `uji_*` functions (no params,
+  `boolean` return), synthesizes a harness `utama`, compiles and runs them as one
+  native executable, flushes per test so a crash still reports prior results,
+  exits non-zero on any failure
 - ⬜ Language server (LSP) + VS Code extension
 
 ## Phase 7 — Package ecosystem

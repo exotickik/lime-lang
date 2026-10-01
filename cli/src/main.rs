@@ -17,6 +17,7 @@ fn main() {
         "build" => cmd_build(rest),
         "run" => cmd_run(rest),
         "check" => cmd_check(rest),
+        "test" => cmd_test(rest),
         "fmt" => cmd_fmt(rest),
         "emit-ir" => cmd_emit_ir(rest),
         "init" => cmd_init(rest),
@@ -126,6 +127,12 @@ fn cmd_check(args: &[String]) {
     }
 }
 
+fn cmd_test(args: &[String]) {
+    let c = parse_common(args, true);
+    let comp = compiler(&c);
+    exit(comp.test(&c.file));
+}
+
 fn cmd_emit_ir(args: &[String]) {
     let c = parse_common(args, true);
     let comp = compiler(&c);
@@ -227,6 +234,7 @@ PERINTAH:\n\
     build <file>     kompilasi ke executable native\n\
     run <file>       kompilasi lalu jalankan\n\
     check <file>     periksa sintaks dan tipe tanpa kompilasi\n\
+    test <file>      jalankan fungsi uji ('uji_*') di file\n\
     fmt <file>       format kode sumber Lime\n\
     emit-ir <file>   cetak LLVM IR yang dihasilkan\n\
     init [nama]        buat proyek Lime baru\n\

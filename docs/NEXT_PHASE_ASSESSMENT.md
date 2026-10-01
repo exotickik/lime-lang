@@ -1,82 +1,83 @@
-# Phase 18 (File I/O) — Design Assessment
+# Phase 19 (Test runner `lime test`) — Design Assessment
 
-Baseline: `main` after dynamic text + casts (Phase 17). Third self-hosting
-prerequisite: a compiler must read a source file and write an output file.
+Baseline: `main` after file I/O (Phase 18). Fourth self-hosting prerequisite: a
+compiler project needs to run its own tests.
 
 ## Goal
 
-Whole-file read and write from Lime, reusing the byte-buffer representation so
-reading a file, building text, and writing it out share one type.
+A `lime test <file>` command that discovers test functions, runs them through the
+real backend, and reports pass/fail with a non-zero exit on failure — usable both
+by hand and from CI.
 
-## Approach
+## Test function contract
 
-Files move through `daftar<bita>` byte buffers — the same growable, owned,
-bounds-checked list used for dynamic text (Phase 16/17). Two builtins:
+A test is any top-level function that
+- is named with the `uji_` prefix (`uji` = *test*),
+- takes no parameters,
+- has no type parameters,
+- returns `boolean` (`benar` = passed).
 
-- `tulis_file(nama: teks, ambil(buf: daftar<bita>)) -> boolean` — write the whole
-  buffer to `nama`, truncating it. Takes a shared reference (read-only).
-- `baca_file(nama: teks, ambil_ubah(buf: daftar<bita>)) -> boolean` — read the
-  whole file into `buf`, replacing (and freeing) its previous contents. Takes a
-  mutable reference. Returns `salah` when the file cannot be opened.
+Violations of the last three are compile errors (`E_UNSUPPORTED`) pointing at the
+offending function, so a malformed test never silently disappears. Tests are
+discovered only in the **entry file** (the one passed to `lime test`), not in its
+imported modules, so a module's own `uji_*` helpers are not run transitively and
+cross-module visibility (`publik`) never enters into it.
 
-### Why `boolean` and not `Hasil<daftar<bita>, R>`
+## Approach — synthesize the harness, reuse the whole pipeline
 
-`Hasil<T, R>` is a Copy value type; its payloads must be Copy, and `daftar<bita>`
-is Owned. A read therefore cannot *return* the buffer inside a `Hasil`. The data
-is delivered through the caller's mutable buffer (an out-parameter) and the call
-yields a `boolean` for success. A richer error type is a follow-up tied to
-heap-owned result payloads.
+`lime test` does not invent a second execution path. It:
 
-### FILE* across the native ABI
+1. Parses and merges the program exactly as `build`/`run` do (`parse_merge`,
+   factored out of the former `frontend`), **before** semantic analysis.
+2. Walks the merged AST for valid `uji_*` functions in the entry file.
+3. Rejects a file that already has a `utama` block via the normal
+   single-main check — the runner owns `utama`.
+4. Synthesizes a `utama` as ordinary AST, minting fresh `NodeId`s from the
+   parser's node counter (threaded out of `parse_merge`): for each test,
+   `jika uji_x() { tampilkan("##LIME-UJI LULUS x") } lain { tampilkan("##LIME-UJI GAGAL x") }`.
+5. Runs the real `analyze_modules` → `lower` → `optimize_level` →
+   `build_executable` on the augmented program, then executes it capturing
+   stdout.
+6. Parses the marker lines and prints a human summary, exiting non-zero on any
+   failure.
 
-Lowering uses libc `fopen`/`fseek`/`ftell`/`fread`/`fwrite`/`fclose` over the
-existing native-ABI FFI. The `FILE*` handle is carried as an opaque `i64` value
-(pointer-width on the supported targets), avoiding any `ptrtoint`/`inttoptr`
-dance in the emitted IR: the declarations simply type the handle as `i64`. A
-`needs_file` module flag gates the six `extern` declarations in codegen so
-programs that never touch files emit none of them.
+Because the harness is real Lime AST fed through the real sema and codegen, the
+tests exercise the actual compiler — there is no mock interpreter.
 
-### Read sequence
+## Surviving a crashing test
 
-`fopen(nama, "rb")`; on a null handle, store `salah` and skip. Otherwise
-`fseek(END)` + `ftell` to size the file, `malloc` a buffer, `fseek(SET)`,
-`fread`, `fclose`. The old `daftar` buffer (field 0) is `free`d and the three
-list fields (`ptr`, `len`, `cap`) are overwritten to adopt the freshly read
-bytes; `salah`/`benar` is produced via an alloca result slot stored in each
-branch and loaded after the merge (the backend has no phi nodes).
-
-### Write sequence
-
-`fopen(nama, "wb")`; null → `salah`. Otherwise `fwrite(ptr, 1, len, f)` from the
-buffer's fields, `fclose`, `benar`.
+The test executable's stdout is a pipe, so libc fully buffers it; a test that
+`abort()`s (e.g. a bounds-check failure) would otherwise lose the buffered
+results of every test that already passed. The harness therefore calls
+`fflush(0)` after each test's marker. `fflush(NULL)` flushes all open streams;
+the null `FILE*` is passed as an `angka` `0` over an injected
+`ekstern fungsi fflush(aliran: angka) -> angka`, reusing the FILE*-as-i64 ABI
+convention from Phase 18 (an integer and a pointer argument share registers on
+the supported ABIs). A test that aborts is then reported as
+`berhenti sebelum selesai`; tests after it that never ran are reported the same.
+The extern is injected only when the program does not already declare `fflush`.
 
 ## Implementation
 
-- `Builtin::BacaFile` / `Builtin::TulisFile` (`lime_sema` results).
-- `check.rs`: registered in globals + `is_builtin_name`; `check_call` arms type
-  the path as `teks`, require `&ubah daftar<bita>` (read) / `&daftar<bita>`
-  (write), and return `Type::Bool`.
-- `lower.rs`: `lower_baca_file` / `lower_tulis_file` + a `call_i64` helper,
-  using the daftar field-pointer helpers from Phase 16.
-- `emit.rs`: `needs_file` gate emitting `fopen`/`fseek`/`ftell`/`fread`/`fwrite`/
-  `fclose` declarations with the `i64` FILE* convention.
+- `lime_driver`: `parse_merge` (shared parse+merge), `Compiler::test`,
+  `collect_tests`, `synth_test_main`, `synth_fflush_decl`, `report_tests`, and
+  small AST builders (`mk_expr`/`mk_call`/`mk_print`).
+- `lime_cli`: `test` subcommand and help text.
 
 ## Tests
 
-- `cli/tests/fileio.rs`: write-then-read round-trip (asserts on-disk content and
-  printed bytes), reading a missing file returns `salah`, byte-count of a read
-  file.
-- `lime_sema`: `file_io_ok`, `baca_file_needs_mutable_buffer` (rejects a shared
-  reference where a mutable one is required).
-- `examples/berkas.lime`: builds a report with `Teks`, writes it, reads it back,
-  prints its length and contents.
+- `cli/tests/test_cmd.rs`: all-pass (exit 0), mixed pass/fail (exit 1), wrong
+  return type (compile error), parameters (compile error), no tests (error),
+  and a runtime abort that still reports the prior passing test.
+- `examples/uji_matematika.lime`: five real tests over the `Matematika` module,
+  run with `lime test`.
 
 ## Honest limitations
 
-- Whole-file only; no streaming, seeking from Lime, append mode, or partial
-  reads/writes yet.
-- POSIX/libc hosts. Windows file I/O rides the same libc path but is unverified
-  in the current Linux-only container.
-- No path manipulation, directory iteration, or `stat`-style metadata.
-- Error reporting is a `boolean`; distinguishing *why* a read failed awaits
-  heap-owned `Hasil` payloads.
+- One entry file per invocation; no directory/glob discovery or a project-wide
+  `lime test` across all files yet (awaits the package system).
+- Tests report a single `boolean`; there is no assertion API with messages,
+  `expected vs actual` diffs, or per-assertion locations yet.
+- No test filtering, parallelism, timing, or setup/teardown.
+- A crashing test halts the single shared executable; per-test process isolation
+  is a follow-up.

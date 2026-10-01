@@ -1,0 +1,23 @@
+program UjiMatematika
+
+gunakan Matematika
+
+fungsi uji_pangkat_dua() -> boolean {
+    kembalikan pangkat(2, 10) == 1024
+}
+
+fungsi uji_fpb() -> boolean {
+    kembalikan fpb(48, 36) == 12
+}
+
+fungsi uji_kpk() -> boolean {
+    kembalikan kpk(4, 6) == 12
+}
+
+fungsi uji_prima() -> boolean {
+    kembalikan apakah_prima(13) && !apakah_prima(15)
+}
+
+fungsi uji_faktorial() -> boolean {
+    kembalikan nilai_atau(faktorial(6), 0) == 720
+}
