@@ -961,6 +961,24 @@ mod tests {
     }
 
     #[test]
+    fn file_io_ok() {
+        let d = check(
+            "program P\nutama { ubah b: daftar<bita> = daftar() \
+             nilai w = tulis_file(\"x\", ambil(b)) \
+             nilai r = baca_file(\"x\", ambil_ubah(b)) tampilkan(w) tampilkan(r) }",
+        );
+        assert!(!d.has_errors(), "{:?}", d.diagnostics());
+    }
+
+    #[test]
+    fn baca_file_needs_mutable_buffer() {
+        let d = check(
+            "program P\nutama { ubah b: daftar<bita> = daftar() nilai r = baca_file(\"x\", ambil(b)) }",
+        );
+        assert!(has_code(&d, codes::E_COLLECTION_MISUSE));
+    }
+
+    #[test]
     fn daftar_moves_like_owned() {
         let d = check(
             "program P\nfungsi konsumsi(d: daftar<angka>) -> angka { kembalikan panjang(ambil(d)) }\n\

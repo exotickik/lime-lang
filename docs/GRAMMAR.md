@@ -117,6 +117,9 @@ literal        = IntLit | FloatLit | StringLit | CharLit | "benar" | "salah" ;
 - `Hasil<T, R>` is the built-in result type (an `Applied` type). `sukses`,
   `gagal`, `berhasil`, `nilai_atau`, and `gagal_atau` are reserved builtins used
   with ordinary call syntax; `coba e` is the propagation operator.
+- `daftar`, `dorong`, `elemen`, `atur`, `bita_pada`, `cetak_bita`, `baca_file`,
+  and `tulis_file` are reserved builtins called with ordinary call syntax;
+  `baca_file`/`tulis_file` do whole-file I/O over `daftar<bita>` buffers.
 - Statement boundaries are determined structurally; a leading `-` on a new line
   is parsed as a binary operator continuing the previous expression only inside
   an unclosed `(` — top-level statements do not span lines implicitly.

@@ -662,6 +662,8 @@ impl<'a> Checker<'a> {
         self.globals.insert("atur".to_string(), Res::Builtin(Builtin::Atur));
         self.globals.insert("bita_pada".to_string(), Res::Builtin(Builtin::BitaPada));
         self.globals.insert("cetak_bita".to_string(), Res::Builtin(Builtin::CetakBita));
+        self.globals.insert("baca_file".to_string(), Res::Builtin(Builtin::BacaFile));
+        self.globals.insert("tulis_file".to_string(), Res::Builtin(Builtin::TulisFile));
     }
 
     fn check_bodies(&mut self, program: &Program) {
@@ -1584,6 +1586,44 @@ impl<'a> Checker<'a> {
                     }
                 }
                 Type::Unit
+            }
+            Some(Res::Builtin(Builtin::BacaFile)) => {
+                self.results.name_res.insert(callee.id, Res::Builtin(Builtin::BacaFile));
+                if args.len() != 2 {
+                    self.collection_error(call.span, "'baca_file' butuh 2 argumen (teks, &ubah daftar<bita>)");
+                    for a in args {
+                        self.check_expr(a, None);
+                    }
+                    return Type::Bool;
+                }
+                let pt = self.check_expr(&args[0], None);
+                let dt = self.check_expr(&args[1], None);
+                if !pt.is_error() && pt != Type::Str {
+                    self.collection_error(args[0].span, "nama file harus 'teks'");
+                }
+                if !matches!(self.ref_daftar(&dt, true), Some(t) if t == Type::U8) && !dt.is_error() {
+                    self.collection_error(args[1].span, "'baca_file' butuh '&ubah daftar<bita>' sebagai tujuan");
+                }
+                Type::Bool
+            }
+            Some(Res::Builtin(Builtin::TulisFile)) => {
+                self.results.name_res.insert(callee.id, Res::Builtin(Builtin::TulisFile));
+                if args.len() != 2 {
+                    self.collection_error(call.span, "'tulis_file' butuh 2 argumen (teks, &daftar<bita>)");
+                    for a in args {
+                        self.check_expr(a, None);
+                    }
+                    return Type::Bool;
+                }
+                let pt = self.check_expr(&args[0], None);
+                let dt = self.check_expr(&args[1], None);
+                if !pt.is_error() && pt != Type::Str {
+                    self.collection_error(args[0].span, "nama file harus 'teks'");
+                }
+                if !matches!(self.ref_daftar(&dt, false), Some(t) if t == Type::U8) && !dt.is_error() {
+                    self.collection_error(args[1].span, "'tulis_file' butuh '&daftar<bita>'");
+                }
+                Type::Bool
             }
             Some(Res::Local(_)) => self.check_indirect_call(call, callee, args),
             Some(_) | None => {
@@ -2670,6 +2710,8 @@ fn is_builtin_name(name: &str) -> bool {
             | "atur"
             | "bita_pada"
             | "cetak_bita"
+            | "baca_file"
+            | "tulis_file"
     )
 }
 

@@ -27,6 +27,8 @@ pub enum Builtin {
     Atur,
     BitaPada,
     CetakBita,
+    BacaFile,
+    TulisFile,
 }
 
 #[derive(Clone, Debug)]

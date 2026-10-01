@@ -524,6 +524,32 @@ utama {
 it is written in Lime itself. A heap-allocated owned `teks` (so a built buffer can
 become a first-class string value) is a documented follow-up.
 
+### 7.4 File I/O (`baca_file` / `tulis_file`)
+Whole-file reads and writes operate on the same `daftar<bita>` byte buffers used
+for dynamic text, so building a file and printing it share one representation:
+```lime
+gunakan Teks
+utama {
+    ubah out: daftar<bita> = daftar()
+    tambah_teks(ambil_ubah(out), "halo")
+    baris_baru(ambil_ubah(out))
+    tulis_file("catatan.txt", ambil(out))        // benar on success
+
+    ubah inp: daftar<bita> = daftar()
+    jika baca_file("catatan.txt", ambil_ubah(inp)) {
+        cetak_bita(ambil(inp))                    // prints: halo
+    }
+}
+```
+`tulis_file(nama, ambil(buf))` writes the buffer to `nama`, truncating it, and
+returns a `boolean`. `baca_file(nama, ambil_ubah(buf))` reads the whole file into
+`buf` (freeing its previous contents) and returns `benar`, or `salah` when the
+file cannot be opened. Both lower to libc `fopen`/`fread`/`fwrite`/`fclose` over
+Lime's native-ABI FFI; the `FILE*` handle never surfaces in the language. Because
+`Hasil<T, R>` requires Copy payloads, file results are a `boolean` with the data
+delivered through the mutable buffer rather than a returned owned value — a richer
+error type is a follow-up tied to heap-owned results.
+
 ### 7.1 Concurrency (`mulai` / `tunggu`)
 `mulai(f, n)` runs the function `f` (a `fungsi(angka) -> angka`) on a new OS
 thread with argument `n`, returning a thread handle `Utas<angka>`. `tunggu(h)`

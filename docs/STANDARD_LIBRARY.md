@@ -87,6 +87,17 @@ The heap runtime for owned values is libc `malloc`/`free`, reached through Lime'
 own C-ABI FFI path — no separate allocator library. Growable containers
 (`daftar<T>`) will be standard-library types built on `kotak` and this runtime.
 
+### File I/O
+- `tulis_file(nama, ambil(buf)) -> boolean` — write a `daftar<bita>` byte buffer
+  to the file `nama`, truncating it. Returns `benar` on success.
+- `baca_file(nama, ambil_ubah(buf)) -> boolean` — read the whole file `nama` into
+  `buf` (replacing its contents, freeing the old buffer). Returns `benar` on
+  success, `salah` if the file cannot be opened.
+
+  Built on libc `fopen`/`fread`/`fwrite`/`fclose`; the `FILE*` handle is internal.
+  Byte buffers combine with the `Teks` builders below to produce and consume
+  files. Richer error values (beyond a boolean) await heap-owned results.
+
 ### Text (byte buffers)
 - `bita_pada(s, i) -> bita` — byte `i` of a `teks` (bounds-checked). For scanning.
 - `cetak_bita(ambil(buf))` — write a `daftar<bita>` byte buffer to output.

@@ -1334,6 +1334,8 @@ impl<'a> FnLowerer<'a> {
                 self.lower_atur(&args[0], &args[1], &args[2]);
                 Operand::Unit
             }
+            Some(Res::Builtin(Builtin::BacaFile)) => self.lower_baca_file(&args[0], &args[1]),
+            Some(Res::Builtin(Builtin::TulisFile)) => self.lower_tulis_file(&args[0], &args[1]),
             Some(Res::Builtin(Builtin::Mulai)) => {
                 self.module.needs_pthread = true;
                 let f = self.lower_expr(&args[0]);
@@ -1777,6 +1779,165 @@ impl<'a> FnLowerer<'a> {
         let (slot, elem_ty) = self.daftar_elem_slot(dref, iexpr);
         let x = self.lower_expr(xexpr);
         self.emit(None, InstrKind::StorePtr { ptr: slot, ty: elem_ty, value: x });
+    }
+
+    fn call_i64(&mut self, callee: &str, args: Vec<Operand>) -> Operand {
+        let dst = self.fresh_value();
+        self.emit(
+            Some(dst),
+            InstrKind::Call { callee: callee.to_string(), args, ret: Type::I64, variadic_from: None },
+        );
+        Operand::Val(dst)
+    }
+
+    fn lower_baca_file(&mut self, path: &Expr, dref: &Expr) -> Operand {
+        self.module.needs_file = true;
+        self.module.needs_malloc = true;
+        self.module.needs_free = true;
+        let ptr_ty = Type::Ref { inner: Box::new(Type::U8), mutable: true };
+        let result = self.new_slot(Type::Bool);
+        self.emit(None, InstrKind::Store { slot: result, value: Operand::ConstBool(false) });
+
+        let p = self.lower_expr(path);
+        let mode = self.fmt_global("rb");
+        let f = self.call_i64("fopen", vec![p, Operand::Str(mode)]);
+        let isnull = self.fresh_value();
+        self.emit(
+            Some(isnull),
+            InstrKind::Cmp {
+                pred: CmpPred::Eq,
+                ty: Type::I64,
+                signed: true,
+                lhs: f.clone(),
+                rhs: Operand::ConstInt(0, Type::I64),
+            },
+        );
+        let ok = self.new_block();
+        let end = self.new_block();
+        self.set_term(Terminator::CondBr { cond: Operand::Val(isnull), then_bb: end, else_bb: ok });
+
+        self.current = ok;
+        self.emit(
+            None,
+            InstrKind::Call {
+                callee: "fseek".to_string(),
+                args: vec![f.clone(), Operand::ConstInt(0, Type::I64), Operand::ConstInt(2, Type::I32)],
+                ret: Type::I32,
+                variadic_from: None,
+            },
+        );
+        let size = self.call_i64("ftell", vec![f.clone()]);
+        self.emit(
+            None,
+            InstrKind::Call {
+                callee: "fseek".to_string(),
+                args: vec![f.clone(), Operand::ConstInt(0, Type::I64), Operand::ConstInt(0, Type::I32)],
+                ret: Type::I32,
+                variadic_from: None,
+            },
+        );
+        let data = self.fresh_value();
+        self.emit(
+            Some(data),
+            InstrKind::Call {
+                callee: "malloc".to_string(),
+                args: vec![size.clone()],
+                ret: ptr_ty.clone(),
+                variadic_from: None,
+            },
+        );
+        self.emit(
+            None,
+            InstrKind::Call {
+                callee: "fread".to_string(),
+                args: vec![Operand::Val(data), Operand::ConstInt(1, Type::I64), size.clone(), f.clone()],
+                ret: Type::I64,
+                variadic_from: None,
+            },
+        );
+        self.emit(
+            None,
+            InstrKind::Call {
+                callee: "fclose".to_string(),
+                args: vec![f],
+                ret: Type::I32,
+                variadic_from: None,
+            },
+        );
+        let (ref_ptr, daftar_ty, _) = self.daftar_parts(dref);
+        let datap = self.daftar_field_ptr(ref_ptr.clone(), &daftar_ty, 0);
+        let lenp = self.daftar_field_ptr(ref_ptr.clone(), &daftar_ty, 1);
+        let capp = self.daftar_field_ptr(ref_ptr, &daftar_ty, 2);
+        let olddata = self.fresh_value();
+        self.emit(Some(olddata), InstrKind::LoadPtr { ptr: datap.clone(), ty: ptr_ty.clone() });
+        self.emit(None, InstrKind::Free { ptr: Operand::Val(olddata) });
+        self.emit(None, InstrKind::StorePtr { ptr: datap, ty: ptr_ty, value: Operand::Val(data) });
+        self.emit(None, InstrKind::StorePtr { ptr: lenp, ty: Type::I64, value: size.clone() });
+        self.emit(None, InstrKind::StorePtr { ptr: capp, ty: Type::I64, value: size });
+        self.emit(None, InstrKind::Store { slot: result, value: Operand::ConstBool(true) });
+        self.set_term(Terminator::Br(end));
+
+        self.current = end;
+        let r = self.load_slot(result, Type::Bool);
+        Operand::Val(r)
+    }
+
+    fn lower_tulis_file(&mut self, path: &Expr, dref: &Expr) -> Operand {
+        self.module.needs_file = true;
+        let ptr_ty = Type::Ref { inner: Box::new(Type::U8), mutable: true };
+        let result = self.new_slot(Type::Bool);
+        self.emit(None, InstrKind::Store { slot: result, value: Operand::ConstBool(false) });
+
+        let p = self.lower_expr(path);
+        let mode = self.fmt_global("wb");
+        let f = self.call_i64("fopen", vec![p, Operand::Str(mode)]);
+        let isnull = self.fresh_value();
+        self.emit(
+            Some(isnull),
+            InstrKind::Cmp {
+                pred: CmpPred::Eq,
+                ty: Type::I64,
+                signed: true,
+                lhs: f.clone(),
+                rhs: Operand::ConstInt(0, Type::I64),
+            },
+        );
+        let ok = self.new_block();
+        let end = self.new_block();
+        self.set_term(Terminator::CondBr { cond: Operand::Val(isnull), then_bb: end, else_bb: ok });
+
+        self.current = ok;
+        let (ref_ptr, daftar_ty, _) = self.daftar_parts(dref);
+        let datap = self.daftar_field_ptr(ref_ptr.clone(), &daftar_ty, 0);
+        let lenp = self.daftar_field_ptr(ref_ptr, &daftar_ty, 1);
+        let data = self.fresh_value();
+        self.emit(Some(data), InstrKind::LoadPtr { ptr: datap, ty: ptr_ty });
+        let len = self.fresh_value();
+        self.emit(Some(len), InstrKind::LoadPtr { ptr: lenp, ty: Type::I64 });
+        self.emit(
+            None,
+            InstrKind::Call {
+                callee: "fwrite".to_string(),
+                args: vec![Operand::Val(data), Operand::ConstInt(1, Type::I64), Operand::Val(len), f.clone()],
+                ret: Type::I64,
+                variadic_from: None,
+            },
+        );
+        self.emit(
+            None,
+            InstrKind::Call {
+                callee: "fclose".to_string(),
+                args: vec![f],
+                ret: Type::I32,
+                variadic_from: None,
+            },
+        );
+        self.emit(None, InstrKind::Store { slot: result, value: Operand::ConstBool(true) });
+        self.set_term(Terminator::Br(end));
+
+        self.current = end;
+        let r = self.load_slot(result, Type::Bool);
+        Operand::Val(r)
     }
 
     fn lower_print(&mut self, arg: &Expr) {

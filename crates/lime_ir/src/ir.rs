@@ -170,6 +170,7 @@ pub struct Module {
     pub needs_free: bool,
     pub needs_pthread: bool,
     pub needs_realloc: bool,
+    pub needs_file: bool,
 }
 
 impl Module {

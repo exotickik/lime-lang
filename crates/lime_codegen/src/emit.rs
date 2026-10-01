@@ -50,6 +50,14 @@ pub fn emit_module(module: &Module, target: &Target) -> String {
     if module.needs_realloc {
         writeln!(out, "declare ptr @realloc(ptr, i64)").ok();
     }
+    if module.needs_file {
+        writeln!(out, "declare i64 @fopen(ptr, ptr)").ok();
+        writeln!(out, "declare i32 @fseek(i64, i64, i32)").ok();
+        writeln!(out, "declare i64 @ftell(i64)").ok();
+        writeln!(out, "declare i64 @fread(ptr, i64, i64, i64)").ok();
+        writeln!(out, "declare i64 @fwrite(ptr, i64, i64, i64)").ok();
+        writeln!(out, "declare i32 @fclose(i64)").ok();
+    }
     for e in &module.externs {
         emit_extern_decl(&mut out, e);
     }

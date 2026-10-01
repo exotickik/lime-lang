@@ -59,10 +59,15 @@ Legend: ✅ done · 🟡 in progress · ⬜ planned
   (read), `cetak_bita` (write), and the Lime-written `Teks` module
   (`tambah_teks`/`tambah_angka`/…) for building strings. Numeric/char casts via
   `sebagai`. Heap-owned `teks` values and slicing are follow-ups
+- ✅ File I/O (Phase 18): `baca_file`/`tulis_file` whole-file read/write over
+  `daftar<bita>` byte buffers, lowered to libc `fopen`/`fread`/`fwrite`/`fclose`
+  (FILE* carried as an opaque i64 across the native ABI), `boolean` result with
+  data delivered through a mutable buffer. Paths, streaming, directory iteration
+  and richer error values are follow-ups
 - 🟡 `lime/std` (Phase 14): standard library written in Lime and embedded in the
   compiler, pulled in with `gunakan`. Shipping now: `Inti` (maks/min/mutlak/
   batas/tanda) and `Matematika` (pangkat/fpb/kpk/apakah_prima/faktorial). io,
-  string, collections, filesystem, process, time await further runtime features
+  string, collections, process, time await further runtime features
 
 ## Phase 5 — Advanced language
 - ✅ Enums (C-style tagged variants: construction, equality, print, params,
