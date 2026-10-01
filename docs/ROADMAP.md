@@ -72,7 +72,10 @@ Legend: ✅ done · 🟡 in progress · ⬜ planned
 ## Phase 5 — Advanced language
 - ✅ Enums (C-style tagged variants: construction, equality, print, params,
   returns, struct fields; native i32-tag codegen)
-- ⬜ Enum associated data + pattern matching (`cocok`)
+- 🟡 Pattern matching `cocok` (Phase 25): statement matching on enum variants
+  with compile-time exhaustiveness checking (`E0268`) and an optional `lain`
+  default; arms are blocks, lowered to tag-dispatch branches. Enum **associated
+  data** and binding patterns are the remaining step
 - ✅ Generic functions with type inference and monomorphization (native
   specialization, instantiation-time checking, nested generic calls)
 - ✅ Traits (`sifat`/`implementasi`, Phase 11): trait & inherent methods, method
@@ -145,8 +148,9 @@ Legend: ✅ done · 🟡 in progress · ⬜ planned
   precedence-climbing parser/evaluator — as a `modul` with a demo and a `lime test`
   suite (`examples/kalkulator/`). Proves Lime can express lexing, token storage,
   and recursive parsing today
-- ⬜ Enum associated data + `cocok` pattern matching — the main blocker for an
-  AST/IR (C-style enums only today)
+- 🟡 `cocok` pattern matching over enum variants with exhaustiveness is done
+  (Phase 25); enum **associated data** + binding patterns remain — the main
+  blocker for a payload-carrying AST/IR
 - ⬜ Constructible recursive types (needs sum types or a nullable box; recursive
   structs type-check through `kotak` but cannot be built)
 - ⬜ Generic structs/enums (generic functions already work; generic data types do not)

@@ -246,6 +246,26 @@ impl Printer {
                 self.indent -= 1;
                 self.line("}");
             }
+            Stmt::Match(m) => {
+                self.line(&format!("cocok {} {{", expr_str(&m.scrutinee, 0)));
+                self.indent += 1;
+                for arm in &m.arms {
+                    self.line(&format!("{} => {{", arm.variant.name));
+                    self.indent += 1;
+                    self.print_stmts(&arm.body.stmts);
+                    self.indent -= 1;
+                    self.line("}");
+                }
+                if let Some(d) = &m.default {
+                    self.line("lain => {");
+                    self.indent += 1;
+                    self.print_stmts(&d.stmts);
+                    self.indent -= 1;
+                    self.line("}");
+                }
+                self.indent -= 1;
+                self.line("}");
+            }
         }
     }
 

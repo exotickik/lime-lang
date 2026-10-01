@@ -1,70 +1,77 @@
-# Phase 24 (First self-hosting component) — Design Assessment
+# Phase 25 (`cocok` pattern matching) — Design Assessment
 
-Baseline: `main` after formatter tooling (Phase 23). Ninth roadmap item:
-everything else required for self-hosting. Self-hosting the whole compiler is a
-large, multi-phase effort; this phase makes a concrete, honest first step and
-produces an evidence-based map of what remains.
+Baseline: `main` after the first self-hosting component + gap analysis (Phase 24).
+The gap analysis named enum associated data + pattern matching as the main
+blocker for a self-hosted AST/IR. This phase delivers the pattern-matching half
+— `cocok` over enum variants — as a complete, tested feature, and leaves
+associated data (payload-carrying variants) as the clearly-scoped next step.
 
-## Goal
+## Why this scope
 
-Write a real, compiler-shaped program **entirely in Lime**, run and test it
-through the normal toolchain, and from that experience identify the specific
-language gaps that still block a self-hosted Lime compiler — rather than claiming
-self-hosting prematurely.
+Full sum types change the enum runtime representation from an `i32` tag to a
+tagged union, rippling through every enum code path (equality, printing, fields,
+arrays) with real memory-layout risk. Pattern matching on the existing `i32`-tag
+enums carries none of that risk: it is tag dispatch, reusing the existing
+comparison and branch machinery. It is a genuine, self-contained language feature
+— dispatch on a variant is the shape compiler code takes — and it is exactly what
+the payload-carrying version later extends, so nothing here is throwaway.
 
-## What was built
+## Semantics
 
-An arithmetic expression evaluator, structured as a project so it also exercises
-modules and the test runner:
+```lime
+cocok nilai_enum {
+    Varian1 => { ... }
+    Varian2 => { ... }
+    lain => { ... }        // optional default
+}
+```
 
-- `examples/kalkulator/Kalkulator.lime` — `modul Kalkulator`, `publik fungsi
-  evaluasi(teks) -> angka`. A byte-scanning lexer builds a `daftar<Token>` (a
-  `tipe Token { jenis, muatan }`), and a precedence-climbing evaluator recurses
-  over `&daftar<Token>`, threading position/value through a Copy `Langkah` struct.
-  Handles `+ - * /`, parentheses, precedence, and left-associativity.
-- `examples/kalkulator/main.lime` — demo entry (`impor Kalkulator`).
-- `examples/kalkulator/uji.lime` — six `uji_*` tests run by `lime test`.
-- `cli/tests/selfhost.rs` — pins the demo output and the test-suite result.
+- The scrutinee must be an enum (`E0211` otherwise).
+- Each arm names a variant of that enum (`E0265` for an unknown variant, and for
+  a variant handled twice).
+- Matching must be **exhaustive**: every variant has an arm, or a `lain` default
+  is present; otherwise `E0268` names the missing variants.
+- Arms are **statements** — they run for effect or `kembalikan`. A value-producing
+  `cocok` expression and binding patterns for payloads are future work (tied to
+  enum associated data).
 
-This deliberately uses only shipped features: structs, `daftar<T>`, references
-into functions, recursion, byte scanning, casts, modules, `lime test`, `lime fmt`.
+## Implementation (all layers)
 
-## Why an evaluator and not a parser-to-AST
-
-A full compiler needs an AST (a recursive, tagged tree). Precedence climbing
-evaluates **inline** without materializing a tree, so it was expressible today and
-makes a clean proof that the non-AST parts of a compiler — lexing, token storage,
-recursive descent with precedence — already work in Lime. Building the tree is
-exactly what surfaced the remaining gaps.
-
-## Evidence-based gaps (verified against the compiler)
-
-1. **Enum associated data + `cocok`.** `enum Pohon { Daun(angka) Cabang }` fails to
-   parse (`E0110`). No payload-carrying variants and no pattern matching → an
-   AST/IR node (a tagged union) cannot be represented idiomatically. Biggest
-   blocker.
-2. **Constructible recursive types.** `tipe Simpul { nilai_x: angka, berikut:
-   kotak<Simpul> }` *type-checks*, but `kotak` is non-nullable and there is no
-   optional/variant to terminate recursion, so finite lists/trees cannot be
-   built. Needs gap 1 or a nullable box.
-3. **Generic structs/enums.** `tipe Pasangan<T> { … }` fails to parse; only
-   generic *functions* exist today. Reusable typed containers need this.
-4. **Maps/sets and owned strings.** Symbol tables need `peta<K, V>`; diagnostics
-   and identifiers need owned `teks` and `Hasil` with owned payloads. Only
-   `daftar<T>` and byte-buffer text exist now.
-
-Full detail and the suggested order to close them is in `docs/SELF_HOSTING.md`.
+- **Lexer**: a new `=>` token (`FatArrow`); `cocok` was already a reserved
+  keyword.
+- **AST**: `Stmt::Match(MatchStmt { scrutinee, arms: Vec<MatchArm>, default })`.
+- **Parser**: `parse_cocok` — scrutinee parsed with struct-literals suppressed
+  (so the `{` opens the arms), variant/`=>`/block arms, one optional `lain`.
+- **Sema** (`check_match`): types the scrutinee, resolves the enum, checks each
+  arm variant (unknown/duplicate), and enforces exhaustiveness against the
+  variant set unless a `lain` is present. Node renumbering, generic let-type
+  substitution, and span lookup were extended for the new statement.
+- **Ownership** (`check_match`): mirrors the `if` branch-consistent-move rule —
+  a value moved in one arm must be moved in all (a missing `lain` counts as a
+  no-move arm), reported as `E0281`.
+- **IR** (`lower_match`): lowers to a chain of `tag == const` comparisons and
+  conditional branches to per-arm blocks, all joining a single continuation
+  block; the `lain` block (or fall-through) handles the no-match path. Reuses
+  `Cmp`/`CondBr`/`Br`; no codegen changes were needed (enums are `i32`).
+- **Formatter**: prints `cocok`/arms with canonical indentation; idempotent.
 
 ## Tests
 
-- `cli/tests/selfhost.rs`: the Lime-written calculator evaluates five expressions
-  to the correct values and passes its own six-test `lime test` suite.
-- `examples/kalkulator/uji.lime`: the in-language test suite.
+- `lime_lexer`: the `=>` token.
+- `lime_sema`: exhaustive OK, non-exhaustive (`E0268`), `lain` makes exhaustive,
+  unknown variant (`E0265`), non-enum scrutinee (`E0211`).
+- `cli/tests/enums.rs`: `cocok` dispatching to the right arm, and a `lain`
+  default with in-arm mutation.
+- `examples/cocok.lime`: a traffic-light state machine driven by `cocok`.
 
-## Honest status
+All 304 prior tests still pass; 0 warnings; the repository still passes its own
+`fmt --check`.
 
-This is **not** a self-hosted compiler. It is the first real compiler component in
-Lime plus a verified gap analysis. The calculator is executable proof that
-lexing, token collections, and recursive parsing are expressible today; the AST/IR
-core awaits sum types, recursive data, generic types, and maps, which are now
-explicit roadmap items (Phase 9).
+## Honest limitations
+
+- Statement form only — no value-producing `cocok` expression yet.
+- No payload binding patterns, because enum variants carry no data yet. Adding
+  associated data (a tagged-union representation) is the next self-hosting step
+  and is tracked in `docs/ROADMAP.md` (Phase 9) and `docs/SELF_HOSTING.md`.
+- Matches on enums only (the only sum type today); no literal/range/struct
+  patterns.

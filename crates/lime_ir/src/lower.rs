@@ -1,7 +1,7 @@
 use crate::ir::*;
 use lime_ast::{
     BinOp, Block as AstBlock, Expr, ExprKind, ForStmt, Function, Ident, IfStmt, Item, MainBlock,
-    Program, Stmt, UnOp,
+    MatchStmt, Program, Stmt, UnOp,
 };
 use lime_diagnostics::{codes, Diagnostic, DiagnosticEngine};
 use lime_sema::{Builtin, MethodResolution, RecvMode, Res, TypeckResults};
@@ -369,7 +369,49 @@ impl<'a> FnLowerer<'a> {
                 }
             }
             Stmt::Block(b) => self.lower_block(b),
+            Stmt::Match(m) => self.lower_match(m),
         }
+    }
+
+    fn lower_match(&mut self, m: &MatchStmt) {
+        let scrut = self.lower_expr(&m.scrutinee);
+        let eid = match self.results.expr_type(m.scrutinee.id) {
+            Type::Enum(id) => *id,
+            _ => return,
+        };
+        let end_bb = self.new_block();
+        for arm in &m.arms {
+            let Some(tag) = self.results.enum_info(eid).variant_tag(&arm.variant.name) else {
+                continue;
+            };
+            let arm_bb = self.new_block();
+            let next_bb = self.new_block();
+            let cmp = self.fresh_value();
+            self.emit(
+                Some(cmp),
+                InstrKind::Cmp {
+                    pred: CmpPred::Eq,
+                    ty: Type::Enum(eid),
+                    signed: false,
+                    lhs: scrut.clone(),
+                    rhs: Operand::ConstInt(tag as u128, Type::I32),
+                },
+            );
+            self.set_term(Terminator::CondBr { cond: Operand::Val(cmp), then_bb: arm_bb, else_bb: next_bb });
+            self.current = arm_bb;
+            self.lower_block(&arm.body);
+            if self.block(self.current).term.is_none() {
+                self.set_term(Terminator::Br(end_bb));
+            }
+            self.current = next_bb;
+        }
+        if let Some(d) = &m.default {
+            self.lower_block(d);
+        }
+        if self.block(self.current).term.is_none() {
+            self.set_term(Terminator::Br(end_bb));
+        }
+        self.current = end_bb;
     }
 
     fn lower_if(&mut self, if_stmt: &IfStmt) {

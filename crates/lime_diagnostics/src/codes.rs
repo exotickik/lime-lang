@@ -37,6 +37,7 @@ pub const E_NOT_A_STRUCT: Code = Code("E0261");
 pub const E_MISSING_FIELD: Code = Code("E0262");
 pub const E_DUPLICATE_FIELD: Code = Code("E0263");
 pub const E_UNKNOWN_VARIANT: Code = Code("E0265");
+pub const E_NON_EXHAUSTIVE_MATCH: Code = Code("E0268");
 pub const E_NOT_INDEXABLE: Code = Code("E0266");
 pub const E_NOT_ITERABLE: Code = Code("E0267");
 pub const E_CANNOT_INFER: Code = Code("E0270");

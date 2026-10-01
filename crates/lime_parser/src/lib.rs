@@ -499,6 +499,7 @@ impl<'a> Parser<'a> {
                 self.parse_let()
             }
             TokenKind::Keyword(Keyword::Jika) => Ok(Stmt::If(self.parse_if()?)),
+            TokenKind::Keyword(Keyword::Cocok) => self.parse_cocok(),
             TokenKind::Keyword(Keyword::Selama) => self.parse_while(),
             TokenKind::Keyword(Keyword::Untuk) => self.parse_for_stmt(),
             TokenKind::Keyword(Keyword::Kembalikan) => self.parse_return(),
@@ -574,6 +575,44 @@ impl<'a> Parser<'a> {
             }
         }
         Ok(IfStmt { cond, then_block, else_ifs, else_block, span: start.to(end) })
+    }
+
+    fn parse_cocok(&mut self) -> PResult<Stmt> {
+        let start = self.peek_span();
+        self.expect(&TokenKind::Keyword(Keyword::Cocok))?;
+        let scrutinee = self.parse_cond_expr()?;
+        self.expect(&TokenKind::LBrace)?;
+        let mut arms = Vec::new();
+        let mut default = None;
+        while !matches!(self.peek(), TokenKind::RBrace | TokenKind::Eof) {
+            if self.is_kw(Keyword::Lain) {
+                let arm_start = self.peek_span();
+                self.bump();
+                self.expect(&TokenKind::FatArrow)?;
+                let body = self.parse_block()?;
+                if default.is_some() {
+                    self.diags.emit(
+                        Diagnostic::error(
+                            codes::E_EXPECTED_TOKEN,
+                            "lengan 'lain' ganda pada 'cocok'",
+                        )
+                        .primary(arm_start, "hanya boleh ada satu 'lain'"),
+                    );
+                    return Err(Bail);
+                }
+                default = Some(body);
+            } else {
+                let arm_start = self.peek_span();
+                let variant = self.expect_ident()?;
+                self.expect(&TokenKind::FatArrow)?;
+                let body = self.parse_block()?;
+                let span = arm_start.to(body.span);
+                arms.push(MatchArm { variant, body, span });
+            }
+            self.eat(&TokenKind::Comma);
+        }
+        let rb = self.expect(&TokenKind::RBrace)?;
+        Ok(Stmt::Match(MatchStmt { scrutinee, arms, default, span: start.to(rb.span) }))
     }
 
     fn parse_while(&mut self) -> PResult<Stmt> {

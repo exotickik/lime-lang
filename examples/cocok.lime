@@ -1,0 +1,45 @@
+program Cocok
+
+enum Lampu {
+    Merah,
+    Kuning,
+    Hijau,
+}
+
+fungsi perintah(l: Lampu) -> teks {
+    cocok l {
+        Merah => {
+            kembalikan "berhenti"
+        }
+        Kuning => {
+            kembalikan "hati-hati"
+        }
+        Hijau => {
+            kembalikan "jalan"
+        }
+    }
+    kembalikan "?"
+}
+
+fungsi berikutnya(l: Lampu) -> Lampu {
+    cocok l {
+        Merah => {
+            kembalikan Lampu.Hijau
+        }
+        Hijau => {
+            kembalikan Lampu.Kuning
+        }
+        lain => {
+            kembalikan Lampu.Merah
+        }
+    }
+    kembalikan Lampu.Merah
+}
+
+utama {
+    ubah l: Lampu = Lampu.Merah
+    untuk i dari 0 sampai 4 {
+        tampilkan(perintah(l))
+        l = berikutnya(l)
+    }
+}

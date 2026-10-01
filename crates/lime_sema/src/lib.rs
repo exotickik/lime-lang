@@ -1018,6 +1018,52 @@ mod tests {
     }
 
     #[test]
+    fn cocok_exhaustive_ok() {
+        let d = check(
+            "program P\nenum W { A B C }\n\
+             fungsi f(w: W) -> angka { cocok w { A => { kembalikan 1 } B => { kembalikan 2 } C => { kembalikan 3 } } kembalikan 0 }\n\
+             utama { tampilkan(f(W.A)) }",
+        );
+        assert!(!d.has_errors(), "{:?}", d.diagnostics());
+    }
+
+    #[test]
+    fn cocok_non_exhaustive_errors() {
+        let d = check(
+            "program P\nenum W { A B C }\n\
+             fungsi f(w: W) { cocok w { A => { } B => { } } }\n\
+             utama { f(W.A) }",
+        );
+        assert!(has_code(&d, codes::E_NON_EXHAUSTIVE_MATCH));
+    }
+
+    #[test]
+    fn cocok_default_is_exhaustive() {
+        let d = check(
+            "program P\nenum W { A B C }\n\
+             fungsi f(w: W) { cocok w { A => { } lain => { } } }\n\
+             utama { f(W.A) }",
+        );
+        assert!(!d.has_errors(), "{:?}", d.diagnostics());
+    }
+
+    #[test]
+    fn cocok_unknown_variant_errors() {
+        let d = check(
+            "program P\nenum W { A B }\n\
+             fungsi f(w: W) { cocok w { A => { } Z => { } B => { } } }\n\
+             utama { f(W.A) }",
+        );
+        assert!(has_code(&d, codes::E_UNKNOWN_VARIANT));
+    }
+
+    #[test]
+    fn cocok_non_enum_errors() {
+        let d = check("program P\nutama { cocok 5 { A => { } } }");
+        assert!(has_code(&d, codes::E_INVALID_OPERAND));
+    }
+
+    #[test]
     fn daftar_moves_like_owned() {
         let d = check(
             "program P\nfungsi konsumsi(d: daftar<angka>) -> angka { kembalikan panjang(ambil(d)) }\n\

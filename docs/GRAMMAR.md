@@ -53,6 +53,7 @@ statement      = let_stmt
                | if_stmt
                | while_stmt
                | for_stmt
+               | match_stmt
                | return_stmt
                | "berhenti"
                | "lanjut"
@@ -68,6 +69,11 @@ if_stmt        = "jika" expr block
 while_stmt     = "selama" expr block ;
 
 for_stmt       = "untuk" Ident "dari" expr ( "sampai" | "hingga" ) expr block ;
+
+match_stmt     = "cocok" expr "{"
+                 { Ident "=>" block [ "," ] }
+                 [ "lain" "=>" block [ "," ] ]
+                 "}" ;                           (* arms: enum variants; must be exhaustive *)
 
 assign_or_expr_stmt
                = expr [ "=" expr ] ;            (* lhs must be assignable *)

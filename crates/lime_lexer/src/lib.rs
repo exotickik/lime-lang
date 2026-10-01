@@ -451,6 +451,7 @@ impl<'a> Lexer<'a> {
 
         let two_char = match (b, two) {
             (b'-', Some(b'>')) => Some(TokenKind::Arrow),
+            (b'=', Some(b'>')) => Some(TokenKind::FatArrow),
             (b'=', Some(b'=')) => Some(TokenKind::EqEq),
             (b'!', Some(b'=')) => Some(TokenKind::Ne),
             (b'<', Some(b'=')) => Some(TokenKind::Le),
@@ -532,12 +533,12 @@ mod tests {
 
     #[test]
     fn operators() {
-        let (kinds, d) = lex("-> == != <= >= && || + - * / % = < >");
+        let (kinds, d) = lex("-> => == != <= >= && || + - * / % = < >");
         assert!(!d.has_errors());
         use TokenKind::*;
         let expected = [
-            Arrow, EqEq, Ne, Le, Ge, AmpAmp, PipePipe, Plus, Minus, Star, Slash, Percent, Eq,
-            Lt, Gt, Eof,
+            Arrow, FatArrow, EqEq, Ne, Le, Ge, AmpAmp, PipePipe, Plus, Minus, Star, Slash, Percent,
+            Eq, Lt, Gt, Eof,
         ];
         assert_eq!(kinds, expected);
     }

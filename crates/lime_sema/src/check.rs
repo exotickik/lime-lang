@@ -876,6 +876,84 @@ impl<'a> Checker<'a> {
                 }
             }
             Stmt::Block(b) => self.check_block(b),
+            Stmt::Match(m) => self.check_match(m),
+        }
+    }
+
+    fn check_match(&mut self, m: &MatchStmt) {
+        let st = self.check_expr(&m.scrutinee, None);
+        let eid = match st {
+            Type::Enum(id) => id,
+            Type::Error => {
+                for arm in &m.arms {
+                    self.check_block(&arm.body);
+                }
+                if let Some(d) = &m.default {
+                    self.check_block(d);
+                }
+                return;
+            }
+            other => {
+                self.diags.emit(
+                    Diagnostic::error(
+                        codes::E_INVALID_OPERAND,
+                        format!("'cocok' butuh nilai enum, bukan '{}'", other.display()),
+                    )
+                    .primary(m.scrutinee.span, "bukan enum"),
+                );
+                for arm in &m.arms {
+                    self.check_block(&arm.body);
+                }
+                if let Some(d) = &m.default {
+                    self.check_block(d);
+                }
+                return;
+            }
+        };
+
+        let all_variants: Vec<String> = self.results.enum_info(eid).variants.clone();
+        let ename = self.results.enum_info(eid).name.clone();
+        let mut covered: Vec<String> = Vec::new();
+        for arm in &m.arms {
+            if self.results.enum_info(eid).variant_tag(&arm.variant.name).is_none() {
+                self.diags.emit(
+                    Diagnostic::error(
+                        codes::E_UNKNOWN_VARIANT,
+                        format!("enum '{}' tidak memiliki varian '{}'", ename, arm.variant.name),
+                    )
+                    .primary(arm.variant.span, "varian tidak dikenal"),
+                );
+            } else if covered.contains(&arm.variant.name) {
+                self.diags.emit(
+                    Diagnostic::error(
+                        codes::E_UNKNOWN_VARIANT,
+                        format!("varian '{}' sudah ditangani pada 'cocok'", arm.variant.name),
+                    )
+                    .primary(arm.variant.span, "lengan ganda"),
+                );
+            } else {
+                covered.push(arm.variant.name.clone());
+            }
+            self.check_block(&arm.body);
+        }
+        if let Some(d) = &m.default {
+            self.check_block(d);
+        } else {
+            let missing: Vec<String> =
+                all_variants.iter().filter(|v| !covered.contains(v)).cloned().collect();
+            if !missing.is_empty() {
+                self.diags.emit(
+                    Diagnostic::error(
+                        codes::E_NON_EXHAUSTIVE_MATCH,
+                        format!(
+                            "'cocok' tidak menangani semua varian '{}': {}",
+                            ename,
+                            missing.join(", ")
+                        ),
+                    )
+                    .primary(m.span, "tambahkan lengan yang hilang atau 'lain => { ... }'"),
+                );
+            }
         }
     }
 
@@ -2927,6 +3005,14 @@ fn substitute_block_lets(
             Stmt::For(f) => substitute_block_lets(&mut f.body, subst, results),
             Stmt::ForEach(f) => substitute_block_lets(&mut f.body, subst, results),
             Stmt::Block(b) => substitute_block_lets(b, subst, results),
+            Stmt::Match(m) => {
+                for arm in &mut m.arms {
+                    substitute_block_lets(&mut arm.body, subst, results);
+                }
+                if let Some(d) = &mut m.default {
+                    substitute_block_lets(d, subst, results);
+                }
+            }
             _ => {}
         }
     }
@@ -2981,6 +3067,15 @@ fn renumber_stmt(stmt: &mut Stmt, counter: &mut u32) {
         Stmt::Return { value: Some(e), .. } => renumber_expr(e, counter),
         Stmt::Return { .. } | Stmt::Break(_) | Stmt::Continue(_) => {}
         Stmt::Block(b) => renumber_block(b, counter),
+        Stmt::Match(m) => {
+            renumber_expr(&mut m.scrutinee, counter);
+            for arm in &mut m.arms {
+                renumber_block(&mut arm.body, counter);
+            }
+            if let Some(d) = &mut m.default {
+                renumber_block(d, counter);
+            }
+        }
     }
 }
 
@@ -3067,5 +3162,6 @@ fn stmt_span(stmt: &Stmt) -> Span {
         Stmt::Break(s) => *s,
         Stmt::Continue(s) => *s,
         Stmt::Block(b) => b.span,
+        Stmt::Match(m) => m.span,
     }
 }

@@ -45,16 +45,26 @@ A real compiler needs an AST and an IR — recursive, tagged tree types — plus
 reusable containers and string handling. The following were verified against the
 current compiler.
 
-1. **Sum types: enum variants with associated data + pattern matching (`cocok`).**
-   An AST node is a tagged union (a `Number(i64)`, a `Binary(op, lhs, rhs)`, …).
-   Today `enum` is C-style only:
+1. **Sum types: enum variants with associated data.** `cocok` pattern matching
+   over enum variants now exists (statement form, with exhaustiveness checking
+   and an optional `lain` default — see `docs/LANGUAGE_SPEC.md`), so dispatch on a
+   node's kind is already expressible:
+   ```lime
+   cocok simpul {
+       Angka => { ... }
+       Biner => { ... }
+   }
+   ```
+   What remains is **associated data**: an AST node is a tagged union that carries
+   payloads (`Number(i64)`, `Binary(op, lhs, rhs)`), and today `enum` variants are
+   payload-less:
    ```
    enum Pohon { Daun(angka) Cabang }
    // error[E0110]: diharapkan pengenal, ditemukan '('
    ```
-   This is the single largest blocker: without payload-carrying variants and
-   `cocok` destructuring, an AST/IR cannot be represented idiomatically. The
-   calculator sidesteps it by evaluating inline and never building a tree.
+   Payload-carrying variants plus binding patterns in `cocok` are the remaining
+   blocker for representing an AST/IR idiomatically. The calculator sidesteps it by
+   evaluating inline and never building a tree.
 
 2. **Constructible recursive types.** A recursive struct *type-checks* through an
    owned box — `tipe Simpul { nilai_x: angka, berikut: kotak<Simpul> }` is
@@ -81,7 +91,8 @@ current compiler.
 
 ## Suggested order to close the gaps
 
-1. Enum associated data + `cocok` pattern matching (unblocks AST/IR).
+1. Enum associated data + binding patterns in `cocok` (tag matching is done;
+   this unblocks a payload-carrying AST/IR).
 2. Generic structs/enums (unblocks reusable containers and a typed AST).
 3. `peta<K, V>` map (symbol tables).
 4. Owned `teks` strings + `Hasil` with owned payloads (identifiers, diagnostics).

@@ -442,12 +442,25 @@ selama kondisi { ... }
 untuk i dari 0 sampai 10 { ... }     // half-open: 0,1,...,9
 untuk i dari 0 hingga 10 { ... }     // inclusive: 0,1,...,10
 
+cocok warna {                        // match on an enum value
+    Merah => { ... }
+    Hijau => { ... }
+    lain => { ... }                  // optional default
+}
+
 berhenti        // break
 lanjut       // continue
 kembalikan e // return
 ```
 The `untuk` loop variable is an immutable `i64` binding scoped to the loop body.
 `sampai` is an exclusive upper bound; `hingga` is inclusive.
+
+`cocok` matches an enum value against its variants. Each arm is a variant name,
+`=>`, and a block. Matching must be **exhaustive**: either every variant has an
+arm, or a `lain => { ... }` default is present, otherwise `E0268`. A variant may
+appear at most once, and the scrutinee must be an enum. Arms are statements (they
+run for effect or `kembalikan`); value-producing matches and binding patterns for
+variant payloads are planned with enum associated data.
 
 ---
 

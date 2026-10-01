@@ -60,3 +60,38 @@ fn enum_stored_in_struct() {
     let (out, _) = run_source("instruct", src);
     assert_eq!(out, "Aktif\n10\n");
 }
+
+#[test]
+fn cocok_dispatches_on_variant() {
+    let src = "program E\n\
+        enum Warna { Merah, Hijau, Biru }\n\
+        fungsi nama(w: Warna) -> teks {\n\
+          cocok w {\n\
+            Merah => { kembalikan \"merah\" }\n\
+            Hijau => { kembalikan \"hijau\" }\n\
+            Biru => { kembalikan \"biru\" }\n\
+          }\n\
+          kembalikan \"?\"\n\
+        }\n\
+        utama { tampilkan(nama(Warna.Merah)) tampilkan(nama(Warna.Biru)) }";
+    let (out, code) = run_source("cocok", src);
+    assert_eq!(out, "merah\nbiru\n");
+    assert_eq!(code, 0);
+}
+
+#[test]
+fn cocok_default_and_mutation() {
+    let src = "program E\n\
+        enum Arah { Naik, Turun, Diam }\n\
+        fungsi langkah(a: Arah, p: angka) -> angka {\n\
+          ubah q: angka = p\n\
+          cocok a {\n\
+            Naik => { q = q + 1 }\n\
+            lain => { q = q - 1 }\n\
+          }\n\
+          kembalikan q\n\
+        }\n\
+        utama { tampilkan(langkah(Arah.Naik, 10)) tampilkan(langkah(Arah.Turun, 10)) tampilkan(langkah(Arah.Diam, 10)) }";
+    let (out, _) = run_source("cocok_def", src);
+    assert_eq!(out, "11\n9\n9\n");
+}

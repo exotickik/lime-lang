@@ -262,6 +262,54 @@ impl<'a> Own<'a> {
             }
             Stmt::Break(_) | Stmt::Continue(_) => {}
             Stmt::Block(b) => self.check_block(b),
+            Stmt::Match(m) => self.check_match(m),
+        }
+    }
+
+    fn check_match(&mut self, m: &MatchStmt) {
+        self.visit(&m.scrutinee, false);
+        let before = self.moved.clone();
+        let mut arm_new_moves: Vec<HashSet<LocalId>> = Vec::new();
+
+        for arm in &m.arms {
+            self.moved = before.clone();
+            self.check_block(&arm.body);
+            arm_new_moves.push(self.new_moves(&before));
+        }
+        if let Some(block) = &m.default {
+            self.moved = before.clone();
+            self.check_block(block);
+            arm_new_moves.push(self.new_moves(&before));
+        } else {
+            arm_new_moves.push(HashSet::new());
+        }
+
+        let first = arm_new_moves.first().cloned().unwrap_or_default();
+        let consistent = arm_new_moves.iter().all(|s| *s == first);
+        if !consistent {
+            let mut all: HashSet<LocalId> = HashSet::new();
+            for s in &arm_new_moves {
+                all.extend(s.iter().copied());
+            }
+            for local in &all {
+                if !arm_new_moves.iter().all(|s| s.contains(local)) {
+                    let span = self.moved.get(local).copied().unwrap_or(m.span);
+                    self.diags.emit(
+                        Diagnostic::error(
+                            codes::E_INCONSISTENT_MOVE,
+                            "nilai hanya dipindahkan di sebagian cabang",
+                        )
+                        .primary(span, "dipindahkan di lengan ini")
+                        .secondary(m.span, "lengan lain tidak memindahkannya")
+                        .help("pindahkan nilai di semua lengan atau tidak sama sekali"),
+                    );
+                }
+            }
+        }
+
+        self.moved = before.clone();
+        for local in &first {
+            self.moved.entry(*local).or_insert(m.span);
         }
     }
 

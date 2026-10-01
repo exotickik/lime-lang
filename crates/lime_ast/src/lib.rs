@@ -162,6 +162,22 @@ pub enum Stmt {
     Break(Span),
     Continue(Span),
     Block(Block),
+    Match(MatchStmt),
+}
+
+#[derive(Clone, Debug)]
+pub struct MatchStmt {
+    pub scrutinee: Expr,
+    pub arms: Vec<MatchArm>,
+    pub default: Option<Block>,
+    pub span: Span,
+}
+
+#[derive(Clone, Debug)]
+pub struct MatchArm {
+    pub variant: Ident,
+    pub body: Block,
+    pub span: Span,
 }
 
 #[derive(Clone, Debug)]
