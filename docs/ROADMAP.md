@@ -143,19 +143,20 @@ Legend: ✅ done · 🟡 in progress · ⬜ planned
   binary size, allocations, startup) is a follow-up
 
 ## Phase 9 — Self-hosting
-- 🟡 First compiler-shaped component written in Lime (Phase 24): an arithmetic
-  expression evaluator — a byte-scanning lexer producing `daftar<Token>` and a
-  precedence-climbing parser/evaluator — as a `modul` with a demo and a `lime test`
-  suite (`examples/kalkulator/`). Proves Lime can express lexing, token storage,
-  and recursive parsing today
+- 🟡 Compiler-shaped components written in Lime: an inline-evaluating calculator
+  (Phase 24, `examples/kalkulator/`) and a **two-phase AST compiler** (Phase 26,
+  `examples/pohon/`) — a lexer, a recursive-descent parser that builds a real
+  **arena AST** (`daftar<Node>`, children by index), and a tree-walking evaluator
+  dispatching on node kind with `cocok`. Proves Lime can build and traverse a real
+  AST today; each is a `modul` with a demo and a `lime test` suite
 - 🟡 `cocok` pattern matching over enum variants with exhaustiveness is done
-  (Phase 25); enum **associated data** + binding patterns remain — the main
-  blocker for a payload-carrying AST/IR
-- ⬜ Constructible recursive types (needs sum types or a nullable box; recursive
-  structs type-check through `kotak` but cannot be built)
-- ⬜ Generic structs/enums (generic functions already work; generic data types do not)
-- ⬜ Maps/sets (`peta<K, V>`) for symbol tables; owned `teks` strings and `Hasil`
-  with owned payloads for identifiers and diagnostics
+  (Phase 25); enum **associated data** + binding patterns remain (an ergonomic
+  alternative to the arena `Node` struct, not a hard blocker)
+- ⬜ Heap-recursive data types (nullable box / optional variant). Not required for
+  an AST — the arena approach works today — but would enable pointer-based trees
+- ⬜ `peta<K, V>` map (symbol tables, interning) — the most load-bearing missing
+  container; then generic structs/enums, owned `teks`, and `Hasil` with owned
+  payloads (identifiers and diagnostics)
 - ⬜ Port the bootstrap front end to Lime component by component, validated with
   `lime test` against the Rust bootstrap
 

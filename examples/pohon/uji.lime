@@ -1,0 +1,27 @@
+program UjiPohon
+
+impor Pohon
+
+fungsi uji_presedensi() -> boolean {
+    kembalikan evaluasi("12 + 34 * 5") == 182
+}
+
+fungsi uji_kurung() -> boolean {
+    kembalikan evaluasi("(12 + 34) * 5") == 230
+}
+
+fungsi uji_campur() -> boolean {
+    kembalikan evaluasi("100 - 2 * 3 + 4") == 98
+}
+
+fungsi uji_kurung_bersarang() -> boolean {
+    kembalikan evaluasi("2 * (3 + 4) * (5 - 1)") == 56
+}
+
+fungsi uji_asosiasi_kiri() -> boolean {
+    kembalikan evaluasi("1000 / 5 / 2") == 100
+}
+
+fungsi uji_satu_angka() -> boolean {
+    kembalikan evaluasi("7") == 7
+}

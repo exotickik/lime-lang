@@ -1,77 +1,66 @@
-# Phase 25 (`cocok` pattern matching) — Design Assessment
+# Phase 26 (Arena AST in Lime) — Design Assessment
 
-Baseline: `main` after the first self-hosting component + gap analysis (Phase 24).
-The gap analysis named enum associated data + pattern matching as the main
-blocker for a self-hosted AST/IR. This phase delivers the pattern-matching half
-— `cocok` over enum variants — as a complete, tested feature, and leaves
-associated data (payload-carrying variants) as the clearly-scoped next step.
+Baseline: `main` after `cocok` pattern matching (Phase 25). The self-hosting gap
+analysis listed recursive/heap data types as a blocker for an AST. This phase
+tests that assumption with evidence and, finding it wrong, delivers a real
+AST-building compiler in Lime — with no new language features.
 
-## Why this scope
+## The insight
 
-Full sum types change the enum runtime representation from an `i32` tag to a
-tagged union, rippling through every enum code path (equality, printing, fields,
-arrays) with real memory-layout risk. Pattern matching on the existing `i32`-tag
-enums carries none of that risk: it is tag dispatch, reusing the existing
-comparison and branch machinery. It is a genuine, self-contained language feature
-— dispatch on a variant is the shape compiler code takes — and it is exactly what
-the payload-carrying version later extends, so nothing here is throwaway.
+A compiler's AST is usually a heap-recursive, owned, tagged tree, and Lime lacks
+owned enum payloads and nullable boxes. But a tree does **not** require heap
+recursion: a data-oriented **arena** stores every node in one growable array and
+has nodes refer to their children by integer index. That needs only structs, an
+enum tag, a `daftar`, and recursion — all shipped. So the "recursive types block
+the AST" gap was overstated.
 
-## Semantics
+## What was built
 
-```lime
-cocok nilai_enum {
-    Varian1 => { ... }
-    Varian2 => { ... }
-    lain => { ... }        // optional default
-}
-```
+`examples/pohon/` — a two-phase arithmetic compiler, as a `modul` with
+`publik fungsi evaluasi(teks) -> angka`, a demo, and a `lime test` suite:
 
-- The scrutinee must be an enum (`E0211` otherwise).
-- Each arm names a variant of that enum (`E0265` for an unknown variant, and for
-  a variant handled twice).
-- Matching must be **exhaustive**: every variant has an arm, or a `lain` default
-  is present; otherwise `E0268` names the missing variants.
-- Arms are **statements** — they run for effect or `kembalikan`. A value-producing
-  `cocok` expression and binding patterns for payloads are future work (tied to
-  enum associated data).
+1. **Lexer** → `daftar<Token>`, each `Token` carrying an `enum Jenis` kind.
+2. **Parser** (precedence climbing) that **builds an AST** rather than evaluating:
+   nodes are `tipe Node { jenis: Jenis, data: angka, kiri: angka, kanan: angka }`
+   pushed into an arena `daftar<Node>`; `kiri`/`kanan` are child indices (`-1` for
+   a leaf). `tambah_node` appends and returns the new index. The arena is threaded
+   through the recursive parser as a `&ubah daftar<Node>`, alongside the read-only
+   `&daftar<Token>` and a position carried in a Copy `Langkah { pos, idx }` struct.
+3. **Evaluator** `hitung(&daftar<Node>, idx)` — recurses over the arena,
+   dispatching on each node's `Jenis` with `cocok`.
 
-## Implementation (all layers)
+`evaluasi` lexes, parses into the arena, then walks the tree. Results match the
+inline calculator (182 / 230 / 98 / 56 / 100), proving the AST is built and
+traversed correctly.
 
-- **Lexer**: a new `=>` token (`FatArrow`); `cocok` was already a reserved
-  keyword.
-- **AST**: `Stmt::Match(MatchStmt { scrutinee, arms: Vec<MatchArm>, default })`.
-- **Parser**: `parse_cocok` — scrutinee parsed with struct-literals suppressed
-  (so the `{` opens the arms), variant/`=>`/block arms, one optional `lain`.
-- **Sema** (`check_match`): types the scrutinee, resolves the enum, checks each
-  arm variant (unknown/duplicate), and enforces exhaustiveness against the
-  variant set unless a `lain` is present. Node renumbering, generic let-type
-  substitution, and span lookup were extended for the new statement.
-- **Ownership** (`check_match`): mirrors the `if` branch-consistent-move rule —
-  a value moved in one arm must be moved in all (a missing `lain` counts as a
-  no-move arm), reported as `E0281`.
-- **IR** (`lower_match`): lowers to a chain of `tag == const` comparisons and
-  conditional branches to per-arm blocks, all joining a single continuation
-  block; the `lain` block (or fall-through) handles the no-match path. Reuses
-  `Cmp`/`CondBr`/`Br`; no codegen changes were needed (enums are `i32`).
-- **Formatter**: prints `cocok`/arms with canonical indentation; idempotent.
+## Why this matters for self-hosting
+
+This is the heart of a compiler front end — turning tokens into a tree and walking
+it — written entirely in Lime, today. It shows the language is already expressive
+enough for a parser-to-AST and a tree pass; what remains for a full self-hosted
+compiler is scale and ergonomics (a `peta` map for symbol tables, owned strings
+for identifiers/diagnostics), not a missing ability to represent trees.
+
+Notably, the parser simultaneously holds a shared borrow of the token list and a
+mutable borrow of the arena (two different `daftar`s) and threads both through
+recursion — exercising the borrow checker on realistic compiler code without
+tripping it.
 
 ## Tests
 
-- `lime_lexer`: the `=>` token.
-- `lime_sema`: exhaustive OK, non-exhaustive (`E0268`), `lain` makes exhaustive,
-  unknown variant (`E0265`), non-enum scrutinee (`E0211`).
-- `cli/tests/enums.rs`: `cocok` dispatching to the right arm, and a `lain`
-  default with in-arm mutation.
-- `examples/cocok.lime`: a traffic-light state machine driven by `cocok`.
+- `cli/tests/selfhost.rs`: the AST calculator evaluates the five expressions
+  correctly and passes its own six-test `lime test` suite (alongside the existing
+  inline calculator's tests).
+- `examples/pohon/uji.lime`: the in-language suite.
 
-All 304 prior tests still pass; 0 warnings; the repository still passes its own
-`fmt --check`.
+All prior tests still pass; 0 warnings; the repo still passes `fmt --check`.
 
 ## Honest limitations
 
-- Statement form only — no value-producing `cocok` expression yet.
-- No payload binding patterns, because enum variants carry no data yet. Adding
-  associated data (a tagged-union representation) is the next self-hosting step
-  and is tracked in `docs/ROADMAP.md` (Phase 9) and `docs/SELF_HOSTING.md`.
-- Matches on enums only (the only sum type today); no literal/range/struct
-  patterns.
+- Still arithmetic only; the point is the architecture (lexer → AST → walk), not
+  the language it compiles.
+- The arena `Node` is a fixed struct holding the union of all node shapes
+  (`data`, `kiri`, `kanan`); inline per-variant payloads await enum associated
+  data (Phase 25 follow-up). This is an ergonomic nicety, not a blocker.
+- Name resolution / symbol tables still need a `peta<K, V>` map (next priority);
+  identifiers and messages still need owned strings. See `docs/SELF_HOSTING.md`.

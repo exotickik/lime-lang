@@ -7,19 +7,25 @@ the specific language gaps that still block it.
 
 ## What has been demonstrated
 
-A non-trivial, compiler-shaped program is now written **entirely in Lime** and
-passes its own tests: an arithmetic expression evaluator.
+Two non-trivial, compiler-shaped programs are now written **entirely in Lime**,
+each a `modul` with `publik fungsi evaluasi(teks) -> angka` and its own `lime test`
+suite, both pinned by `cli/tests/selfhost.rs` (they evaluate `12 + 34 * 5 = 182`,
+`(12 + 34) * 5 = 230`, `1000 / 5 / 2 = 100`).
 
-- `examples/kalkulator/Kalkulator.lime` — a `modul` with `publik fungsi
-  evaluasi(teks) -> angka`: a byte-scanning **lexer** that produces a
-  `daftar<Token>` (each `Token` carrying an `enum Jenis` kind), and a
-  **precedence-climbing parser/evaluator** that dispatches on the token kind with
-  `cocok` and honors operator precedence, parentheses, and left-associativity.
-- `examples/kalkulator/main.lime` — a demo entry (`impor Kalkulator`).
-- `examples/kalkulator/uji.lime` — six `uji_*` tests run by `lime test`.
+- `examples/kalkulator/` — a byte-scanning **lexer** producing a `daftar<Token>`
+  (each `Token` carrying an `enum Jenis` kind) and a **precedence-climbing
+  evaluator** that dispatches on the token kind with `cocok`. Evaluates inline,
+  without building a tree.
+- `examples/pohon/` — a two-phase mini-compiler: the same lexer, a
+  **recursive-descent parser that builds a real AST**, and a separate evaluator
+  that walks it. The AST is an **arena**: nodes live in a `daftar<Node>` and refer
+  to their children by integer index (`kiri`/`kanan`), so a genuine tree is built
+  and traversed with no heap pointers. The parser threads the arena as a
+  `&ubah daftar<Node>` through recursion; the evaluator recurses over
+  `&daftar<Node>`, dispatching on each node's `enum Jenis` with `cocok`.
 
-It is pinned by `cli/tests/selfhost.rs` and evaluates e.g. `12 + 34 * 5 = 182`,
-`(12 + 34) * 5 = 230`, `1000 / 5 / 2 = 100`.
+`examples/pohon/` is the important result: **Lime can already build and traverse a
+real AST today**, which is the heart of a compiler front end.
 
 ### What this proves Lime can already express
 
@@ -66,15 +72,20 @@ current compiler.
    enum Pohon { Daun(angka) Cabang }
    // error[E0110]: diharapkan pengenal, ditemukan '('
    ```
-   Payload-carrying variants plus binding patterns in `cocok` are the remaining
-   blocker for representing an AST/IR idiomatically. The calculator sidesteps it by
-   evaluating inline and never building a tree.
+   Payload-carrying variants plus binding patterns in `cocok` would let an AST node
+   carry its data *inline* and be matched idiomatically. This is a convenience, not
+   a hard blocker: `examples/pohon/` already builds a real AST using a fixed `Node`
+   struct plus an arena (see gap 2).
 
-2. **Constructible recursive types.** A recursive struct *type-checks* through an
-   owned box — `tipe Simpul { nilai_x: angka, berikut: kotak<Simpul> }` is
-   accepted — but it cannot be *constructed*, because `kotak<T>` is non-nullable
-   and there is no optional/variant to terminate the recursion. Finite trees and
-   lists therefore need either sum types (gap 1) or a nullable/optional box.
+2. **Heap-recursive data types — a convenience, not a blocker.** A recursive
+   struct *type-checks* through an owned box — `tipe Simpul { data: angka, berikut:
+   kotak<Simpul> }` is accepted — but cannot be *constructed*, because `kotak<T>`
+   is non-nullable and there is no optional/variant to terminate the recursion.
+   **However, a tree does not require heap-recursive types:** `examples/pohon/`
+   builds a working AST as an **arena** (`daftar<Node>`, children referenced by
+   integer index), which Lime expresses today. Nullable boxes / optional variants
+   would make pointer-based trees possible too, but the index-arena approach is a
+   complete, idiomatic way to write the compiler's data structures now.
 
 3. **Generic structs and enums.** Reusable containers need type parameters on
    data types, not just functions:
@@ -95,14 +106,22 @@ current compiler.
 
 ## Suggested order to close the gaps
 
-1. Enum associated data + binding patterns in `cocok` (tag matching is done;
-   this unblocks a payload-carrying AST/IR).
-2. Generic structs/enums (unblocks reusable containers and a typed AST).
-3. `peta<K, V>` map (symbol tables).
-4. Owned `teks` strings + `Hasil` with owned payloads (identifiers, diagnostics).
-5. Then port the bootstrap front end to Lime, component by component (lexer is
-   demonstrated; parser → AST, then sema, then IR), each validated with
-   `lime test` against the Rust bootstrap's behavior.
+The lexer, a real arena-based AST, and a recursive evaluator are **already
+demonstrated** (`examples/pohon/`). The remaining work is mostly about ergonomics
+and scale, in roughly this order:
 
-These are tracked in `docs/ROADMAP.md`. The calculator stands as the executable
-proof that the non-AST parts of a compiler are already expressible in Lime today.
+1. `peta<K, V>` map — the most load-bearing missing container (symbol tables,
+   string interning, type environments). Arena ASTs work without it, but name
+   resolution needs it.
+2. Owned `teks` strings + `Hasil` with owned payloads — identifiers and
+   diagnostic messages.
+3. Generic structs/enums — reusable typed containers instead of per-type structs.
+4. Enum associated data + binding patterns in `cocok` — inline node payloads, an
+   ergonomic alternative to the arena `Node` struct (tag matching already works).
+5. Port the bootstrap front end to Lime, component by component (lexer and an AST
+   parser/evaluator are demonstrated; next: a full parser → AST, then sema, then
+   IR), each validated with `lime test` against the Rust bootstrap's behavior.
+
+These are tracked in `docs/ROADMAP.md`. `examples/pohon/` stands as executable
+proof that a lexer, a real AST, and a tree-walking evaluator are all expressible
+in Lime today.

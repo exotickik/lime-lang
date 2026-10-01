@@ -25,3 +25,20 @@ fn lime_written_calculator_passes_its_own_tests() {
     assert_eq!(out.status.code().unwrap_or(-1), 0);
     assert!(String::from_utf8_lossy(&out.stdout).contains("6 lulus, 0 gagal"));
 }
+
+#[test]
+fn lime_written_ast_calculator_evaluates_correctly() {
+    let out = lime().arg("run").arg(example("pohon/main.lime")).output().unwrap();
+    assert_eq!(out.status.code().unwrap_or(-1), 0);
+    assert_eq!(
+        String::from_utf8_lossy(&out.stdout),
+        "182\n230\n98\n56\n100\n"
+    );
+}
+
+#[test]
+fn lime_written_ast_calculator_passes_its_own_tests() {
+    let out = lime().arg("test").arg(example("pohon/uji.lime")).output().unwrap();
+    assert_eq!(out.status.code().unwrap_or(-1), 0);
+    assert!(String::from_utf8_lossy(&out.stdout).contains("6 lulus, 0 gagal"));
+}
