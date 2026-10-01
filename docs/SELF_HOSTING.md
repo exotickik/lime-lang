@@ -12,8 +12,9 @@ passes its own tests: an arithmetic expression evaluator.
 
 - `examples/kalkulator/Kalkulator.lime` — a `modul` with `publik fungsi
   evaluasi(teks) -> angka`: a byte-scanning **lexer** that produces a
-  `daftar<Token>`, and a **precedence-climbing parser/evaluator** that honors
-  operator precedence, parentheses, and left-associativity.
+  `daftar<Token>` (each `Token` carrying an `enum Jenis` kind), and a
+  **precedence-climbing parser/evaluator** that dispatches on the token kind with
+  `cocok` and honors operator precedence, parentheses, and left-associativity.
 - `examples/kalkulator/main.lime` — a demo entry (`impor Kalkulator`).
 - `examples/kalkulator/uji.lime` — six `uji_*` tests run by `lime test`.
 
@@ -27,8 +28,11 @@ from:
 
 - **Lexing**: `teks` byte access (`bita_pada`), classification, and numeric
   accumulation over a `selama` loop.
-- **Token storage**: a `tipe Token { … }` struct held in a growable
-  `daftar<Token>`, built with `dorong` and read with `elemen`.
+- **Token storage**: a `tipe Token { … }` struct (with an `enum Jenis` kind
+  field) held in a growable `daftar<Token>`, built with `dorong` and read with
+  `elemen`.
+- **Dispatch**: `cocok` on each token's `Jenis` for precedence and operator
+  application, with exhaustiveness checked at compile time.
 - **Recursion with references**: parse functions take `&daftar<Token>` and
   recurse (precedence climbing), threading position/result through a Copy
   `Langkah` struct — no global mutable state needed.

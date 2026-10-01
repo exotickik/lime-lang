@@ -1,13 +1,42 @@
 modul Kalkulator
 
+enum Jenis {
+    Angka,
+    Tambah,
+    Kurang,
+    Kali,
+    Bagi,
+    KurungBuka,
+    KurungTutup,
+}
+
 tipe Token {
-    jenis: angka
+    jenis: Jenis
     muatan: angka
 }
 
 tipe Langkah {
     pos: angka
     hasil: angka
+}
+
+fungsi jenis_operator(b: angka) -> Jenis {
+    jika b == 43 {
+        kembalikan Jenis.Tambah
+    }
+    jika b == 45 {
+        kembalikan Jenis.Kurang
+    }
+    jika b == 42 {
+        kembalikan Jenis.Kali
+    }
+    jika b == 47 {
+        kembalikan Jenis.Bagi
+    }
+    jika b == 40 {
+        kembalikan Jenis.KurungBuka
+    }
+    kembalikan Jenis.KurungTutup
 }
 
 fungsi lex(sumber: teks) -> daftar<Token> {
@@ -26,62 +55,64 @@ fungsi lex(sumber: teks) -> daftar<Token> {
                 v = v * 10 + (bita_pada(sumber, i) sebagai angka - 48)
                 i = i + 1
             }
-            dorong(ambil_ubah(keluar), Token { jenis: 0, muatan: v })
+            dorong(ambil_ubah(keluar), Token { jenis: Jenis.Angka, muatan: v })
             lanjut
         }
-        ubah jenis: angka = 0
-        jika b == 43 {
-            jenis = 1
-        }
-        jika b == 45 {
-            jenis = 2
-        }
-        jika b == 42 {
-            jenis = 3
-        }
-        jika b == 47 {
-            jenis = 4
-        }
-        jika b == 40 {
-            jenis = 5
-        }
-        jika b == 41 {
-            jenis = 6
-        }
-        dorong(ambil_ubah(keluar), Token { jenis: jenis, muatan: 0 })
+        dorong(ambil_ubah(keluar), Token { jenis: jenis_operator(b), muatan: 0 })
         i = i + 1
     }
     kembalikan keluar
 }
 
-fungsi prec(jenis: angka) -> angka {
-    jika jenis == 1 || jenis == 2 {
-        kembalikan 1
-    }
-    jika jenis == 3 || jenis == 4 {
-        kembalikan 2
+fungsi prec(jenis: Jenis) -> angka {
+    cocok jenis {
+        Tambah => {
+            kembalikan 1
+        }
+        Kurang => {
+            kembalikan 1
+        }
+        Kali => {
+            kembalikan 2
+        }
+        Bagi => {
+            kembalikan 2
+        }
+        lain => {
+            kembalikan 0
+        }
     }
     kembalikan 0
 }
 
-fungsi terapkan(op: angka, a: angka, b: angka) -> angka {
-    jika op == 1 {
-        kembalikan a + b
+fungsi terapkan(op: Jenis, a: angka, b: angka) -> angka {
+    cocok op {
+        Tambah => {
+            kembalikan a + b
+        }
+        Kurang => {
+            kembalikan a - b
+        }
+        Kali => {
+            kembalikan a * b
+        }
+        lain => {
+            kembalikan a / b
+        }
     }
-    jika op == 2 {
-        kembalikan a - b
-    }
-    jika op == 3 {
-        kembalikan a * b
-    }
-    kembalikan a / b
+    kembalikan 0
 }
 
 fungsi primary(t: &daftar<Token>, pos: angka) -> Langkah {
     nilai tok = elemen(t, pos)
-    jika tok.jenis == 5 {
-        nilai dalam = ekspresi(t, pos + 1, 1)
-        kembalikan Langkah { pos: dalam.pos + 1, hasil: dalam.hasil }
+    cocok tok.jenis {
+        KurungBuka => {
+            nilai dalam = ekspresi(t, pos + 1, 1)
+            kembalikan Langkah { pos: dalam.pos + 1, hasil: dalam.hasil }
+        }
+        lain => {
+            kembalikan Langkah { pos: pos + 1, hasil: tok.muatan }
+        }
     }
     kembalikan Langkah { pos: pos + 1, hasil: tok.muatan }
 }
