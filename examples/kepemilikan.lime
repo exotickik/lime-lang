@@ -18,10 +18,8 @@ utama {
     nilai a = kotak(100)
     nilai b = jumlahkan(a, 50)
     tampilkan(isi(b))
-
     nilai c = Catatan { data: kotak(7), label: 1i32 }
     tampilkan(baca_catatan(c))
-
     ubah total = 0
     untuk i dari 1 hingga 5 {
         nilai sementara = kotak(i)

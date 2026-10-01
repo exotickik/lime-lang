@@ -20,10 +20,8 @@ fungsi maksimum(data: [i32; 6]) -> i32 {
 
 utama {
     nilai data: [i32; 6] = [23i32, 7i32, 42i32, 15i32, 8i32, 31i32]
-
     tampilkan(jumlah(data))
     tampilkan(maksimum(data))
-
     untuk x pada data {
         tampilkan(x)
     }

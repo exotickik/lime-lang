@@ -208,35 +208,108 @@ fn cmd_emit_ir(args: &[String]) {
 
 fn cmd_fmt(args: &[String]) {
     let mut write = false;
-    let mut file: Option<PathBuf> = None;
+    let mut check = false;
+    let mut paths: Vec<PathBuf> = Vec::new();
     for a in args {
         match a.as_str() {
             "--write" | "-w" => write = true,
-            other if !other.starts_with('-') => file = Some(PathBuf::from(other)),
+            "--check" | "-c" => check = true,
+            other if !other.starts_with('-') => paths.push(PathBuf::from(other)),
             other => fail(&format!("opsi tidak dikenal '{}'", other)),
         }
     }
-    let Some(file) = file else { fail("butuh file sumber .lime") };
-    let src = match std::fs::read_to_string(&file) {
+    if write && check {
+        fail("pilih salah satu: '--write' atau '--check'");
+    }
+
+    let mut targets: Vec<PathBuf> = Vec::new();
+    if paths.is_empty() {
+        match manifest::find() {
+            Some(p) => {
+                let dir = p.parent().map(|d| d.to_path_buf()).unwrap_or_default();
+                collect_lime_files(&dir, &mut targets);
+            }
+            None => fail("butuh file/direktori .lime, atau 'lime.toml' di direktori ini"),
+        }
+    } else {
+        for p in &paths {
+            if p.is_dir() {
+                collect_lime_files(p, &mut targets);
+            } else {
+                targets.push(p.clone());
+            }
+        }
+    }
+    if targets.is_empty() {
+        fail("tidak ada file .lime untuk diformat");
+    }
+    targets.sort();
+
+    if !write && !check {
+        if targets.len() != 1 {
+            fail("beberapa file: pakai '--write' untuk menimpa atau '--check' untuk memeriksa");
+        }
+        let (src, formatted) = fmt_one(&targets[0]);
+        let _ = src;
+        print!("{}", formatted);
+        return;
+    }
+
+    let mut needs_format = 0usize;
+    for f in &targets {
+        let (src, formatted) = fmt_one(f);
+        if formatted == src {
+            continue;
+        }
+        if check {
+            needs_format += 1;
+            println!("perlu format: {}", f.display());
+        } else {
+            if let Err(e) = std::fs::write(f, &formatted) {
+                fail(&format!("tidak bisa menulis '{}': {}", f.display(), e));
+            }
+            eprintln!("terformat: {}", f.display());
+        }
+    }
+    if check && needs_format > 0 {
+        eprintln!("{} file perlu diformat", needs_format);
+        exit(1);
+    }
+}
+
+fn fmt_one(file: &Path) -> (String, String) {
+    let src = match std::fs::read_to_string(file) {
         Ok(s) => s,
         Err(e) => fail(&format!("tidak bisa membaca '{}': {}", file.display(), e)),
     };
     match lime_fmt::format_source(&file.to_string_lossy(), &src) {
-        Ok(formatted) => {
-            if write {
-                if let Err(e) = std::fs::write(&file, &formatted) {
-                    fail(&format!("tidak bisa menulis '{}': {}", file.display(), e));
-                }
-                eprintln!("terformat: {}", file.display());
-            } else {
-                print!("{}", formatted);
-            }
-        }
+        Ok(formatted) => (src, formatted),
         Err(errors) => {
             for e in errors {
                 eprint!("{}", e);
             }
             exit(1);
+        }
+    }
+}
+
+fn collect_lime_files(dir: &Path, out: &mut Vec<PathBuf>) {
+    let entries = match std::fs::read_dir(dir) {
+        Ok(e) => e,
+        Err(e) => fail(&format!("tidak bisa membaca direktori '{}': {}", dir.display(), e)),
+    };
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if path.is_dir() {
+            let skip = path
+                .file_name()
+                .map(|n| n == "target" || n == ".lime-build" || n == ".git")
+                .unwrap_or(false);
+            if !skip {
+                collect_lime_files(&path, out);
+            }
+        } else if path.extension().map(|e| e == "lime").unwrap_or(false) {
+            out.push(path);
         }
     }
 }
@@ -300,7 +373,7 @@ PERINTAH:\n\
     check <file>     periksa sintaks dan tipe tanpa kompilasi\n\
     test <file>      jalankan fungsi uji ('uji_*') di file\n\
     bench <file>     ukur fungsi tolok ukur ('tolok_*'); --iterasi N\n\
-    fmt <file>       format kode sumber Lime\n\
+    fmt [path...]    format kode (--write menimpa, --check periksa; dir/proyek)\n\
     emit-ir <file>   cetak LLVM IR yang dihasilkan\n\
     init [nama]        buat proyek Lime baru\n\
     clean              hapus artefak build\n\

@@ -109,6 +109,9 @@ Legend: ✅ done · 🟡 in progress · ⬜ planned
 
 ## Phase 6 — Developer tooling
 - ✅ Formatter core (`lime fmt`, parse-based)
+- ✅ Formatter CLI (Phase 23): `--check` (CI mode, exits non-zero on unformatted
+  files without writing), multi-file and recursive directory formatting, and
+  project-wide formatting from `lime.toml`; `--write` only rewrites changed files
 - ✅ Test runner (`lime test`, Phase 19): discovers `uji_*` functions (no params,
   `boolean` return), synthesizes a harness `utama`, compiles and runs them as one
   native executable, flushes per test so a crash still reports prior results,

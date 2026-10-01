@@ -1,83 +1,72 @@
-# Phase 22 (Project manifest `lime.toml`) — Design Assessment
+# Phase 23 (Formatter tooling `lime fmt --check`) — Design Assessment
 
-Baseline: `main` after FFI expansion (Phase 21). Seventh prerequisite item: a
-package/project system, implemented to the extent possible without a network or a
-registry.
+Baseline: `main` after the project manifest (Phase 22). Eighth prerequisite item:
+developer tooling, implemented to the extent that can be honestly validated in a
+headless Linux environment.
 
 ## Goal
 
-Make `lime.toml` functional: run the toolchain against a project without naming a
-file every time, taking the entry point and build settings from the manifest.
-This is the part of a package system that is genuinely implementable offline; the
-registry/dependency part is not, and is documented as such.
+Make the formatter usable in real workflows and CI: check formatting without
+writing, format many files or a whole project at once, and integrate with the
+`lime.toml` project model from Phase 22.
 
 ## What is honestly possible here
 
-- **Possible now:** a manifest that names the project and its entry file, chooses
-  the target and optimization level, and is discovered from the working directory
-  (or an ancestor). The whole toolchain already compiles multi-file projects via
-  the module system (`impor`), so a "project" is just an entry file plus its
-  imports.
-- **Not possible offline:** dependency resolution, a package cache, and a
-  registry. These need infrastructure the bootstrap does not ship, so they are
-  left explicitly as future work rather than stubbed.
+- **Possible now:** a CI-grade `fmt --check`, multi-file and recursive directory
+  formatting, and project-wide formatting via `lime.toml`. These run and are
+  verified end-to-end headlessly.
+- **Not validatable here:** a Language Server (LSP) and editor extensions. They
+  require an editor/client to exercise, which this environment has no way to
+  drive, so building one now could not be honestly tested. It stays an open
+  roadmap item rather than an untested stub. The formatter already exposes the
+  reusable core (`lime_fmt::format_source`) that such a server would call.
 
-## Manifest format
+## Behavior
 
-A small TOML subset, enough for the schema and stable for growth:
+`lime fmt` resolves its targets then operates in one of three modes:
 
-```toml
-[paket]
-nama = "halo"
-versi = "0.1.0"
+- **Targets.** Explicit files are used as-is; a directory is walked recursively
+  for `*.lime` (skipping `target`, `.lime-build`, `.git`); with no path, the
+  project is formatted — the directory of the nearest `lime.toml` (reusing the
+  Phase 22 `manifest::find` ancestor search).
+- **`--check`** — read and format each file in memory, print `perlu format: <f>`
+  for any whose formatted form differs, and exit non-zero if any do. Nothing is
+  written. This is the CI gate.
+- **`--write`** — rewrite in place, but only files that actually change (so clean
+  files are not touched and mtimes are stable); each rewrite is reported.
+- **Neither flag** — print the formatted result to stdout; allowed only for a
+  single file (multiple targets without a mode is an error, since stdout cannot
+  represent them unambiguously).
 
-[build]
-entri = "src/main.lime"   # default src/main.lime
-target = "host"           # host | linux-x64 | windows-x64
-optimasi = 2              # 0..3
-```
-
-Parsing supports `[section]` headers, `kunci = "nilai"` strings, bare integers,
-and `#` comments (respecting `#` inside quoted strings). Only `[paket]` and
-`[build]` keys are read; unknown keys are ignored so the schema can extend
-without breaking older tools.
-
-## Resolution model — file mode vs project mode
-
-The command-line argument parser was split into raw parsing (`parse_args`, no
-defaults, every option an `Option`) and resolution (`parse_common`):
-
-- **File mode** — a file path is given: use it, with CLI flags and the built-in
-  defaults (`-O2`, host). The manifest is ignored, so `lime run x.lime` behaves
-  identically everywhere.
-- **Project mode** — no file path: search the current directory and its ancestors
-  for `lime.toml`, load it, and build its entry file. `target` and `optimasi`
-  come from the manifest unless the corresponding CLI flag is present (CLI wins).
-  A missing manifest or a missing entry file is a clear error.
-
-This precedence — explicit CLI flag > manifest > built-in default, and explicit
-file > manifest entry — keeps behavior predictable. All five build-like commands
-(`build`, `run`, `check`, `test`, `bench`) share it.
+`--write` and `--check` are mutually exclusive.
 
 ## Implementation
 
-- `cli/src/manifest.rs`: the `Manifest` struct, `find()` (ancestor search),
-  `load()` (the TOML-subset parser), and `entry_path()`.
-- `cli/src/main.rs`: `parse_args` (raw) + `parse_common` (resolution with
-  file/project modes); `target_by_name` centralizes target validation.
+- `cli/src/main.rs`: rewritten `cmd_fmt` (flag parsing, target resolution,
+  three modes), `fmt_one` (read + format one file, reporting parse errors), and
+  `collect_lime_files` (recursive `*.lime` walk with ignored directories).
+- Reuses `manifest::find` for project mode and `lime_fmt::format_source` for the
+  actual formatting — no new formatting logic, so idempotence and
+  semantics-preservation are unchanged.
+
+## Dogfooding
+
+Running `lime fmt --check` across the repository surfaced six example files that
+predated the current formatter conventions; they were reformatted with
+`lime fmt --write` and re-run to confirm unchanged behavior. The repository now
+passes its own `fmt --check`.
 
 ## Tests
 
-- `cli/src/manifest.rs` unit tests: field/section parsing, comments and blank
-  lines, `#` inside strings, default entry, and a rejected out-of-range
-  `optimasi`.
-- `cli/tests/project_cmd.rs`: `init` then project-mode `run`, a custom `entri`,
-  discovery from a subdirectory, a clear error with no manifest, a clear error
-  for a missing entry, and an explicit file overriding project mode.
+- `cli/tests/fmt_cmd.rs`: `--check` flags an unformatted file (and does not
+  modify it), `--check` passes a formatted file, `--write` is idempotent,
+  recursive directory formatting finds nested files, single-file stdout mode does
+  not modify the file, multiple files without a mode is an error, and project-mode
+  formats the manifest directory.
 
 ## Honest limitations
 
-- No dependencies, lockfile, package cache, or registry (offline bootstrap).
-- No build profiles (`[profil.*]`) or per-profile optimization yet.
-- Strings only for scalar values; no arrays/tables beyond the two known sections.
-- `fmt` still takes an explicit file (it is not a build command).
+- No LSP / editor integration (cannot be validated headlessly; see above).
+- No diff output for `--check` (it lists files, not the specific changes).
+- No `.limeignore`-style configuration beyond the fixed skip list.
+- No parallelism across files (fine for current project sizes).

@@ -3,7 +3,7 @@ program Hasil
 enum Status {
     Berhasil,
     Gagal,
-    Menunggu
+    Menunggu,
 }
 
 fungsi proses(kode: angka) -> Status {

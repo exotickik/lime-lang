@@ -7,7 +7,7 @@ lime build <file>     kompilasi ke executable native
 lime run <file>       kompilasi lalu jalankan
 lime check <file>     periksa sintaks dan tipe tanpa kompilasi
 lime test <file>      jalankan fungsi uji ('uji_*') di file
-lime fmt <file>       format kode sumber (tambahkan --write untuk menimpa)
+lime fmt [path...]    format kode (--write menimpa, --check periksa)
 lime emit-ir <file>   cetak LLVM IR yang dihasilkan
 lime init [nama]        buat proyek Lime baru (lime.toml + src/main.lime)
 lime clean              hapus artefak build (.lime-build)
@@ -57,6 +57,28 @@ after each test so a crash in one test still reports the ones that ran before it
 such a test is listed as `berhenti sebelum selesai`. `lime test` exits non-zero
 if any test fails or aborts. A `uji_*` function with parameters, type parameters,
 or a non-`boolean` return type is a compile error.
+
+## Formatting (`lime fmt`)
+
+`lime fmt` normalizes Lime source. It accepts files, directories (recursed for
+`*.lime`, skipping `target`, `.lime-build`, and `.git`), or — with no path — the
+project: the directory of the nearest `lime.toml`.
+
+- `lime fmt <file>` — print the formatted file to stdout (single file only).
+- `lime fmt --write` (`-w`) — rewrite files in place; only changed files are
+  touched, and each is reported.
+- `lime fmt --check` (`-c`) — do not write; list files that are not formatted and
+  exit non-zero if any are. This is the CI mode.
+
+```
+$ lime fmt --check          # whole project
+perlu format: src/main.lime
+1 file perlu diformat
+$ lime fmt --write src tests # two directories, rewrite in place
+```
+
+Formatting is idempotent (`fmt` of `fmt` output is a no-op) and preserves
+semantics; it never changes diagnostics or behavior.
 
 ## Benchmarking (`lime bench`)
 
