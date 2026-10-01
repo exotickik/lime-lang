@@ -1,0 +1,11 @@
+program Kalkulator
+
+impor Kalkulator
+
+utama {
+    tampilkan(evaluasi("12 + 34 * 5"))
+    tampilkan(evaluasi("(12 + 34) * 5"))
+    tampilkan(evaluasi("100 - 2 * 3 + 4"))
+    tampilkan(evaluasi("2 * (3 + 4) * (5 - 1)"))
+    tampilkan(evaluasi("1000 / 5 / 2"))
+}

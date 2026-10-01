@@ -1,0 +1,111 @@
+modul Kalkulator
+
+tipe Token {
+    jenis: angka
+    muatan: angka
+}
+
+tipe Langkah {
+    pos: angka
+    hasil: angka
+}
+
+fungsi lex(sumber: teks) -> daftar<Token> {
+    ubah keluar: daftar<Token> = daftar()
+    nilai n = panjang(sumber)
+    ubah i: angka = 0
+    selama i < n {
+        nilai b = bita_pada(sumber, i) sebagai angka
+        jika b == 32 || b == 9 || b == 10 {
+            i = i + 1
+            lanjut
+        }
+        jika b >= 48 && b <= 57 {
+            ubah v: angka = 0
+            selama i < n && bita_pada(sumber, i) sebagai angka >= 48 && bita_pada(sumber, i) sebagai angka <= 57 {
+                v = v * 10 + (bita_pada(sumber, i) sebagai angka - 48)
+                i = i + 1
+            }
+            dorong(ambil_ubah(keluar), Token { jenis: 0, muatan: v })
+            lanjut
+        }
+        ubah jenis: angka = 0
+        jika b == 43 {
+            jenis = 1
+        }
+        jika b == 45 {
+            jenis = 2
+        }
+        jika b == 42 {
+            jenis = 3
+        }
+        jika b == 47 {
+            jenis = 4
+        }
+        jika b == 40 {
+            jenis = 5
+        }
+        jika b == 41 {
+            jenis = 6
+        }
+        dorong(ambil_ubah(keluar), Token { jenis: jenis, muatan: 0 })
+        i = i + 1
+    }
+    kembalikan keluar
+}
+
+fungsi prec(jenis: angka) -> angka {
+    jika jenis == 1 || jenis == 2 {
+        kembalikan 1
+    }
+    jika jenis == 3 || jenis == 4 {
+        kembalikan 2
+    }
+    kembalikan 0
+}
+
+fungsi terapkan(op: angka, a: angka, b: angka) -> angka {
+    jika op == 1 {
+        kembalikan a + b
+    }
+    jika op == 2 {
+        kembalikan a - b
+    }
+    jika op == 3 {
+        kembalikan a * b
+    }
+    kembalikan a / b
+}
+
+fungsi primary(t: &daftar<Token>, pos: angka) -> Langkah {
+    nilai tok = elemen(t, pos)
+    jika tok.jenis == 5 {
+        nilai dalam = ekspresi(t, pos + 1, 1)
+        kembalikan Langkah { pos: dalam.pos + 1, hasil: dalam.hasil }
+    }
+    kembalikan Langkah { pos: pos + 1, hasil: tok.muatan }
+}
+
+fungsi ekspresi(t: &daftar<Token>, pos: angka, min_prec: angka) -> Langkah {
+    nilai awal = primary(t, pos)
+    ubah kiri: angka = awal.hasil
+    ubah p: angka = awal.pos
+    nilai n = panjang(t)
+    selama p < n {
+        nilai op = elemen(t, p).jenis
+        nilai pr = prec(op)
+        jika pr < min_prec {
+            berhenti
+        }
+        nilai kanan = ekspresi(t, p + 1, pr + 1)
+        kiri = terapkan(op, kiri, kanan.hasil)
+        p = kanan.pos
+    }
+    kembalikan Langkah { pos: p, hasil: kiri }
+}
+
+publik fungsi evaluasi(sumber: teks) -> angka {
+    nilai toks = lex(sumber)
+    nilai r = ekspresi(ambil(toks), 0, 1)
+    kembalikan r.hasil
+}

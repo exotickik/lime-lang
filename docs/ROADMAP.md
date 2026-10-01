@@ -139,6 +139,24 @@ Legend: ✅ done · 🟡 in progress · ⬜ planned
   time and ns/op; `--iterasi N` sets the count. A broader suite (compile time,
   binary size, allocations, startup) is a follow-up
 
+## Phase 9 — Self-hosting
+- 🟡 First compiler-shaped component written in Lime (Phase 24): an arithmetic
+  expression evaluator — a byte-scanning lexer producing `daftar<Token>` and a
+  precedence-climbing parser/evaluator — as a `modul` with a demo and a `lime test`
+  suite (`examples/kalkulator/`). Proves Lime can express lexing, token storage,
+  and recursive parsing today
+- ⬜ Enum associated data + `cocok` pattern matching — the main blocker for an
+  AST/IR (C-style enums only today)
+- ⬜ Constructible recursive types (needs sum types or a nullable box; recursive
+  structs type-check through `kotak` but cannot be built)
+- ⬜ Generic structs/enums (generic functions already work; generic data types do not)
+- ⬜ Maps/sets (`peta<K, V>`) for symbol tables; owned `teks` strings and `Hasil`
+  with owned payloads for identifiers and diagnostics
+- ⬜ Port the bootstrap front end to Lime component by component, validated with
+  `lime test` against the Rust bootstrap
+
+  See `docs/SELF_HOSTING.md` for the evidence-based gap analysis.
+
 ## Current milestone summary
 
 The bootstrap compiler is a **complete vertical slice**: it lexes, parses,

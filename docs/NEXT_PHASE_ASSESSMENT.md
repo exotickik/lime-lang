@@ -1,72 +1,70 @@
-# Phase 23 (Formatter tooling `lime fmt --check`) — Design Assessment
+# Phase 24 (First self-hosting component) — Design Assessment
 
-Baseline: `main` after the project manifest (Phase 22). Eighth prerequisite item:
-developer tooling, implemented to the extent that can be honestly validated in a
-headless Linux environment.
+Baseline: `main` after formatter tooling (Phase 23). Ninth roadmap item:
+everything else required for self-hosting. Self-hosting the whole compiler is a
+large, multi-phase effort; this phase makes a concrete, honest first step and
+produces an evidence-based map of what remains.
 
 ## Goal
 
-Make the formatter usable in real workflows and CI: check formatting without
-writing, format many files or a whole project at once, and integrate with the
-`lime.toml` project model from Phase 22.
+Write a real, compiler-shaped program **entirely in Lime**, run and test it
+through the normal toolchain, and from that experience identify the specific
+language gaps that still block a self-hosted Lime compiler — rather than claiming
+self-hosting prematurely.
 
-## What is honestly possible here
+## What was built
 
-- **Possible now:** a CI-grade `fmt --check`, multi-file and recursive directory
-  formatting, and project-wide formatting via `lime.toml`. These run and are
-  verified end-to-end headlessly.
-- **Not validatable here:** a Language Server (LSP) and editor extensions. They
-  require an editor/client to exercise, which this environment has no way to
-  drive, so building one now could not be honestly tested. It stays an open
-  roadmap item rather than an untested stub. The formatter already exposes the
-  reusable core (`lime_fmt::format_source`) that such a server would call.
+An arithmetic expression evaluator, structured as a project so it also exercises
+modules and the test runner:
 
-## Behavior
+- `examples/kalkulator/Kalkulator.lime` — `modul Kalkulator`, `publik fungsi
+  evaluasi(teks) -> angka`. A byte-scanning lexer builds a `daftar<Token>` (a
+  `tipe Token { jenis, muatan }`), and a precedence-climbing evaluator recurses
+  over `&daftar<Token>`, threading position/value through a Copy `Langkah` struct.
+  Handles `+ - * /`, parentheses, precedence, and left-associativity.
+- `examples/kalkulator/main.lime` — demo entry (`impor Kalkulator`).
+- `examples/kalkulator/uji.lime` — six `uji_*` tests run by `lime test`.
+- `cli/tests/selfhost.rs` — pins the demo output and the test-suite result.
 
-`lime fmt` resolves its targets then operates in one of three modes:
+This deliberately uses only shipped features: structs, `daftar<T>`, references
+into functions, recursion, byte scanning, casts, modules, `lime test`, `lime fmt`.
 
-- **Targets.** Explicit files are used as-is; a directory is walked recursively
-  for `*.lime` (skipping `target`, `.lime-build`, `.git`); with no path, the
-  project is formatted — the directory of the nearest `lime.toml` (reusing the
-  Phase 22 `manifest::find` ancestor search).
-- **`--check`** — read and format each file in memory, print `perlu format: <f>`
-  for any whose formatted form differs, and exit non-zero if any do. Nothing is
-  written. This is the CI gate.
-- **`--write`** — rewrite in place, but only files that actually change (so clean
-  files are not touched and mtimes are stable); each rewrite is reported.
-- **Neither flag** — print the formatted result to stdout; allowed only for a
-  single file (multiple targets without a mode is an error, since stdout cannot
-  represent them unambiguously).
+## Why an evaluator and not a parser-to-AST
 
-`--write` and `--check` are mutually exclusive.
+A full compiler needs an AST (a recursive, tagged tree). Precedence climbing
+evaluates **inline** without materializing a tree, so it was expressible today and
+makes a clean proof that the non-AST parts of a compiler — lexing, token storage,
+recursive descent with precedence — already work in Lime. Building the tree is
+exactly what surfaced the remaining gaps.
 
-## Implementation
+## Evidence-based gaps (verified against the compiler)
 
-- `cli/src/main.rs`: rewritten `cmd_fmt` (flag parsing, target resolution,
-  three modes), `fmt_one` (read + format one file, reporting parse errors), and
-  `collect_lime_files` (recursive `*.lime` walk with ignored directories).
-- Reuses `manifest::find` for project mode and `lime_fmt::format_source` for the
-  actual formatting — no new formatting logic, so idempotence and
-  semantics-preservation are unchanged.
+1. **Enum associated data + `cocok`.** `enum Pohon { Daun(angka) Cabang }` fails to
+   parse (`E0110`). No payload-carrying variants and no pattern matching → an
+   AST/IR node (a tagged union) cannot be represented idiomatically. Biggest
+   blocker.
+2. **Constructible recursive types.** `tipe Simpul { nilai_x: angka, berikut:
+   kotak<Simpul> }` *type-checks*, but `kotak` is non-nullable and there is no
+   optional/variant to terminate recursion, so finite lists/trees cannot be
+   built. Needs gap 1 or a nullable box.
+3. **Generic structs/enums.** `tipe Pasangan<T> { … }` fails to parse; only
+   generic *functions* exist today. Reusable typed containers need this.
+4. **Maps/sets and owned strings.** Symbol tables need `peta<K, V>`; diagnostics
+   and identifiers need owned `teks` and `Hasil` with owned payloads. Only
+   `daftar<T>` and byte-buffer text exist now.
 
-## Dogfooding
-
-Running `lime fmt --check` across the repository surfaced six example files that
-predated the current formatter conventions; they were reformatted with
-`lime fmt --write` and re-run to confirm unchanged behavior. The repository now
-passes its own `fmt --check`.
+Full detail and the suggested order to close them is in `docs/SELF_HOSTING.md`.
 
 ## Tests
 
-- `cli/tests/fmt_cmd.rs`: `--check` flags an unformatted file (and does not
-  modify it), `--check` passes a formatted file, `--write` is idempotent,
-  recursive directory formatting finds nested files, single-file stdout mode does
-  not modify the file, multiple files without a mode is an error, and project-mode
-  formats the manifest directory.
+- `cli/tests/selfhost.rs`: the Lime-written calculator evaluates five expressions
+  to the correct values and passes its own six-test `lime test` suite.
+- `examples/kalkulator/uji.lime`: the in-language test suite.
 
-## Honest limitations
+## Honest status
 
-- No LSP / editor integration (cannot be validated headlessly; see above).
-- No diff output for `--check` (it lists files, not the specific changes).
-- No `.limeignore`-style configuration beyond the fixed skip list.
-- No parallelism across files (fine for current project sizes).
+This is **not** a self-hosted compiler. It is the first real compiler component in
+Lime plus a verified gap analysis. The calculator is executable proof that
+lexing, token collections, and recursive parsing are expressible today; the AST/IR
+core awaits sum types, recursive data, generic types, and maps, which are now
+explicit roadmap items (Phase 9).
