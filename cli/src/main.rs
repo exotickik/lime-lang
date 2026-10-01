@@ -1,3 +1,5 @@
+mod manifest;
+
 use lime_codegen::Target;
 use lime_driver::Compiler;
 use std::path::{Path, PathBuf};
@@ -41,11 +43,19 @@ struct Common {
     passthrough: Vec<String>,
 }
 
-fn parse_common(args: &[String], want_file: bool) -> Common {
+struct Parsed {
+    file: Option<PathBuf>,
+    out: Option<PathBuf>,
+    opt_level: Option<u8>,
+    target_name: Option<String>,
+    passthrough: Vec<String>,
+}
+
+fn parse_args(args: &[String]) -> Parsed {
     let mut file: Option<PathBuf> = None;
     let mut out: Option<PathBuf> = None;
-    let mut opt_level: u8 = 2;
-    let mut target = Target::host();
+    let mut opt_level: Option<u8> = None;
+    let mut target_name: Option<String> = None;
     let mut passthrough = Vec::new();
     let mut i = 0;
     while i < args.len() {
@@ -61,15 +71,15 @@ fn parse_common(args: &[String], want_file: bool) -> Common {
             }
             "--target" => {
                 i += 1;
-                match args.get(i).and_then(|n| Target::by_name(n)) {
-                    Some(t) => target = t,
-                    None => fail("target tidak dikenal (pilihan: host, linux-x64, windows-x64)"),
+                match args.get(i) {
+                    Some(n) => target_name = Some(n.clone()),
+                    None => fail("opsi '--target' butuh nilai"),
                 }
             }
-            "-O0" => opt_level = 0,
-            "-O1" => opt_level = 1,
-            "-O2" => opt_level = 2,
-            "-O3" => opt_level = 3,
+            "-O0" => opt_level = Some(0),
+            "-O1" => opt_level = Some(1),
+            "-O2" => opt_level = Some(2),
+            "-O3" => opt_level = Some(3),
             "--" => {
                 passthrough.extend(args[i + 1..].iter().cloned());
                 break;
@@ -86,16 +96,48 @@ fn parse_common(args: &[String], want_file: bool) -> Common {
         }
         i += 1;
     }
-    let file = match file {
-        Some(f) => f,
+    Parsed { file, out, opt_level, target_name, passthrough }
+}
+
+fn target_by_name(name: &str) -> Target {
+    match Target::by_name(name) {
+        Some(t) => t,
+        None => fail("target tidak dikenal (pilihan: host, linux-x64, windows-x64)"),
+    }
+}
+
+fn parse_common(args: &[String], _want_file: bool) -> Common {
+    let p = parse_args(args);
+    match p.file {
+        Some(file) => Common {
+            file,
+            out: p.out,
+            opt_level: p.opt_level.unwrap_or(2),
+            target: p.target_name.as_deref().map(target_by_name).unwrap_or_else(Target::host),
+            passthrough: p.passthrough,
+        },
         None => {
-            if want_file {
-                fail("butuh file sumber .lime");
+            let path = manifest::find().unwrap_or_else(|| {
+                fail("butuh file sumber .lime, atau 'lime.toml' di direktori ini (lihat 'lime init')")
+            });
+            let m = manifest::load(&path).unwrap_or_else(|e| fail(&e));
+            let file = m.entry_path();
+            if !file.exists() {
+                fail(&format!(
+                    "entri proyek '{}' tidak ada (atur [build] entri di lime.toml)",
+                    file.display()
+                ));
             }
-            PathBuf::new()
+            let opt_level = p.opt_level.or(m.optimasi).unwrap_or(2);
+            let target = p
+                .target_name
+                .or(m.target)
+                .as_deref()
+                .map(target_by_name)
+                .unwrap_or_else(Target::host);
+            Common { file, out: p.out, opt_level, target, passthrough: p.passthrough }
         }
-    };
-    Common { file, out, opt_level, target, passthrough }
+    }
 }
 
 fn compiler(c: &Common) -> Compiler {
@@ -264,6 +306,9 @@ PERINTAH:\n\
     clean              hapus artefak build\n\
     version            tampilkan versi\n\
     help               tampilkan bantuan ini\n\
+\n\
+Tanpa argumen <file>, perintah build/run/check/test/bench memakai 'lime.toml'\n\
+di direktori ini (atau induknya). Lihat 'lime init'.\n\
 \n\
 OPSI (build/run/check):\n\
     -o, --output <file>   nama executable keluaran\n\

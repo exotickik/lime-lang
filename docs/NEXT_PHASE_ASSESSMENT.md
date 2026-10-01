@@ -1,87 +1,83 @@
-# Phase 21 (FFI expansion) — Design Assessment
+# Phase 22 (Project manifest `lime.toml`) — Design Assessment
 
-Baseline: `main` after the benchmark runner (Phase 20). Sixth self-hosting
-prerequisite item: widen the FFI surface — callbacks and external pointer types —
-without weakening Lime's memory safety.
+Baseline: `main` after FFI expansion (Phase 21). Seventh prerequisite item: a
+package/project system, implemented to the extent possible without a network or a
+registry.
 
 ## Goal
 
-Let Lime bind more real C APIs: pass Lime functions to C as callbacks, and carry
-opaque C handles (`FILE*`, allocator handles, library contexts) in and out of
-`ekstern` functions — while keeping the rule that Lime never reads or writes
-foreign memory unchecked.
+Make `lime.toml` functional: run the toolchain against a project without naming a
+file every time, taking the entry point and build settings from the manifest.
+This is the part of a package system that is genuinely implementable offline; the
+registry/dependency part is not, and is documented as such.
 
-## Callbacks — already supported, now verified
+## What is honestly possible here
 
-Passing a Lime function to a native function that expects a function pointer
-already works: `ekstern` parameters accept a function type (`fungsi(A) -> R`,
-resolved to `Type::Fn`), a function name lowers to a bare function pointer
-(`Operand::Func`), and the C side calls it over the ABI. This phase adds
-coverage: a libc `atexit` callback test, a runnable example, and documentation.
-No code change was needed — the first-class-function work (Phase, `fungsi` values)
-and the existing extern lowering already compose correctly across the boundary.
+- **Possible now:** a manifest that names the project and its entry file, chooses
+  the target and optimization level, and is discovered from the working directory
+  (or an ancestor). The whole toolchain already compiles multi-file projects via
+  the module system (`impor`), so a "project" is just an entry file plus its
+  imports.
+- **Not possible offline:** dependency resolution, a package cache, and a
+  registry. These need infrastructure the bootstrap does not ship, so they are
+  left explicitly as future work rather than stubbed.
 
-## Opaque pointer type (`pointer`) — the new capability
+## Manifest format
 
-Lime forbids references across FFI (`E0298`) because a Lime reference carries
-borrow/lifetime guarantees C cannot honor. But many C APIs traffic in opaque
-handles that Lime only needs to *hold and pass back*, never dereference. The file
-I/O work (Phase 18) smuggled `FILE*` through as `i64`, which is untyped and
-error-prone.
+A small TOML subset, enough for the schema and stable for growth:
 
-`pointer` is a first-class primitive for exactly this:
+```toml
+[paket]
+nama = "halo"
+versi = "0.1.0"
 
-- **Opaque.** It cannot be dereferenced (`*p` → `E0292`), cast to or from an
-  integer (`E02F0`), or printed (`E0211`). There is no operation that reads or
-  writes through it, so it introduces no unsafety — it is just a token.
-- **Copy and FFI-safe.** It is Copy (passed/returned/stored freely, never
-  dropped) and, being neither a reference nor Owned, crosses the FFI boundary.
-- **Constructed only at the boundary or as null.** A `pointer` value comes from
-  an `ekstern` return or from the `kosong()` builtin (the null pointer); Lime
-  code cannot fabricate an arbitrary address.
-- **Comparable.** `==` / `!=` are allowed on `pointer` (identity / null checks),
-  which is what makes `fopen` → null-check → `fclose` expressible.
-
-This lets users bind C handle APIs directly and type-safely:
-
-```lime
-ekstern fungsi fopen(nama: teks, mode: teks) -> pointer
-ekstern fungsi fclose(f: pointer) -> i32
+[build]
+entri = "src/main.lime"   # default src/main.lime
+target = "host"           # host | linux-x64 | windows-x64
+optimasi = 2              # 0..3
 ```
+
+Parsing supports `[section]` headers, `kunci = "nilai"` strings, bare integers,
+and `#` comments (respecting `#` inside quoted strings). Only `[paket]` and
+`[build]` keys are read; unknown keys are ignored so the schema can extend
+without breaking older tools.
+
+## Resolution model — file mode vs project mode
+
+The command-line argument parser was split into raw parsing (`parse_args`, no
+defaults, every option an `Option`) and resolution (`parse_common`):
+
+- **File mode** — a file path is given: use it, with CLI flags and the built-in
+  defaults (`-O2`, host). The manifest is ignored, so `lime run x.lime` behaves
+  identically everywhere.
+- **Project mode** — no file path: search the current directory and its ancestors
+  for `lime.toml`, load it, and build its entry file. `target` and `optimasi`
+  come from the manifest unless the corresponding CLI flag is present (CLI wins).
+  A missing manifest or a missing entry file is a clear error.
+
+This precedence — explicit CLI flag > manifest > built-in default, and explicit
+file > manifest entry — keeps behavior predictable. All five build-like commands
+(`build`, `run`, `check`, `test`, `bench`) share it.
 
 ## Implementation
 
-A new `Type::Ptr` variant, threaded through the usual sites:
-
-- `lime_types`: `Type::Ptr`, `from_builtin_name("pointer")`, `display` → `pointer`.
-  `resolve_type` picks it up automatically via `from_builtin_name`.
-- `lime_sema`: `Builtin::Kosong` registered as `kosong` (no args → `Type::Ptr`);
-  `==`/`!=` extended to accept `Ptr`; `is_copy`/`owned` default make `Ptr` Copy
-  and non-Owned, so the existing FFI check (reject Ref/Owned) admits it. Deref,
-  cast, and print checks already reject it through their existing type guards.
-- `lime_ir`: `Builtin::Kosong` lowers to `Operand::Null`; comparisons lower to a
-  `Cmp` over the operand type, and `pointer` operands are already typed `ptr`.
-- `lime_codegen`: `ty_str(Type::Ptr)` → `ptr`; `Operand::Null` already emits
-  `null : ptr`, and `icmp eq/ne ptr` is valid LLVM.
+- `cli/src/manifest.rs`: the `Manifest` struct, `find()` (ancestor search),
+  `load()` (the TOML-subset parser), and `entry_path()`.
+- `cli/src/main.rs`: `parse_args` (raw) + `parse_common` (resolution with
+  file/project modes); `target_by_name` centralizes target validation.
 
 ## Tests
 
-- `cli/tests/ffi.rs`: a libc `atexit` callback, `fopen`/`fclose` with a
-  `== kosong()` null check (present vs missing file), `*pointer` rejected, int→
-  `pointer` cast rejected, and a confirmation that references are still rejected
-  across FFI.
-- `lime_sema`: `opaque_pointer_ffi_ok`, `pointer_cannot_be_dereferenced`,
-  `pointer_cast_rejected`, `pointer_is_copy_not_owned`.
-- `examples/pointer_ekstern.lime`: a callback (`atexit`) plus `pointer`-based
-  file-open checks.
+- `cli/src/manifest.rs` unit tests: field/section parsing, comments and blank
+  lines, `#` inside strings, default entry, and a rejected out-of-range
+  `optimasi`.
+- `cli/tests/project_cmd.rs`: `init` then project-mode `run`, a custom `entri`,
+  discovery from a subdirectory, a clear error with no manifest, a clear error
+  for a missing entry, and an explicit file overriding project mode.
 
 ## Honest limitations
 
-- `pointer` is opaque only — there is intentionally no way to read/write through
-  it from Lime. Binding an API that needs Lime to pass a buffer C writes into
-  still has no safe path (references remain forbidden across FFI); a future
-  owned-buffer handoff or an explicit `tak_aman` block could add one.
-- No struct-pointer field access, pointer arithmetic, or typed pointers (`*T`).
-- Callback ABI is whatever the platform C ABI is; no calling-convention
-  attributes are exposed.
-- Linking is still libc-only; custom `-l`/link flags await the package system.
+- No dependencies, lockfile, package cache, or registry (offline bootstrap).
+- No build profiles (`[profil.*]`) or per-profile optimization yet.
+- Strings only for scalar values; no arrays/tables beyond the two known sections.
+- `fmt` still takes an explicit file (it is not a build command).

@@ -109,10 +109,10 @@ order (environment override first):
 
 No internet access is required for compilation.
 
-## Package manifest (`lime.toml`)
+## Projects and the manifest (`lime.toml`)
 
-`lime init` scaffolds a manifest. The format is defined now so the package
-manager (roadmap Phase 7) can adopt it without breaking projects:
+`lime init [nama]` scaffolds a project: a `lime.toml` manifest and
+`src/main.lime`.
 
 ```toml
 [paket]
@@ -120,9 +120,27 @@ nama = "halo"
 versi = "0.1.0"
 
 [build]
-target = "host"
+entri = "src/main.lime"   # entry file (default: src/main.lime)
+target = "host"           # host | linux-x64 | windows-x64
+optimasi = 2              # 0..3 (default 2)
 ```
 
-Planned sections: `[dependensi]` (dependencies), `[profil.rilis]` (build
-profiles). Dependency resolution, a package cache and a registry are future
-work; the manifest schema is intentionally stable from the start.
+When `build`, `run`, `check`, `test`, or `bench` is invoked **without a file
+argument**, Lime searches the current directory and its ancestors for a
+`lime.toml`, then builds its entry file using the manifest's `target` and
+`optimasi`. Command-line options override the manifest, and giving an explicit
+file path bypasses the manifest entirely:
+
+```
+$ lime run                 # builds [build].entri from ./lime.toml
+$ lime test                # runs uji_* in the project entry
+$ lime run -O3             # manifest settings, but -O3 overrides optimasi
+$ lime run src/other.lime  # explicit file; manifest ignored
+```
+
+The manifest parser accepts `[section]` headers, `kunci = "nilai"` string values,
+bare integers, and `#` comments. Only `[paket]` (`nama`, `versi`) and `[build]`
+(`entri`, `target`, `optimasi`) are read today; unknown keys are ignored so the
+schema can grow. Dependency resolution, a package cache, and a registry
+(`[dependensi]`, build profiles) remain future work and need network/registry
+infrastructure that the bootstrap does not ship.

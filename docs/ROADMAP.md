@@ -116,7 +116,12 @@ Legend: ✅ done · 🟡 in progress · ⬜ planned
 - ⬜ Language server (LSP) + VS Code extension
 
 ## Phase 7 — Package ecosystem
-- ⬜ `lime.toml` manifest, dependency resolution, package cache, build profiles
+- ✅ Project manifest (`lime.toml`, Phase 22): `lime init` scaffolds a project;
+  `build`/`run`/`check`/`test`/`bench` with no file argument resolve the entry,
+  target, and optimization level from the nearest `lime.toml` (searched up the
+  directory tree). CLI flags override the manifest; an explicit file bypasses it
+- ⬜ Dependency resolution, package cache, build profiles, registry (need
+  network/registry infrastructure the bootstrap does not ship)
 
 ## Phase 8 — Optimization
 - ✅ Lime IR passes: constant folding + propagation, constant-branch folding,
