@@ -18,6 +18,7 @@ fn main() {
         "run" => cmd_run(rest),
         "check" => cmd_check(rest),
         "test" => cmd_test(rest),
+        "bench" => cmd_bench(rest),
         "fmt" => cmd_fmt(rest),
         "emit-ir" => cmd_emit_ir(rest),
         "init" => cmd_init(rest),
@@ -133,6 +134,27 @@ fn cmd_test(args: &[String]) {
     exit(comp.test(&c.file));
 }
 
+fn cmd_bench(args: &[String]) {
+    let mut iterations: u64 = 1_000_000;
+    let mut rest: Vec<String> = Vec::new();
+    let mut i = 0;
+    while i < args.len() {
+        if args[i] == "--iterasi" || args[i] == "-n" {
+            i += 1;
+            match args.get(i).and_then(|v| v.parse::<u64>().ok()) {
+                Some(v) if v > 0 => iterations = v,
+                _ => fail("opsi '--iterasi' butuh angka positif"),
+            }
+        } else {
+            rest.push(args[i].clone());
+        }
+        i += 1;
+    }
+    let c = parse_common(&rest, true);
+    let comp = compiler(&c);
+    exit(comp.bench(&c.file, iterations));
+}
+
 fn cmd_emit_ir(args: &[String]) {
     let c = parse_common(args, true);
     let comp = compiler(&c);
@@ -235,6 +257,7 @@ PERINTAH:\n\
     run <file>       kompilasi lalu jalankan\n\
     check <file>     periksa sintaks dan tipe tanpa kompilasi\n\
     test <file>      jalankan fungsi uji ('uji_*') di file\n\
+    bench <file>     ukur fungsi tolok ukur ('tolok_*'); --iterasi N\n\
     fmt <file>       format kode sumber Lime\n\
     emit-ir <file>   cetak LLVM IR yang dihasilkan\n\
     init [nama]        buat proyek Lime baru\n\

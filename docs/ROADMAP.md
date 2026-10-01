@@ -120,7 +120,11 @@ Legend: ✅ done · 🟡 in progress · ⬜ planned
   passes normalize/shrink rather than duplicate LLVM's inlining, loop and
   load/store optimizations
 - ⬜ Escape analysis, LTO, Lime-level inlining where it beats LLVM
-- ⬜ Benchmark suite (compile time, size, runtime, allocations, startup)
+- ✅ Benchmark runner (`lime bench`, Phase 20): discovers `tolok_*` functions (no
+  params, `angka` return), times a fixed iteration loop with libc `clock()`,
+  sums returns into a checksum to defeat dead-code elimination, reports total
+  time and ns/op; `--iterasi N` sets the count. A broader suite (compile time,
+  binary size, allocations, startup) is a follow-up
 
 ## Current milestone summary
 

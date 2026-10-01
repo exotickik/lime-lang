@@ -1,83 +1,103 @@
-# Phase 19 (Test runner `lime test`) — Design Assessment
+# Phase 20 (Benchmark runner `lime bench`) — Design Assessment
 
-Baseline: `main` after file I/O (Phase 18). Fourth self-hosting prerequisite: a
-compiler project needs to run its own tests.
+Baseline: `main` after the test runner (Phase 19). Fifth self-hosting
+prerequisite: a reproducible way to measure performance.
 
 ## Goal
 
-A `lime test <file>` command that discovers test functions, runs them through the
-real backend, and reports pass/fail with a non-zero exit on failure — usable both
-by hand and from CI.
+A `lime bench <file>` command that measures benchmark functions through the real
+backend and reports a stable nanoseconds-per-operation figure, so performance
+changes to the compiler can be tracked over time.
 
-## Test function contract
+## Benchmark function contract
 
-A test is any top-level function that
-- is named with the `uji_` prefix (`uji` = *test*),
-- takes no parameters,
-- has no type parameters,
-- returns `boolean` (`benar` = passed).
+A benchmark is any top-level function that
+- is named with the `tolok_` prefix (*tolok ukur* = benchmark),
+- takes no parameters and no type parameters,
+- returns `angka`.
 
-Violations of the last three are compile errors (`E_UNSUPPORTED`) pointing at the
-offending function, so a malformed test never silently disappears. Tests are
-discovered only in the **entry file** (the one passed to `lime test`), not in its
-imported modules, so a module's own `uji_*` helpers are not run transitively and
-cross-module visibility (`publik`) never enters into it.
+The `angka` return is required and is the anti-dead-code mechanism (below).
+Violations are compile errors pointing at the function. As with `lime test`,
+benchmarks are discovered only in the entry file.
 
-## Approach — synthesize the harness, reuse the whole pipeline
+## Approach — reuse the test-runner machinery
 
-`lime test` does not invent a second execution path. It:
+`lime bench` shares the Phase 19 plumbing: `parse_merge` (parse + merge before
+analysis), AST synthesis of a `utama`, then the real
+`analyze_modules → lower → optimize_level → build_executable` pipeline, run with
+stdout captured.
 
-1. Parses and merges the program exactly as `build`/`run` do (`parse_merge`,
-   factored out of the former `frontend`), **before** semantic analysis.
-2. Walks the merged AST for valid `uji_*` functions in the entry file.
-3. Rejects a file that already has a `utama` block via the normal
-   single-main check — the runner owns `utama`.
-4. Synthesizes a `utama` as ordinary AST, minting fresh `NodeId`s from the
-   parser's node counter (threaded out of `parse_merge`): for each test,
-   `jika uji_x() { tampilkan("##LIME-UJI LULUS x") } lain { tampilkan("##LIME-UJI GAGAL x") }`.
-5. Runs the real `analyze_modules` → `lower` → `optimize_level` →
-   `build_executable` on the augmented program, then executes it capturing
-   stdout.
-6. Parses the marker lines and prints a human summary, exiting non-zero on any
-   failure.
+For each benchmark it synthesizes a scoped block:
 
-Because the harness is real Lime AST fed through the real sema and codegen, the
-tests exercise the actual compiler — there is no mock interpreter.
+```lime
+{
+    nilai t0: angka = clock()
+    ubah jumlah: angka = 0
+    ubah i: angka = 0
+    selama i < <iters> {
+        jumlah = jumlah + tolok_x()
+        i = i + 1
+    }
+    nilai dt: angka = clock() - t0
+    tampilkan("##LIME-TOLOK tolok_x")
+    tampilkan(dt)
+    tampilkan(jumlah)
+    fflush(0)
+}
+```
 
-## Surviving a crashing test
+Each benchmark is its own block scope, so the loop variables (`t0`, `jumlah`,
+`i`, `dt`) are reused without collision. The driver parses the three marker lines
+(header, elapsed ticks, checksum) back into a table.
 
-The test executable's stdout is a pipe, so libc fully buffers it; a test that
-`abort()`s (e.g. a bounds-check failure) would otherwise lose the buffered
-results of every test that already passed. The harness therefore calls
-`fflush(0)` after each test's marker. `fflush(NULL)` flushes all open streams;
-the null `FILE*` is passed as an `angka` `0` over an injected
-`ekstern fungsi fflush(aliran: angka) -> angka`, reusing the FILE*-as-i64 ABI
-convention from Phase 18 (an integer and a pointer argument share registers on
-the supported ABIs). A test that aborts is then reported as
-`berhenti sebelum selesai`; tests after it that never ran are reported the same.
-The extern is injected only when the program does not already declare `fflush`.
+## Timing
+
+Timing uses libc `clock()`, injected as `ekstern fungsi clock() -> angka` (an
+i64 `clock_t`). POSIX fixes `CLOCKS_PER_SEC` at 1,000,000, so one tick is one
+microsecond and `ns/op = dt_ticks * 1000 / iters`. `clock()` measures CPU time,
+which is reproducible for CPU-bound microbenchmarks and needs no struct
+out-parameter (unlike `clock_gettime`). The reproducibility this buys is visible
+in practice: `tolok_pangkat` reports ~24 ns/op whether run at 200k or 1M
+iterations.
+
+## Defeating dead-code elimination
+
+Benchmarks are built at the chosen optimization level (default `-O2`) so they
+measure optimized code. To stop the optimizer from deleting the measured work,
+each call's `angka` result is summed into `jumlah`, which is printed as a
+checksum — a genuine data dependency from the loop body to observable output.
+The checksum doubles as a correctness signal: `tolok_pangkat` returning `3^15`
+over 1,000,000 iterations prints `checksum=14348907000000`, proving the loop ran.
+Callers should still keep the measured work non-trivial so it is not folded to a
+loop-invariant constant.
+
+## Surviving a crashing benchmark
+
+As in Phase 19, stdout is flushed with `fflush(0)` after each benchmark (null
+`FILE*` as an `angka` `0` over the injected `fflush` extern), so a benchmark that
+aborts still leaves the prior results intact; it and the ones after it are listed
+as `berhenti sebelum selesai` and the command exits non-zero.
 
 ## Implementation
 
-- `lime_driver`: `parse_merge` (shared parse+merge), `Compiler::test`,
-  `collect_tests`, `synth_test_main`, `synth_fflush_decl`, `report_tests`, and
-  small AST builders (`mk_expr`/`mk_call`/`mk_print`).
-- `lime_cli`: `test` subcommand and help text.
+- `lime_driver`: `Compiler::bench`, `collect_benches`, `synth_bench_main`,
+  `synth_clock_decl`, `report_benches`, and AST builders `mk_name`/`mk_bin`/
+  `mk_let` (alongside the Phase 19 builders).
+- `lime_cli`: `bench` subcommand with `--iterasi`/`-n`, and help text.
 
 ## Tests
 
-- `cli/tests/test_cmd.rs`: all-pass (exit 0), mixed pass/fail (exit 1), wrong
-  return type (compile error), parameters (compile error), no tests (error),
-  and a runtime abort that still reports the prior passing test.
-- `examples/uji_matematika.lime`: five real tests over the `Matematika` module,
-  run with `lime test`.
+- `cli/tests/bench_cmd.rs`: reports ns/op and iteration count, the deterministic
+  checksum proves work ran, wrong return type is a compile error, no benchmarks
+  is an error, and an aborting benchmark still reports the prior one.
+- `examples/tolok_matematika.lime`: three real benchmarks over `Matematika`.
 
 ## Honest limitations
 
-- One entry file per invocation; no directory/glob discovery or a project-wide
-  `lime test` across all files yet (awaits the package system).
-- Tests report a single `boolean`; there is no assertion API with messages,
-  `expected vs actual` diffs, or per-assertion locations yet.
-- No test filtering, parallelism, timing, or setup/teardown.
-- A crashing test halts the single shared executable; per-test process isolation
-  is a follow-up.
+- Fixed iteration count (no auto-tuning to a target duration yet); the user
+  picks `--iterasi` large enough for stable timing.
+- CPU time via `clock()` only; no wall-clock, no per-run variance/stddev, no
+  warmup phase, and no memory/allocation accounting.
+- One entry file per invocation; no project-wide benchmark discovery.
+- Shares the single-process model with `lime test`: a crashing benchmark halts
+  the rest.

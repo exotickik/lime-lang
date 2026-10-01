@@ -1,6 +1,6 @@
 use lime_ast::{
-    Block, Expr, ExprKind, ExternDecl, Ident, IfStmt, Item, MainBlock, NodeId, Param, Program,
-    Stmt, TypeExpr, TypeExprKind,
+    BinOp, Block, Expr, ExprKind, ExternDecl, Ident, IfStmt, Item, MainBlock, NodeId, Param,
+    Program, Stmt, TypeExpr, TypeExprKind,
 };
 use lime_codegen::{build_executable, emit_llvm_ir, Target};
 use lime_diagnostics::{codes, render, Diagnostic, DiagnosticEngine};
@@ -300,6 +300,76 @@ impl Compiler {
         };
         report_tests(path, &tests, &output)
     }
+
+    pub fn bench(&self, path: &Path, iterations: u64) -> i32 {
+        let mut m = match self.parse_merge(path) {
+            Ok(m) => m,
+            Err(msg) => {
+                eprintln!("error: {}", msg);
+                return 1;
+            }
+        };
+        if m.diags.has_errors() {
+            eprint!("{}", render::render_all(m.diags.diagnostics(), &m.sm));
+            return 1;
+        }
+
+        let benches = collect_benches(&m.program, m.entry_file, &mut m.diags);
+        if m.diags.has_errors() {
+            eprint!("{}", render::render_all(m.diags.diagnostics(), &m.sm));
+            return 1;
+        }
+        if benches.is_empty() {
+            eprintln!("tidak ada tolok ukur (nama 'tolok_*') di '{}'", path.display());
+            return 1;
+        }
+
+        let span = m.program.header_span;
+        for (sym, decl) in [("fflush", true), ("clock", false)] {
+            let present = m.program.items.iter().any(
+                |i| matches!(i, Item::Extern(e) if e.name.name == sym),
+            );
+            if !present {
+                let d = if decl {
+                    synth_fflush_decl(&mut m.next_node, span)
+                } else {
+                    synth_clock_decl(span)
+                };
+                m.program.items.push(Item::Extern(d));
+            }
+        }
+        let main = synth_bench_main(&benches, iterations, &mut m.next_node, span);
+        m.program.items.push(Item::Main(main));
+
+        let results = analyze_modules(&m.program, &m.info, &mut m.diags);
+        if m.diags.has_errors() {
+            eprint!("{}", render::render_all(m.diags.diagnostics(), &m.sm));
+            return 1;
+        }
+        let mut module = lower(&m.program, &results, &mut m.diags);
+        if m.diags.has_errors() {
+            eprint!("{}", render::render_all(m.diags.diagnostics(), &m.sm));
+            return 1;
+        }
+        optimize_level(&mut module, self.opt_level);
+
+        let work = std::env::temp_dir().join(format!("lime-bench-{}", std::process::id()));
+        let out_exe = work.join(exe_stem(path, &self.target));
+        let build_work = build_dir(&out_exe);
+        if let Err(e) = build_executable(&module, &self.target, &out_exe, &build_work, self.opt_level) {
+            eprintln!("error: kegagalan backend: {}", e);
+            return 1;
+        }
+
+        let output = match std::process::Command::new(&out_exe).output() {
+            Ok(o) => o,
+            Err(e) => {
+                eprintln!("error: tidak bisa menjalankan tolok ukur: {}", e);
+                return 1;
+            }
+        };
+        report_benches(path, &benches, iterations, &output)
+    }
 }
 
 fn collect_tests(program: &Program, entry: FileId, diags: &mut DiagnosticEngine) -> Vec<String> {
@@ -439,6 +509,174 @@ fn report_tests(path: &Path, tests: &[String], output: &std::process::Output) ->
         0
     } else {
         1
+    }
+}
+
+fn synth_clock_decl(span: Span) -> ExternDecl {
+    ExternDecl {
+        name: Ident { name: "clock".to_string(), span },
+        params: Vec::new(),
+        variadic: false,
+        ret: Some(TypeExpr { kind: TypeExprKind::Named("angka".to_string()), span }),
+        span,
+    }
+}
+
+fn collect_benches(program: &Program, entry: FileId, diags: &mut DiagnosticEngine) -> Vec<String> {
+    let mut names = Vec::new();
+    for item in &program.items {
+        let Item::Function(f) = item else { continue };
+        if !f.name.name.starts_with("tolok_") {
+            continue;
+        }
+        if f.span.file != entry {
+            continue;
+        }
+        let returns_angka = matches!(
+            &f.ret,
+            Some(t) if matches!(&t.kind, TypeExprKind::Named(n) if n == "angka")
+        );
+        if !f.params.is_empty() {
+            diags.emit(
+                Diagnostic::error(codes::E_UNSUPPORTED, "tolok ukur tidak boleh punya parameter")
+                    .primary(f.name.span, "hapus parameter dari fungsi tolok ukur ini"),
+            );
+        } else if !f.type_params.is_empty() {
+            diags.emit(
+                Diagnostic::error(codes::E_UNSUPPORTED, "tolok ukur tidak boleh generic")
+                    .primary(f.name.span, "fungsi tolok ukur harus tanpa type parameter"),
+            );
+        } else if !returns_angka {
+            diags.emit(
+                Diagnostic::error(codes::E_UNSUPPORTED, "tolok ukur harus mengembalikan angka")
+                    .primary(f.name.span, "kembalikan angka agar hasil kerja tidak dihapus optimizer"),
+            );
+        } else {
+            names.push(f.name.name.clone());
+        }
+    }
+    names
+}
+
+fn synth_bench_main(benches: &[String], iters: u64, next: &mut u32, span: Span) -> MainBlock {
+    let mut stmts = Vec::new();
+    for name in benches {
+        let mut body = Vec::new();
+
+        let clock0 = mk_call(next, span, "clock", Vec::new());
+        body.push(mk_let(next, span, false, "t0", clock0));
+        let zero = mk_expr(next, span, ExprKind::Int { value: 0, suffix: None });
+        body.push(mk_let(next, span, true, "jumlah", zero));
+        let zero_i = mk_expr(next, span, ExprKind::Int { value: 0, suffix: None });
+        body.push(mk_let(next, span, true, "i", zero_i));
+
+        let i_name = mk_name(next, span, "i");
+        let limit = mk_expr(next, span, ExprKind::Int { value: iters as u128, suffix: None });
+        let cond = mk_bin(next, span, BinOp::Lt, i_name, limit);
+
+        let mut loop_body = Vec::new();
+        let jumlah_name = mk_name(next, span, "jumlah");
+        let call = mk_call(next, span, name, Vec::new());
+        let add = mk_bin(next, span, BinOp::Add, jumlah_name, call);
+        let jumlah_tgt = mk_name(next, span, "jumlah");
+        loop_body.push(Stmt::Assign { target: jumlah_tgt, value: add, span });
+        let i_rhs = mk_name(next, span, "i");
+        let one = mk_expr(next, span, ExprKind::Int { value: 1, suffix: None });
+        let inc = mk_bin(next, span, BinOp::Add, i_rhs, one);
+        let i_tgt = mk_name(next, span, "i");
+        loop_body.push(Stmt::Assign { target: i_tgt, value: inc, span });
+        body.push(Stmt::While { cond, body: Block { stmts: loop_body, span }, span });
+
+        let now = mk_call(next, span, "clock", Vec::new());
+        let t0_name = mk_name(next, span, "t0");
+        let dt = mk_bin(next, span, BinOp::Sub, now, t0_name);
+        body.push(mk_let(next, span, false, "dt", dt));
+
+        body.push(Stmt::Expr(mk_print(next, span, &format!("##LIME-TOLOK {}", name))));
+        let dt_name = mk_name(next, span, "dt");
+        let dt_print = mk_call(next, span, "tampilkan", vec![dt_name]);
+        body.push(Stmt::Expr(dt_print));
+        let sum_name = mk_name(next, span, "jumlah");
+        let sum_print = mk_call(next, span, "tampilkan", vec![sum_name]);
+        body.push(Stmt::Expr(sum_print));
+        let flush_zero = mk_expr(next, span, ExprKind::Int { value: 0, suffix: None });
+        let flush = mk_call(next, span, "fflush", vec![flush_zero]);
+        body.push(Stmt::Expr(flush));
+
+        stmts.push(Stmt::Block(Block { stmts: body, span }));
+    }
+    MainBlock { body: Block { stmts, span }, span }
+}
+
+fn mk_name(next: &mut u32, span: Span, name: &str) -> Expr {
+    mk_expr(next, span, ExprKind::Name(name.to_string()))
+}
+
+fn mk_bin(next: &mut u32, span: Span, op: BinOp, lhs: Expr, rhs: Expr) -> Expr {
+    mk_expr(next, span, ExprKind::Binary { op, lhs: Box::new(lhs), rhs: Box::new(rhs) })
+}
+
+fn mk_let(next: &mut u32, span: Span, mutable: bool, name: &str, init: Expr) -> Stmt {
+    let id = NodeId(*next);
+    *next += 1;
+    Stmt::Let {
+        mutable,
+        name: Ident { name: name.to_string(), span },
+        ty: None,
+        init,
+        span,
+        id,
+    }
+}
+
+fn report_benches(
+    path: &Path,
+    benches: &[String],
+    iters: u64,
+    output: &std::process::Output,
+) -> i32 {
+    use std::collections::HashMap;
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let mut dt: HashMap<&str, i64> = HashMap::new();
+    let mut sum: HashMap<&str, i64> = HashMap::new();
+    let lines: Vec<&str> = stdout.lines().collect();
+    let mut i = 0;
+    while i < lines.len() {
+        if let Some(name) = lines[i].strip_prefix("##LIME-TOLOK ") {
+            let d = lines.get(i + 1).and_then(|l| l.trim().parse::<i64>().ok());
+            let s = lines.get(i + 2).and_then(|l| l.trim().parse::<i64>().ok());
+            if let (Some(d), Some(s)) = (d, s) {
+                dt.insert(name, d);
+                sum.insert(name, s);
+                i += 3;
+                continue;
+            }
+        }
+        i += 1;
+    }
+
+    println!("menjalankan {} tolok ukur: {} ({} iterasi)\n", benches.len(), path.display(), iters);
+    let mut incomplete = false;
+    for name in benches {
+        match (dt.get(name.as_str()), sum.get(name.as_str())) {
+            (Some(&d), Some(&s)) => {
+                let total_ms = d as f64 / 1000.0;
+                let ns_per_op = (d as f64 * 1000.0) / iters as f64;
+                println!(
+                    "  {:<24} {:>10.3} ms total   {:>12.3} ns/op   checksum={}",
+                    name, total_ms, ns_per_op, s
+                );
+            }
+            _ => {
+                incomplete = true;
+                println!("  {:<24} berhenti sebelum selesai", name);
+            }
+        }
+    }
+    if incomplete || !output.status.success() {
+        1
+    } else {
+        0
     }
 }
 

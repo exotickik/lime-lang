@@ -1,0 +1,18 @@
+program TolokMatematika
+
+gunakan Matematika
+
+fungsi tolok_pangkat() -> angka {
+    kembalikan pangkat(3, 15)
+}
+
+fungsi tolok_fpb() -> angka {
+    kembalikan fpb(123456, 7890)
+}
+
+fungsi tolok_prima() -> angka {
+    jika apakah_prima(99991) {
+        kembalikan 1
+    }
+    kembalikan 0
+}

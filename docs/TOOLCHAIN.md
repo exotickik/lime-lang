@@ -58,6 +58,40 @@ such a test is listed as `berhenti sebelum selesai`. `lime test` exits non-zero
 if any test fails or aborts. A `uji_*` function with parameters, type parameters,
 or a non-`boolean` return type is a compile error.
 
+## Benchmarking (`lime bench`)
+
+`lime bench <file>` measures benchmark functions. A benchmark is any top-level
+function whose name begins with `tolok_`, takes no parameters, and returns
+`angka` — the return value is summed into a checksum so the optimizer cannot
+delete the work being measured:
+
+```lime
+program TolokMatematika
+gunakan Matematika
+
+fungsi tolok_pangkat() -> angka {
+    kembalikan pangkat(3, 15)
+}
+```
+
+```
+$ lime bench examples/tolok_matematika.lime --iterasi 100000
+menjalankan 3 tolok ukur: examples/tolok_matematika.lime (100000 iterasi)
+
+  tolok_pangkat                 2.434 ms total         24.340 ns/op   checksum=1434890700000
+  ...
+```
+
+Each benchmark runs a fixed number of iterations (`--iterasi N`, default
+1,000,000), timed with libc `clock()` (CPU time; POSIX fixes `CLOCKS_PER_SEC` at
+1,000,000, so one tick is one microsecond). The harness reports total time,
+nanoseconds per operation, and the checksum. Benchmarks are compiled at the
+chosen optimization level (default `-O2`), so they measure optimized code; keep
+the measured work non-trivial so it is not folded to a constant. Benchmark
+functions should not print to stdout (the runner reads timing from it). Output is
+flushed after each benchmark, so a benchmark that aborts is reported as
+`berhenti sebelum selesai` and `lime bench` exits non-zero.
+
 ## Build pipeline
 
 `lime build` runs: lex → parse → semantic analysis → Lime IR lowering →
