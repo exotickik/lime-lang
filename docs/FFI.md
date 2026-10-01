@@ -53,10 +53,46 @@ The Lime → LLVM type mapping used at the boundary:
 | `boolean` | `i1` | `bool` |
 | `karakter` | `i32` | `int32_t` (Unicode scalar) |
 | `teks` | `ptr` | `const char*` (NUL-terminated, bootstrap) |
+| `pointer` | `ptr` | `void*` / any opaque handle (`FILE*`, …) |
+| `fungsi(A) -> R` | `ptr` | function pointer `R (*)(A)` (callback) |
 | `hampa` | `void` | `void` |
 
 Passing Lime structs and arrays by value across the FFI follows the target C ABI
-for aggregates; passing pointers/references to them awaits the references phase.
+for aggregates. Owned types (`E0297`) and Lime references (`E0298`) may not cross
+the boundary, which keeps Lime's memory guarantees.
+
+## Callbacks
+
+Give an `ekstern` parameter a function type to pass a Lime function where C
+expects a function pointer:
+
+```lime
+ekstern fungsi atexit(f: fungsi()) -> i32
+fungsi pamit() { tampilkan("selesai") }
+utama { atexit(pamit) }
+```
+
+The Lime function is lowered to a bare function pointer, which C invokes directly
+over the ABI. The callback's own parameters and return follow the same type
+mapping as above.
+
+## Opaque pointers (`pointer`)
+
+`pointer` is an opaque native handle for binding C APIs that pass pointers (file
+handles, allocator handles, library contexts). It is Copy and crosses the FFI
+boundary, but it is opaque by design: it cannot be dereferenced, cast to or from
+an integer, or printed. A `pointer` comes only from an `ekstern` return or from
+`kosong()` (the null pointer), and is compared with `==` / `!=` (usually against
+`kosong()`), so Lime never reads or writes through it and stays memory-safe.
+
+```lime
+ekstern fungsi fopen(nama: teks, mode: teks) -> pointer
+ekstern fungsi fclose(f: pointer) -> i32
+utama {
+    nilai f = fopen("data.txt", "r")
+    jika f == kosong() { tampilkan("gagal") } lain { nilai _ = fclose(f) }
+}
+```
 
 ## Linking
 
@@ -69,7 +105,9 @@ the build system / package manager.
 ## Status
 
 Implemented and tested: declaring non-variadic and variadic externs, calling
-them with type checking, and linking against libc. See `cli/tests/ffi.rs` and
-`examples/ffi_libc.lime`. Not yet available: passing aggregates by reference,
-callbacks (Lime functions as C function pointers), and per-package link
-configuration.
+them with type checking, linking against libc, callbacks (Lime functions as C
+function pointers), and the opaque `pointer` type with `kosong()`. See
+`cli/tests/ffi.rs` and `examples/pointer_ekstern.lime`. Not yet available: passing
+Lime references/buffers across the boundary (forbidden by design for safety; a
+future owned-buffer or explicit-unsafe mechanism may lift this), and per-package
+link configuration (custom `-l` flags).

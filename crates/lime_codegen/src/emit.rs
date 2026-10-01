@@ -528,6 +528,7 @@ fn ty_str(ty: &Type) -> String {
         Type::Daftar(_) => "{ ptr, i64, i64 }".to_string(),
         Type::Param(_) => "void".to_string(),
         Type::Fn { .. } => "ptr".to_string(),
+        Type::Ptr => "ptr".to_string(),
         Type::Error => "void".to_string(),
     }
 }

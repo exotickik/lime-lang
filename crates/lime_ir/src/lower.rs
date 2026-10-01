@@ -1279,6 +1279,7 @@ impl<'a> FnLowerer<'a> {
                 );
                 Operand::Val(dst)
             }
+            Some(Res::Builtin(Builtin::Kosong)) => Operand::Null,
             Some(Res::Builtin(Builtin::Dorong)) => {
                 self.lower_dorong(&args[0], &args[1]);
                 Operand::Unit

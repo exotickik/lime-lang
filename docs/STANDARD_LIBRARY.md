@@ -129,6 +129,12 @@ own C-ABI FFI path — no separate allocator library. Growable containers
   `docs/LANGUAGE_SPEC.md` §2.3 for the full string model. Concatenation, slicing
   and owned strings are pending the allocator and are not yet available.
 
+### FFI pointers
+- `kosong() -> pointer` — the null native pointer. Used to pass NULL to an
+  `ekstern` function and, with `==` / `!=`, to null-check a `pointer` returned by
+  one. `pointer` is an opaque FFI handle: it cannot be dereferenced, cast, or
+  printed (see `docs/LANGUAGE_SPEC.md` §7).
+
 ## Planned modules
 
 Following the layout in `task.md`, under `lime/std/`:

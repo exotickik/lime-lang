@@ -979,6 +979,45 @@ mod tests {
     }
 
     #[test]
+    fn opaque_pointer_ffi_ok() {
+        let d = check(
+            "program P\n\
+             ekstern fungsi fopen(nama: teks, mode: teks) -> pointer\n\
+             ekstern fungsi fclose(f: pointer) -> i32\n\
+             utama { nilai f = fopen(\"x\", \"r\") jika f == kosong() { } lain { nilai c = fclose(f) tampilkan(c) } }",
+        );
+        assert!(!d.has_errors(), "{:?}", d.diagnostics());
+    }
+
+    #[test]
+    fn pointer_cannot_be_dereferenced() {
+        let d = check(
+            "program P\n\
+             ekstern fungsi fopen(nama: teks, mode: teks) -> pointer\n\
+             utama { nilai f = fopen(\"x\", \"r\") tampilkan(*f) }",
+        );
+        assert!(has_code(&d, codes::E_DEREF_NON_REF));
+    }
+
+    #[test]
+    fn pointer_cast_rejected() {
+        let d = check("program P\nutama { nilai p = 5 sebagai pointer tampilkan(1) }");
+        assert!(has_code(&d, codes::E_INVALID_CAST));
+    }
+
+    #[test]
+    fn pointer_is_copy_not_owned() {
+        let d = check(
+            "program P\n\
+             ekstern fungsi fopen(nama: teks, mode: teks) -> pointer\n\
+             ekstern fungsi fclose(f: pointer) -> i32\n\
+             fungsi pakai(p: pointer) -> i32 { kembalikan fclose(p) }\n\
+             utama { nilai f = fopen(\"x\", \"r\") nilai a = pakai(f) nilai b = pakai(f) tampilkan(a + b) }",
+        );
+        assert!(!d.has_errors(), "{:?}", d.diagnostics());
+    }
+
+    #[test]
     fn daftar_moves_like_owned() {
         let d = check(
             "program P\nfungsi konsumsi(d: daftar<angka>) -> angka { kembalikan panjang(ambil(d)) }\n\

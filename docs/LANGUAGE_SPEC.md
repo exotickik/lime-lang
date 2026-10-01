@@ -78,6 +78,7 @@ Escape sequences in strings/chars: `\n \r \t \\ \" \' \0 \u{XXXX}`.
 | `karakter` | Unicode scalar value | `i32` |
 | `bita` | raw byte (alias of `u8`) | `i8` |
 | `teks` | string (see §2.3) | `i8*` (bootstrap) / `{ptr,len}` (planned) |
+| `pointer` | opaque C handle (FFI only, see §7) | `ptr` |
 | `hampa` | unit / no value | `void` |
 
 Aliases available in the root scope: `angka` = `i64`, `bool` = `boolean`,
@@ -601,6 +602,42 @@ utama { tampilkan(tambah(2, 3)) }                 // 5
 ```lime
 ekstern fungsi printf(fmt: teks, ...) -> i32   // C ABI FFI declaration
 ```
+
+`ekstern fungsi` declares a function supplied by a native library and bound over
+the platform ABI (`...` marks it variadic). Lime never emits or consumes C
+source; this is the only interop path. To keep Lime's memory safety, Owned types
+(`E0297`) and Lime references (`E0298`) may not cross the FFI boundary.
+
+**Callbacks.** A Lime function can be passed to a native function that expects a
+function pointer, by giving the parameter a function type:
+
+```lime
+ekstern fungsi atexit(f: fungsi()) -> i32
+fungsi pamit() { tampilkan("selesai") }
+utama { atexit(pamit) }                        // C calls pamit at exit
+```
+
+**Opaque pointers (`pointer`).** The `pointer` type is an opaque native handle
+for binding C APIs that pass pointers around (`FILE*`, allocator handles, …). It
+is Copy and crosses the FFI boundary freely, but it is deliberately *opaque*:
+Lime cannot dereference it (`*p` is an error), cannot cast it to or from an
+integer (`E02F0`), and cannot print it. A `pointer` is obtained only as the
+return of an `ekstern` function or from `kosong()` (the null pointer), and
+compared with `==` / `!=` (typically against `kosong()` for a null check). It
+therefore adds no way to read or write memory from Lime, so memory safety is
+preserved.
+
+```lime
+ekstern fungsi fopen(nama: teks, mode: teks) -> pointer
+ekstern fungsi fclose(f: pointer) -> i32
+utama {
+    nilai f = fopen("data.txt", "r")
+    jika f == kosong() { tampilkan("gagal buka") } lain {
+        nilai _ = fclose(f)
+    }
+}
+```
+
 Module resolution and visibility are specified in `docs/ARCHITECTURE.md`.
 
 ---

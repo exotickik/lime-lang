@@ -1,0 +1,26 @@
+program PointerEkstern
+
+ekstern fungsi fopen(nama: teks, mode: teks) -> pointer
+
+ekstern fungsi fclose(f: pointer) -> i32
+
+ekstern fungsi atexit(f: fungsi()) -> i32
+
+fungsi pamit() {
+    tampilkan("program selesai")
+}
+
+fungsi bisa_buka(nama: teks) -> boolean {
+    nilai f = fopen(nama, "r")
+    jika f == kosong() {
+        kembalikan salah
+    }
+    fclose(f)
+    kembalikan benar
+}
+
+utama {
+    atexit(pamit)
+    tampilkan(bisa_buka("Cargo.toml"))
+    tampilkan(bisa_buka("tidak_ada_12345.txt"))
+}

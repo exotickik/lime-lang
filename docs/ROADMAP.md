@@ -96,6 +96,11 @@ Legend: ✅ done · 🟡 in progress · ⬜ planned
   Flat namespace for now; qualified names are a follow-up
 - ✅ C-ABI FFI (`ekstern fungsi`, including variadic; links against libc) —
   see `docs/FFI.md`
+- ✅ FFI expansion (Phase 21): callbacks (a Lime function passed where C expects a
+  function pointer, e.g. `atexit`), and the opaque `pointer` type for C handles
+  (`FILE*`, allocator handles, …) with the `kosong()` null constructor. `pointer`
+  is Copy and FFI-safe but opaque — no deref, no int↔pointer cast, not printable —
+  so memory safety is preserved. Owned types and references still may not cross FFI
 - ✅ Concurrency (Phase 15): real OS threads via `pthread` — `mulai(f, n)` spawns
   a `fungsi(angka) -> angka` worker, `tunggu(h)` joins and returns its result
   (`Utas<R>` handle). Data-race-free by construction (value passed in, result

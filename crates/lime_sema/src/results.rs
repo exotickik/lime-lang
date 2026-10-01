@@ -29,6 +29,7 @@ pub enum Builtin {
     CetakBita,
     BacaFile,
     TulisFile,
+    Kosong,
 }
 
 #[derive(Clone, Debug)]

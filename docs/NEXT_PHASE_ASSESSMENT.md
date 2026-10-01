@@ -1,103 +1,87 @@
-# Phase 20 (Benchmark runner `lime bench`) — Design Assessment
+# Phase 21 (FFI expansion) — Design Assessment
 
-Baseline: `main` after the test runner (Phase 19). Fifth self-hosting
-prerequisite: a reproducible way to measure performance.
+Baseline: `main` after the benchmark runner (Phase 20). Sixth self-hosting
+prerequisite item: widen the FFI surface — callbacks and external pointer types —
+without weakening Lime's memory safety.
 
 ## Goal
 
-A `lime bench <file>` command that measures benchmark functions through the real
-backend and reports a stable nanoseconds-per-operation figure, so performance
-changes to the compiler can be tracked over time.
+Let Lime bind more real C APIs: pass Lime functions to C as callbacks, and carry
+opaque C handles (`FILE*`, allocator handles, library contexts) in and out of
+`ekstern` functions — while keeping the rule that Lime never reads or writes
+foreign memory unchecked.
 
-## Benchmark function contract
+## Callbacks — already supported, now verified
 
-A benchmark is any top-level function that
-- is named with the `tolok_` prefix (*tolok ukur* = benchmark),
-- takes no parameters and no type parameters,
-- returns `angka`.
+Passing a Lime function to a native function that expects a function pointer
+already works: `ekstern` parameters accept a function type (`fungsi(A) -> R`,
+resolved to `Type::Fn`), a function name lowers to a bare function pointer
+(`Operand::Func`), and the C side calls it over the ABI. This phase adds
+coverage: a libc `atexit` callback test, a runnable example, and documentation.
+No code change was needed — the first-class-function work (Phase, `fungsi` values)
+and the existing extern lowering already compose correctly across the boundary.
 
-The `angka` return is required and is the anti-dead-code mechanism (below).
-Violations are compile errors pointing at the function. As with `lime test`,
-benchmarks are discovered only in the entry file.
+## Opaque pointer type (`pointer`) — the new capability
 
-## Approach — reuse the test-runner machinery
+Lime forbids references across FFI (`E0298`) because a Lime reference carries
+borrow/lifetime guarantees C cannot honor. But many C APIs traffic in opaque
+handles that Lime only needs to *hold and pass back*, never dereference. The file
+I/O work (Phase 18) smuggled `FILE*` through as `i64`, which is untyped and
+error-prone.
 
-`lime bench` shares the Phase 19 plumbing: `parse_merge` (parse + merge before
-analysis), AST synthesis of a `utama`, then the real
-`analyze_modules → lower → optimize_level → build_executable` pipeline, run with
-stdout captured.
+`pointer` is a first-class primitive for exactly this:
 
-For each benchmark it synthesizes a scoped block:
+- **Opaque.** It cannot be dereferenced (`*p` → `E0292`), cast to or from an
+  integer (`E02F0`), or printed (`E0211`). There is no operation that reads or
+  writes through it, so it introduces no unsafety — it is just a token.
+- **Copy and FFI-safe.** It is Copy (passed/returned/stored freely, never
+  dropped) and, being neither a reference nor Owned, crosses the FFI boundary.
+- **Constructed only at the boundary or as null.** A `pointer` value comes from
+  an `ekstern` return or from the `kosong()` builtin (the null pointer); Lime
+  code cannot fabricate an arbitrary address.
+- **Comparable.** `==` / `!=` are allowed on `pointer` (identity / null checks),
+  which is what makes `fopen` → null-check → `fclose` expressible.
+
+This lets users bind C handle APIs directly and type-safely:
 
 ```lime
-{
-    nilai t0: angka = clock()
-    ubah jumlah: angka = 0
-    ubah i: angka = 0
-    selama i < <iters> {
-        jumlah = jumlah + tolok_x()
-        i = i + 1
-    }
-    nilai dt: angka = clock() - t0
-    tampilkan("##LIME-TOLOK tolok_x")
-    tampilkan(dt)
-    tampilkan(jumlah)
-    fflush(0)
-}
+ekstern fungsi fopen(nama: teks, mode: teks) -> pointer
+ekstern fungsi fclose(f: pointer) -> i32
 ```
-
-Each benchmark is its own block scope, so the loop variables (`t0`, `jumlah`,
-`i`, `dt`) are reused without collision. The driver parses the three marker lines
-(header, elapsed ticks, checksum) back into a table.
-
-## Timing
-
-Timing uses libc `clock()`, injected as `ekstern fungsi clock() -> angka` (an
-i64 `clock_t`). POSIX fixes `CLOCKS_PER_SEC` at 1,000,000, so one tick is one
-microsecond and `ns/op = dt_ticks * 1000 / iters`. `clock()` measures CPU time,
-which is reproducible for CPU-bound microbenchmarks and needs no struct
-out-parameter (unlike `clock_gettime`). The reproducibility this buys is visible
-in practice: `tolok_pangkat` reports ~24 ns/op whether run at 200k or 1M
-iterations.
-
-## Defeating dead-code elimination
-
-Benchmarks are built at the chosen optimization level (default `-O2`) so they
-measure optimized code. To stop the optimizer from deleting the measured work,
-each call's `angka` result is summed into `jumlah`, which is printed as a
-checksum — a genuine data dependency from the loop body to observable output.
-The checksum doubles as a correctness signal: `tolok_pangkat` returning `3^15`
-over 1,000,000 iterations prints `checksum=14348907000000`, proving the loop ran.
-Callers should still keep the measured work non-trivial so it is not folded to a
-loop-invariant constant.
-
-## Surviving a crashing benchmark
-
-As in Phase 19, stdout is flushed with `fflush(0)` after each benchmark (null
-`FILE*` as an `angka` `0` over the injected `fflush` extern), so a benchmark that
-aborts still leaves the prior results intact; it and the ones after it are listed
-as `berhenti sebelum selesai` and the command exits non-zero.
 
 ## Implementation
 
-- `lime_driver`: `Compiler::bench`, `collect_benches`, `synth_bench_main`,
-  `synth_clock_decl`, `report_benches`, and AST builders `mk_name`/`mk_bin`/
-  `mk_let` (alongside the Phase 19 builders).
-- `lime_cli`: `bench` subcommand with `--iterasi`/`-n`, and help text.
+A new `Type::Ptr` variant, threaded through the usual sites:
+
+- `lime_types`: `Type::Ptr`, `from_builtin_name("pointer")`, `display` → `pointer`.
+  `resolve_type` picks it up automatically via `from_builtin_name`.
+- `lime_sema`: `Builtin::Kosong` registered as `kosong` (no args → `Type::Ptr`);
+  `==`/`!=` extended to accept `Ptr`; `is_copy`/`owned` default make `Ptr` Copy
+  and non-Owned, so the existing FFI check (reject Ref/Owned) admits it. Deref,
+  cast, and print checks already reject it through their existing type guards.
+- `lime_ir`: `Builtin::Kosong` lowers to `Operand::Null`; comparisons lower to a
+  `Cmp` over the operand type, and `pointer` operands are already typed `ptr`.
+- `lime_codegen`: `ty_str(Type::Ptr)` → `ptr`; `Operand::Null` already emits
+  `null : ptr`, and `icmp eq/ne ptr` is valid LLVM.
 
 ## Tests
 
-- `cli/tests/bench_cmd.rs`: reports ns/op and iteration count, the deterministic
-  checksum proves work ran, wrong return type is a compile error, no benchmarks
-  is an error, and an aborting benchmark still reports the prior one.
-- `examples/tolok_matematika.lime`: three real benchmarks over `Matematika`.
+- `cli/tests/ffi.rs`: a libc `atexit` callback, `fopen`/`fclose` with a
+  `== kosong()` null check (present vs missing file), `*pointer` rejected, int→
+  `pointer` cast rejected, and a confirmation that references are still rejected
+  across FFI.
+- `lime_sema`: `opaque_pointer_ffi_ok`, `pointer_cannot_be_dereferenced`,
+  `pointer_cast_rejected`, `pointer_is_copy_not_owned`.
+- `examples/pointer_ekstern.lime`: a callback (`atexit`) plus `pointer`-based
+  file-open checks.
 
 ## Honest limitations
 
-- Fixed iteration count (no auto-tuning to a target duration yet); the user
-  picks `--iterasi` large enough for stable timing.
-- CPU time via `clock()` only; no wall-clock, no per-run variance/stddev, no
-  warmup phase, and no memory/allocation accounting.
-- One entry file per invocation; no project-wide benchmark discovery.
-- Shares the single-process model with `lime test`: a crashing benchmark halts
-  the rest.
+- `pointer` is opaque only — there is intentionally no way to read/write through
+  it from Lime. Binding an API that needs Lime to pass a buffer C writes into
+  still has no safe path (references remain forbidden across FFI); a future
+  owned-buffer handoff or an explicit `tak_aman` block could add one.
+- No struct-pointer field access, pointer arithmetic, or typed pointers (`*T`).
+- Callback ABI is whatever the platform C ABI is; no calling-convention
+  attributes are exposed.
+- Linking is still libc-only; custom `-l`/link flags await the package system.

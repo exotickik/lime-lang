@@ -24,8 +24,15 @@ Type =
   | Daftar(Type)                                  // growable list daftar<T>
   | Fn { params: [Type], ret: Type }              // function value type fungsi(A)->R
   | Param(String)                                 // generic type variable
+  | Ptr                                           // opaque FFI handle (pointer)
   | Error                                         // poison type (post-error)
 ```
+
+`Ptr` (`pointer`) is an opaque native handle for FFI. It is Copy and may cross
+the FFI boundary, but it is not dereferenceable, not castable to or from an
+integer, and not printable; it is produced only by an `ekstern` return or
+`kosong()` (null) and compared with `==` / `!=`. Because Lime can never read or
+write through it, it adds no unsafety. See `docs/LANGUAGE_SPEC.md` §7.
 
 ## Copy vs Owned (`salinan` / `milik`)
 

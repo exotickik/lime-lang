@@ -56,6 +56,7 @@ pub enum Type {
     Daftar(Box<Type>),
     Fn { params: Vec<Type>, ret: Box<Type> },
     Param(String),
+    Ptr,
 
     Error,
 }
@@ -115,6 +116,7 @@ impl Type {
             "karakter" | "char" => Type::Char,
             "teks" | "string" => Type::Str,
             "hampa" => Type::Unit,
+            "pointer" => Type::Ptr,
             _ => return None,
         })
     }
@@ -148,6 +150,7 @@ impl Type {
                 let ps: Vec<String> = params.iter().map(|t| t.display()).collect();
                 format!("fungsi({}) -> {}", ps.join(", "), ret.display())
             }
+            Type::Ptr => "pointer".into(),
             Type::Error => "<error>".into(),
         }
     }

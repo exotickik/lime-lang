@@ -664,6 +664,7 @@ impl<'a> Checker<'a> {
         self.globals.insert("cetak_bita".to_string(), Res::Builtin(Builtin::CetakBita));
         self.globals.insert("baca_file".to_string(), Res::Builtin(Builtin::BacaFile));
         self.globals.insert("tulis_file".to_string(), Res::Builtin(Builtin::TulisFile));
+        self.globals.insert("kosong".to_string(), Res::Builtin(Builtin::Kosong));
     }
 
     fn check_bodies(&mut self, program: &Program) {
@@ -1263,6 +1264,7 @@ impl<'a> Checker<'a> {
                         | Type::Char
                         | Type::Str
                         | Type::Enum(_)
+                        | Type::Ptr
                 ) {
                     self.invalid_operand(op, lhs.span.to(rhs.span), &lt);
                     return Type::Bool;
@@ -1624,6 +1626,16 @@ impl<'a> Checker<'a> {
                     self.collection_error(args[1].span, "'tulis_file' butuh '&daftar<bita>'");
                 }
                 Type::Bool
+            }
+            Some(Res::Builtin(Builtin::Kosong)) => {
+                self.results.name_res.insert(callee.id, Res::Builtin(Builtin::Kosong));
+                if !args.is_empty() {
+                    self.collection_error(call.span, "'kosong' tidak menerima argumen");
+                    for a in args {
+                        self.check_expr(a, None);
+                    }
+                }
+                Type::Ptr
             }
             Some(Res::Local(_)) => self.check_indirect_call(call, callee, args),
             Some(_) | None => {
@@ -2712,6 +2724,7 @@ fn is_builtin_name(name: &str) -> bool {
             | "cetak_bita"
             | "baca_file"
             | "tulis_file"
+            | "kosong"
     )
 }
 
