@@ -42,7 +42,7 @@ berhenti    lanjut
 benar    salah
 tipe     enum     sifat    implementasi   cocok
 gunakan  impor    ekstern  publik
-dan      atau     bukan    coba
+dan      atau     bukan    coba     sebagai
 ```
 
 Type names (`i8..i64`, `u8..u64`, `f32`, `f64`, `boolean`, `karakter`, `teks`,
@@ -467,8 +467,10 @@ Precedence, high to low:
 
 `dan`/`atau` short-circuit. Keyword and symbolic spellings are interchangeable
 (`dan`≡`&&`, `atau`≡`||`, `bukan`≡`!`). There is **no** implicit numeric
-conversion: mixing `i32` and `i64` in an arithmetic expression is a type error;
-convert explicitly.
+conversion: mixing `i32` and `i64` in an arithmetic expression is a type error.
+Convert explicitly with `e sebagai T` — a cast between numeric and character
+types (`300 sebagai bita`, `3 sebagai f64`, `65 sebagai karakter`). `sebagai`
+binds tighter than binary operators and only converts numeric/`karakter` types.
 
 ---
 
@@ -502,6 +504,25 @@ atur(ambil_ubah(d), 1, 99)          // overwrite index 1
 - `dorong(&ubah d, x)`, `atur(&ubah d, i, x)`, `elemen(&d, i) -> T`,
   `panjang(&d) -> angka`. Indices are runtime bounds-checked (abort on OOB).
 - `T` must be a Copy type for now; owned element types are a follow-up.
+
+### 7.3 Dynamic text (byte buffers)
+Text is built and manipulated as a byte list `daftar<bita>` — a mutable, growable
+string. `bita_pada(s, i)` reads byte `i` of a `teks` (for scanning input),
+`cetak_bita(&buf)` writes a byte buffer to output, and the `Teks` library module
+(`gunakan Teks`) builds text into a buffer:
+```lime
+gunakan Teks
+utama {
+    ubah buf: daftar<bita> = daftar()
+    tambah_teks(ambil_ubah(buf), "jawaban = ")   // append a teks
+    tambah_angka(ambil_ubah(buf), 42)            // append a number as decimal
+    baris_baru(ambil_ubah(buf))
+    cetak_bita(ambil(buf))                        // prints: jawaban = 42
+}
+```
+`Teks` provides `tambah_teks`, `tambah_angka`, `tambah_bita`, and `baris_baru`;
+it is written in Lime itself. A heap-allocated owned `teks` (so a built buffer can
+become a first-class string value) is a documented follow-up.
 
 ### 7.1 Concurrency (`mulai` / `tunggu`)
 `mulai(f, n)` runs the function `f` (a `fungsi(angka) -> angka`) on a new OS

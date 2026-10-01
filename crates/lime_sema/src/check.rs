@@ -660,6 +660,8 @@ impl<'a> Checker<'a> {
         self.globals.insert("dorong".to_string(), Res::Builtin(Builtin::Dorong));
         self.globals.insert("elemen".to_string(), Res::Builtin(Builtin::Pada));
         self.globals.insert("atur".to_string(), Res::Builtin(Builtin::Atur));
+        self.globals.insert("bita_pada".to_string(), Res::Builtin(Builtin::BitaPada));
+        self.globals.insert("cetak_bita".to_string(), Res::Builtin(Builtin::CetakBita));
     }
 
     fn check_bodies(&mut self, program: &Program) {
@@ -1036,7 +1038,28 @@ impl<'a> Checker<'a> {
             ExprKind::Index { base, index } => self.check_index(base, index),
             ExprKind::Deref(inner) => self.check_deref(inner),
             ExprKind::Try(inner) => self.check_try(inner),
+            ExprKind::Cast { expr: inner, ty } => self.check_cast(inner, ty),
         }
+    }
+
+    fn check_cast(&mut self, inner: &Expr, ty: &TypeExpr) -> Type {
+        let src = self.check_expr(inner, None);
+        let target = self.resolve_type(ty);
+        if src.is_error() || target.is_error() {
+            return target;
+        }
+        let castable = |t: &Type| matches!(t, Type::Int { .. } | Type::Float(_) | Type::Char);
+        if !castable(&src) || !castable(&target) {
+            self.diags.emit(
+                Diagnostic::error(
+                    codes::E_INVALID_CAST,
+                    format!("tidak bisa mengubah '{}' menjadi '{}' dengan 'sebagai'", src.display(), target.display()),
+                )
+                .primary(ty.span, "konversi ini tidak didukung")
+                .help("'sebagai' hanya untuk tipe numerik dan karakter"),
+            );
+        }
+        target
     }
 
     fn check_array_lit(&mut self, elems: &[Expr], expected: Option<&Type>) -> Type {
@@ -1522,6 +1545,45 @@ impl<'a> Checker<'a> {
             | Some(Res::Builtin(b @ Builtin::Atur)) => {
                 self.results.name_res.insert(callee.id, Res::Builtin(b));
                 self.check_daftar_builtin(b, call, args, expected)
+            }
+            Some(Res::Builtin(Builtin::BitaPada)) => {
+                self.results.name_res.insert(callee.id, Res::Builtin(Builtin::BitaPada));
+                if args.len() != 2 {
+                    self.collection_error(call.span, "'bita_pada' butuh 2 argumen (teks, indeks)");
+                    for a in args {
+                        self.check_expr(a, None);
+                    }
+                    return Type::U8;
+                }
+                let st = self.check_expr(&args[0], None);
+                let it = self.check_expr(&args[1], Some(&Type::I64));
+                if !st.is_error() && st != Type::Str {
+                    self.collection_error(args[0].span, "'bita_pada' butuh 'teks' pada argumen pertama");
+                }
+                if !it.is_error() && !it.is_integer() {
+                    self.collection_error(args[1].span, "indeks harus bilangan bulat");
+                }
+                Type::U8
+            }
+            Some(Res::Builtin(Builtin::CetakBita)) => {
+                self.results.name_res.insert(callee.id, Res::Builtin(Builtin::CetakBita));
+                if args.len() != 1 {
+                    self.collection_error(call.span, "'cetak_bita' butuh 1 argumen (&daftar<bita>)");
+                    for a in args {
+                        self.check_expr(a, None);
+                    }
+                    return Type::Unit;
+                }
+                let dt = self.check_expr(&args[0], None);
+                match self.ref_daftar(&dt, false) {
+                    Some(t) if t == Type::U8 => {}
+                    _ => {
+                        if !dt.is_error() {
+                            self.collection_error(args[0].span, "'cetak_bita' butuh '&daftar<bita>'");
+                        }
+                    }
+                }
+                Type::Unit
             }
             Some(Res::Local(_)) => self.check_indirect_call(call, callee, args),
             Some(_) | None => {
@@ -2606,6 +2668,8 @@ fn is_builtin_name(name: &str) -> bool {
             | "dorong"
             | "elemen"
             | "atur"
+            | "bita_pada"
+            | "cetak_bita"
     )
 }
 
@@ -2897,6 +2961,7 @@ fn renumber_expr(e: &mut Expr, counter: &mut u32) {
         }
         ExprKind::Deref(inner) => renumber_expr(inner, counter),
         ExprKind::Try(inner) => renumber_expr(inner, counter),
+        ExprKind::Cast { expr, .. } => renumber_expr(expr, counter),
         ExprKind::Int { .. }
         | ExprKind::Float { .. }
         | ExprKind::Str(_)

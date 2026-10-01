@@ -87,6 +87,13 @@ The heap runtime for owned values is libc `malloc`/`free`, reached through Lime'
 own C-ABI FFI path — no separate allocator library. Growable containers
 (`daftar<T>`) will be standard-library types built on `kotak` and this runtime.
 
+### Text (byte buffers)
+- `bita_pada(s, i) -> bita` — byte `i` of a `teks` (bounds-checked). For scanning.
+- `cetak_bita(ambil(buf))` — write a `daftar<bita>` byte buffer to output.
+- Module `Teks` (`gunakan Teks`), written in Lime: `tambah_teks(buf, s)`,
+  `tambah_angka(buf, n)`, `tambah_bita(buf, b)`, `baris_baru(buf)` — build text
+  into a `&ubah daftar<bita>`.
+
 ### Collections
 - `daftar()` — a new empty growable list `daftar<T>` (element type from context).
 - `dorong(ambil_ubah(d), x)` — append `x` (grows via `realloc`).

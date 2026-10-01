@@ -34,6 +34,7 @@ pub enum Keyword {
     Dan,
     Atau,
     Bukan,
+    Sebagai,
 }
 
 impl Keyword {
@@ -72,6 +73,7 @@ impl Keyword {
             "dan" => Dan,
             "atau" => Atau,
             "bukan" => Bukan,
+            "sebagai" => Sebagai,
             _ => return None,
         })
     }
@@ -111,6 +113,7 @@ impl Keyword {
             Dan => "dan",
             Atau => "atau",
             Bukan => "bukan",
+            Sebagai => "sebagai",
         }
     }
 }

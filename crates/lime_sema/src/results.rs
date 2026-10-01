@@ -25,6 +25,8 @@ pub enum Builtin {
     Dorong,
     Pada,
     Atur,
+    BitaPada,
+    CetakBita,
 }
 
 #[derive(Clone, Debug)]

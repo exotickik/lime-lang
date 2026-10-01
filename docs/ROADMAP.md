@@ -54,9 +54,11 @@ Legend: ✅ done · 🟡 in progress · ⬜ planned
 
 ## Phase 4 — Runtime + standard library
 - 🟡 `tampilkan` I/O builtin (implemented via libc FFI)
-- 🟡 String model: UTF-8, immutable value semantics, content comparison
-  (`strcmp`), byte length (`panjang`/`strlen`); concatenation, slicing,
-  indexing, and owned strings pending the allocator
+- 🟡 String model: UTF-8 immutable `teks` with content comparison (`strcmp`) and
+  byte length; **dynamic text** via `daftar<bita>` byte buffers — `bita_pada`
+  (read), `cetak_bita` (write), and the Lime-written `Teks` module
+  (`tambah_teks`/`tambah_angka`/…) for building strings. Numeric/char casts via
+  `sebagai`. Heap-owned `teks` values and slicing are follow-ups
 - 🟡 `lime/std` (Phase 14): standard library written in Lime and embedded in the
   compiler, pulled in with `gunakan`. Shipping now: `Inti` (maks/min/mutlak/
   batas/tanda) and `Matematika` (pangkat/fpb/kpk/apakah_prima/faktorial). io,

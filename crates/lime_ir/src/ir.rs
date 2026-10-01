@@ -50,6 +50,10 @@ pub enum CastKind {
     Trunc,
     FpExt,
     FpTrunc,
+    SiToFp,
+    UiToFp,
+    FpToSi,
+    FpToUi,
 }
 
 #[derive(Clone, Debug)]

@@ -365,6 +365,7 @@ fn expr_str(expr: &Expr, parent_prec: u8) -> String {
         }
         ExprKind::Deref(inner) => format!("*{}", expr_str(inner, 7)),
         ExprKind::Try(inner) => format!("coba {}", expr_str(inner, 7)),
+        ExprKind::Cast { expr, ty } => format!("{} sebagai {}", expr_str(expr, 7), type_str(ty)),
     }
 }
 

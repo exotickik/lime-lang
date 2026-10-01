@@ -79,7 +79,8 @@ and_expr       = eq_expr  { ( "dan"  | "&&" ) eq_expr } ;
 eq_expr        = rel_expr { ( "==" | "!=" ) rel_expr } ;
 rel_expr       = add_expr { ( "<" | "<=" | ">" | ">=" ) add_expr } ;
 add_expr       = mul_expr { ( "+" | "-" ) mul_expr } ;
-mul_expr       = unary    { ( "*" | "/" | "%" ) unary } ;
+mul_expr       = cast     { ( "*" | "/" | "%" ) cast } ;
+cast           = unary { "sebagai" type } ;            (* numeric/char conversion *)
 unary          = ( "-" | "!" | "bukan" | "*" | "coba" ) unary
                                                        (* "*" derefs a reference; "coba" propagates a Hasil *)
                | postfix ;

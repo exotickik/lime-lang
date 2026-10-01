@@ -631,6 +631,10 @@ fn cast_opname(kind: CastKind) -> &'static str {
         CastKind::Trunc => "trunc",
         CastKind::FpExt => "fpext",
         CastKind::FpTrunc => "fptrunc",
+        CastKind::SiToFp => "sitofp",
+        CastKind::UiToFp => "uitofp",
+        CastKind::FpToSi => "fptosi",
+        CastKind::FpToUi => "fptoui",
     }
 }
 

@@ -284,6 +284,7 @@ pub enum ExprKind {
 
     Deref(Box<Expr>),
     Try(Box<Expr>),
+    Cast { expr: Box<Expr>, ty: TypeExpr },
 }
 
 #[derive(Clone, Debug)]

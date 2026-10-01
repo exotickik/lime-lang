@@ -1,55 +1,57 @@
-# Phase 16 (Collections) — Design Assessment
+# Phase 17 (Dynamic text + casts) — Design Assessment
 
-Baseline: `main` after the optimizer — 245 tests, 0 warnings. This is the first
-self-hosting prerequisite: a growable collection.
+Baseline: `main` after collections — 256 tests, 0 warnings. Second self-hosting
+prerequisite: manipulating text.
 
 ## Goal
 
-A real dynamic array `daftar<T>` (list/vector): heap-backed, growable, bounds
-checked, owned (freed on drop). Not a fixed `[T; N]` — it grows at runtime.
+Build and scan text dynamically — enough for a compiler to read source and emit
+output — without the dangling-pointer problem of a heap-owned `teks` on the
+current Copy-string model.
 
-## Model
+## Approach
 
-`daftar<T>` is an **Owned** (`milik`) value laid out as `{ data: *T, len, cap }`.
-It owns its heap buffer and frees it deterministically on drop, exactly like
-`kotak<T>`. For this phase `T` must be Copy (`salinan`), so elements need no
-per-element drop — the same restriction `Hasil` uses, and enough for the
-self-hosting data (`daftar<angka>`, `daftar<teks>`, `daftar<struct-of-copy>`).
+Text is a **byte buffer**: `daftar<bita>` (the growable list from Phase 16, over
+`u8`). This reuses the owned, bounds-checked, deterministically-freed list
+instead of inventing an owned-string type whose borrowed `i8*` could dangle.
 
-## Operations (builtins, reference-based like the borrow model)
+Two primitives bridge `teks` and byte buffers:
+- `bita_pada(s, i) -> bita` — read byte `i` of a `teks` (bounds-checked via
+  `strlen`), for scanning input.
+- `cetak_bita(&daftar<bita>)` — write a byte buffer to output (`printf %.*s`).
 
-- `daftar()` — a new empty list; element type from the expected type in scope.
-- `dorong(ambil_ubah(d), x)` — append `x`, growing (via `realloc`, doubling) when
-  full.
-- `pada(ambil(d), i) -> T` — element `i`, runtime bounds-checked (abort on OOB).
-- `atur(ambil_ubah(d), i, x)` — overwrite element `i`, bounds-checked.
-- `panjang(ambil(d)) -> angka` — current length (extends the existing `panjang`).
+String *building* is then written **in Lime** as the `Teks` library module
+(`tambah_teks`, `tambah_angka`, `tambah_bita`, `baris_baru`), appending into a
+`&ubah daftar<bita>`. Those functions forward the mutable list reference through
+calls, which the borrow checker already governs.
 
-Accessors take references so they never consume the list, consistent with the
-reference/borrow rules; the borrow checker already governs the loans.
+## Casts (`sebagai`) — the enabling sub-feature
+
+Building text needs integer↔byte conversion (`(48 + d) sebagai bita`), and Lime
+had no cast. Added `e sebagai T`: a cast expression binding tighter than binary
+operators, type-checked to numeric/`karakter` sources and targets (`E02F0`
+otherwise), lowered via the existing `Cast` IR op. The `CastKind` set gained
+`sitofp`/`uitofp`/`fptosi`/`fptoui`, and the lowering helper now covers int↔int,
+int↔float, float↔float, and int↔`karakter`.
 
 ## Implementation
 
-Reuses the tested Lime-IR → LLVM path rather than hand-written LLVM:
+- Lexer keyword `sebagai`; AST `ExprKind::Cast`; a `parse_cast` layer under the
+  binary parser; sema `check_cast`; lowering through `cast()`.
+- Builtins `bita_pada` / `cetak_bita`, using a flat `GepElem` into the `teks`
+  pointer and the list buffer; `Teks` added to the embedded std registry.
 
-- New `Type::Daftar(T)`, lowered to the aggregate `{ ptr, i64, i64 }`.
-- Two new IR ops: `SizeOf { ty }` (byte size of `T`, via the null-GEP/ptrtoint
-  trick already used by `kotak`) and `GepElem { base, elem_ty, index }` (a flat
-  `getelementptr T, ptr base, i64 index` for buffer indexing).
-- `dorong` lowers to real IR: load `len`/`cap` through the `&ubah` reference,
-  branch to a grow block that `realloc`s and doubles capacity, then store the
-  element and bump `len`. `elemen`/`atur` bounds-check `i` against the runtime `len`
-  and load/store through `GepElem`. `daftar()` builds `{ null, 0, 0 }`.
-- Ownership: `daftar<T>` is Owned; its drop frees the buffer (`free`). Moves,
-  use-after-move, and drops reuse the existing ownership machinery.
+## Validation
 
-## Diagnostics
-
-`E02E0` — collection builtin misuse (wrong arity/receiver, non-Copy element, or a
-`daftar()` with no inferable element type).
+Casts (`300 sebagai bita`, `3 sebagai f64`, …), reading a string's bytes,
+building formatted output (numbers, signs, newlines) and reversing a string via a
+byte buffer all run; CLI and sema tests cover the cast rules and the text
+builtins; `examples/teks_dinamis.lime` builds a report.
 
 ## Non-goals this phase (documented)
 
-- Owned element types (need per-element drop over the buffer).
-- Insert/remove-at, iteration sugar, capacity control — follow-ups.
-- Maps/sets — a later collection once hashing/strings are richer.
+- A heap-owned `teks` value (so a built buffer becomes a first-class string) —
+  needs owned-string lifetime tracking; byte buffers cover the self-hosting need
+  meanwhile.
+- String slicing/searching helpers (can be written in `Teks` on top of these).
+- Bool casts; `karakter`↔float directly (go via an integer).

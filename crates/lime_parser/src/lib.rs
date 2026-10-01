@@ -733,8 +733,19 @@ impl<'a> Parser<'a> {
         })
     }
 
+    fn parse_cast(&mut self) -> PResult<Expr> {
+        let mut expr = self.parse_unary()?;
+        while self.eat_kw(Keyword::Sebagai) {
+            let ty = self.expect_type()?;
+            let span = expr.span.to(ty.span);
+            let id = self.node_id();
+            expr = Expr { id, kind: ExprKind::Cast { expr: Box::new(expr), ty }, span };
+        }
+        Ok(expr)
+    }
+
     fn parse_bin(&mut self, min_prec: u8) -> PResult<Expr> {
-        let mut lhs = self.parse_unary()?;
+        let mut lhs = self.parse_cast()?;
         while let Some((op, prec)) = Self::bin_prec(self.peek()) {
             if prec < min_prec {
                 break;

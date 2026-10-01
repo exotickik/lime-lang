@@ -5,54 +5,70 @@ fn lime() -> Command {
     Command::new(env!("CARGO_BIN_EXE_lime"))
 }
 
+fn dir(tag: &str) -> PathBuf {
+    let d = std::env::temp_dir().join(format!("lime_str_{}_{}", tag, std::process::id()));
+    std::fs::create_dir_all(&d).unwrap();
+    d
+}
+
 fn run_source(tag: &str, src: &str) -> (String, i32) {
-    let dir = std::env::temp_dir().join(format!("lime_str_{}_{}", tag, std::process::id()));
-    std::fs::create_dir_all(&dir).unwrap();
-    let path = dir.join("prog.lime");
+    let path = dir(tag).join("prog.lime");
     std::fs::write(&path, src).unwrap();
     let out = lime().arg("run").arg(&path).output().unwrap();
     (String::from_utf8_lossy(&out.stdout).into_owned(), out.status.code().unwrap_or(-1))
 }
 
 #[test]
-fn content_equality_across_calls() {
-    let src = "program S\n\
-        fungsi bandingkan(a: teks, b: teks) -> boolean { kembalikan a == b }\n\
-        utama {\n\
-          jika bandingkan(\"halo\", \"halo\") { tampilkan(\"sama\") } lain { tampilkan(\"beda\") }\n\
-          jika bandingkan(\"halo\", \"dunia\") { tampilkan(\"sama\") } lain { tampilkan(\"beda\") }\n\
-        }";
-    let (out, code) = run_source("eq", src);
-    assert_eq!(out, "sama\nbeda\n");
+fn numeric_casts() {
+    let src = "program P\nutama {\n\
+        tampilkan(300 sebagai bita)\n\
+        tampilkan(65 sebagai karakter)\n\
+        tampilkan((3 sebagai f64) / 2)\n\
+        nilai b = 300 sebagai bita\n\
+        tampilkan(b sebagai angka)\n\
+    }";
+    let (out, code) = run_source("cast", src);
+    assert_eq!(out, "44\nA\n1.5\n44\n");
     assert_eq!(code, 0);
 }
 
 #[test]
-fn inequality_operator() {
-    let src = "program S\nutama { jika \"abc\" != \"abd\" { tampilkan(\"tidak sama\") } }";
-    let (out, _) = run_source("ne", src);
-    assert_eq!(out, "tidak sama\n");
+fn build_string_with_stdlib() {
+    let src = "program P\ngunakan Teks\nutama {\n\
+        ubah buf: daftar<bita> = daftar()\n\
+        tambah_teks(ambil_ubah(buf), \"jawaban = \")\n\
+        tambah_angka(ambil_ubah(buf), 42)\n\
+        baris_baru(ambil_ubah(buf))\n\
+        tambah_angka(ambil_ubah(buf), 0 - 123)\n\
+        baris_baru(ambil_ubah(buf))\n\
+        cetak_bita(ambil(buf))\n\
+    }";
+    let (out, _) = run_source("build", src);
+    assert_eq!(out, "jawaban = 42\n-123\n");
 }
 
 #[test]
-fn byte_length_ascii() {
-    let src = "program S\nutama { tampilkan(panjang(\"Selamat datang\")) }";
-    let (out, _) = run_source("len", src);
-    assert_eq!(out, "14\n");
+fn read_bytes_of_a_string() {
+    let src = "program P\nutama {\n\
+        nilai s = \"ABC\"\n\
+        tampilkan(bita_pada(s, 0) sebagai angka)\n\
+        tampilkan(bita_pada(s, 2) sebagai angka)\n\
+        tampilkan(panjang(s))\n\
+    }";
+    let (out, _) = run_source("read", src);
+    assert_eq!(out, "65\n67\n3\n");
 }
 
 #[test]
-fn byte_length_utf8() {
-    let src = "program S\nutama { tampilkan(panjang(\"lémon\")) tampilkan(panjang(\"🍋\")) }";
-    let (out, _) = run_source("utf8", src);
-    assert_eq!(out, "6\n4\n");
-}
-
-#[test]
-fn string_returned_from_function() {
-    let src = "program S\n\
-        fungsi pilih(x: angka) -> teks { jika x > 0 { kembalikan \"positif\" } kembalikan \"non-positif\" }\n\
-        utama { tampilkan(pilih(5)) tampilkan(pilih(0)) }";
-    let (out, _) = run_source("ret", src);
-    assert_eq!(out, "positif\nnon-positif\n");
+fn reverse_a_string_via_byte_buffer() {
+    let src = "program P\ngunakan Teks\nutama {\n\
+        nilai s = \"halo\"\n\
+        ubah buf: daftar<bita> = daftar()\n\
+        ubah i = panjang(s) - 1\n\
+        selama i >= 0 { dorong(ambil_ubah(buf), bita_pada(s, i)) i = i - 1 }\n\
+        baris_baru(ambil_ubah(buf))\n\
+        cetak_bita(ambil(buf))\n\
+    }";
+    let (out, _) = run_source("rev", src);
+    assert_eq!(out, "olah\n");
 }

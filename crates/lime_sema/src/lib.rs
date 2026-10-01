@@ -929,6 +929,38 @@ mod tests {
     }
 
     #[test]
+    fn numeric_cast_ok() {
+        let d = check(
+            "program P\nutama { nilai a = 300 nilai b = a sebagai bita tampilkan(b) \
+             nilai c = 3 sebagai f64 tampilkan(c) }",
+        );
+        assert!(!d.has_errors(), "{:?}", d.diagnostics());
+    }
+
+    #[test]
+    fn cast_non_numeric_rejected() {
+        let d = check("program P\nutama { nilai s = \"x\" nilai n = s sebagai angka }");
+        assert!(has_code(&d, codes::E_INVALID_CAST));
+    }
+
+    #[test]
+    fn byte_string_building_ok() {
+        let d = check(
+            "program P\nutama { ubah b: daftar<bita> = daftar() \
+             dorong(ambil_ubah(b), bita_pada(\"hi\", 0)) \
+             dorong(ambil_ubah(b), (65 + 1) sebagai bita) \
+             cetak_bita(ambil(b)) }",
+        );
+        assert!(!d.has_errors(), "{:?}", d.diagnostics());
+    }
+
+    #[test]
+    fn bita_pada_requires_teks() {
+        let d = check("program P\nutama { nilai n = 5 tampilkan(bita_pada(n, 0)) }");
+        assert!(has_code(&d, codes::E_COLLECTION_MISUSE));
+    }
+
+    #[test]
     fn daftar_moves_like_owned() {
         let d = check(
             "program P\nfungsi konsumsi(d: daftar<angka>) -> angka { kembalikan panjang(ambil(d)) }\n\

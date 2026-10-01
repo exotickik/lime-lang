@@ -132,8 +132,11 @@ resolved and checked at compile time; there is no exception machinery.
 
 The bootstrap uses **invariant, name-based** assignability: `S` is assignable to
 `T` iff `S == T` (structurally for primitives, by `StructId` for structs). There
-is no subtyping and no implicit coercion. Explicit conversions (`sebagai`, a
-`cast` operator) are **planned** and will be the only way to change numeric type.
+is no subtyping and no implicit coercion. The only way to change a numeric type
+is an **explicit cast** `e sebagai T`: it converts between integer types
+(sign/zero-extend or truncate), between integers and floats (`sitofp`/`fptosi`),
+between float widths, and to/from `karakter`. A cast whose source or target is
+not numeric or `karakter` is `E02F0`.
 
 ## Control-flow checking
 
@@ -271,3 +274,4 @@ method bodies, associated types/constants, and blanket or generic impls.
 | E02C0 | akses item lintas modul yang tidak `publik` atau belum di-`impor` |
 | E02D0 | penyalahgunaan `mulai`/`tunggu` (pekerja/argumen/handle salah) |
 | E02E0 | penyalahgunaan builtin `daftar` (arity/penerima/elemen milik) |
+| E02F0 | konversi 'sebagai' tidak valid (bukan numerik/karakter) |

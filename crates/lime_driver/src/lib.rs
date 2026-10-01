@@ -116,7 +116,7 @@ impl Compiler {
                                     format!("modul pustaka '{}' tidak dikenal", name.name),
                                 )
                                 .primary(name.span, "bukan modul standar")
-                                .help("modul standar yang tersedia: Inti, Matematika"),
+                                .help("modul standar yang tersedia: Inti, Matematika, Teks"),
                             );
                         } else {
                             queue.push((ModSource::Std(name.name.clone()), false));
@@ -238,6 +238,7 @@ fn std_source(name: &str) -> Option<&'static str> {
     match name {
         "Inti" => Some(include_str!("../../../std/Inti.lime")),
         "Matematika" => Some(include_str!("../../../std/Matematika.lime")),
+        "Teks" => Some(include_str!("../../../std/Teks.lime")),
         _ => None,
     }
 }

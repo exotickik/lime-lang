@@ -549,6 +549,12 @@ impl<'a> FnLowerer<'a> {
                 Operand::Val(dst)
             }
             ExprKind::Try(inner) => self.lower_try(inner),
+            ExprKind::Cast { expr: inner, .. } => {
+                let from = self.results.expr_type(inner.id).clone();
+                let to = self.results.expr_type(expr.id).clone();
+                let val = self.lower_expr(inner);
+                self.cast(val, from, to)
+            }
         }
     }
 
@@ -1278,6 +1284,52 @@ impl<'a> FnLowerer<'a> {
                 Operand::Unit
             }
             Some(Res::Builtin(Builtin::Pada)) => self.lower_pada(&args[0], &args[1]),
+            Some(Res::Builtin(Builtin::BitaPada)) => {
+                self.module.needs_strlen = true;
+                let s = self.lower_expr(&args[0]);
+                let len = self.fresh_value();
+                self.emit(
+                    Some(len),
+                    InstrKind::Call {
+                        callee: "strlen".to_string(),
+                        args: vec![s.clone()],
+                        ret: Type::I64,
+                        variadic_from: None,
+                    },
+                );
+                let idx_ty = self.results.expr_type(args[1].id).clone();
+                let raw = self.lower_expr(&args[1]);
+                let idx = self.cast(raw, idx_ty, Type::I64);
+                self.bounds_check_op(idx.clone(), Operand::Val(len));
+                let slot = self.fresh_value();
+                self.emit(
+                    Some(slot),
+                    InstrKind::GepElem { base: s, elem_ty: Type::U8, index: idx },
+                );
+                let dst = self.fresh_value();
+                self.emit(Some(dst), InstrKind::LoadPtr { ptr: Operand::Val(slot), ty: Type::U8 });
+                Operand::Val(dst)
+            }
+            Some(Res::Builtin(Builtin::CetakBita)) => {
+                self.module.needs_printf = true;
+                let (ref_ptr, daftar_ty, _) = self.daftar_parts(&args[0]);
+                let datap = self.daftar_field_ptr(ref_ptr.clone(), &daftar_ty, 0);
+                let lenp = self.daftar_field_ptr(ref_ptr, &daftar_ty, 1);
+                let data = self.fresh_value();
+                self.emit(
+                    Some(data),
+                    InstrKind::LoadPtr {
+                        ptr: datap,
+                        ty: Type::Ref { inner: Box::new(Type::U8), mutable: true },
+                    },
+                );
+                let len = self.fresh_value();
+                self.emit(Some(len), InstrKind::LoadPtr { ptr: lenp, ty: Type::I64 });
+                let len32 = self.cast(Operand::Val(len), Type::I64, Type::I32);
+                let fmt = self.fmt_global("%.*s");
+                self.call_printf(fmt, vec![len32, Operand::Val(data)]);
+                Operand::Unit
+            }
             Some(Res::Builtin(Builtin::Atur)) => {
                 self.lower_atur(&args[0], &args[1], &args[2]);
                 Operand::Unit
@@ -1841,34 +1893,48 @@ impl<'a> FnLowerer<'a> {
         if from == to {
             return val;
         }
-        let kind = match (&from, &to) {
-            (Type::Int { width: fw, signed }, Type::Int { width: tw, .. }) => {
-                if tw.bits() > fw.bits() {
-                    if *signed {
+        let int_like = |t: &Type| -> Option<(u32, bool)> {
+            match t {
+                Type::Int { width, signed } => Some((width.bits(), *signed)),
+                Type::Char => Some((32, false)),
+                _ => None,
+            }
+        };
+        let kind = match (int_like(&from), int_like(&to), &from, &to) {
+            (Some((fb, signed)), Some((tb, _)), _, _) => {
+                if tb > fb {
+                    if signed {
                         CastKind::SExt
                     } else {
                         CastKind::ZExt
                     }
-                } else if tw.bits() < fw.bits() {
+                } else if tb < fb {
                     CastKind::Trunc
                 } else {
                     return val;
                 }
             }
-            (Type::Char, Type::Int { width, .. }) => {
-                if width.bits() > 32 {
-                    CastKind::ZExt
-                } else if width.bits() < 32 {
-                    CastKind::Trunc
+            (Some((_, signed)), None, _, Type::Float(_)) => {
+                if signed {
+                    CastKind::SiToFp
                 } else {
-                    return val;
+                    CastKind::UiToFp
                 }
             }
-            (Type::Float(fw), Type::Float(tw)) => {
+            (None, Some((_, signed)), Type::Float(_), _) => {
+                if signed {
+                    CastKind::FpToSi
+                } else {
+                    CastKind::FpToUi
+                }
+            }
+            (None, None, Type::Float(fw), Type::Float(tw)) => {
                 if tw.bits() > fw.bits() {
                     CastKind::FpExt
-                } else {
+                } else if tw.bits() < fw.bits() {
                     CastKind::FpTrunc
+                } else {
+                    return val;
                 }
             }
             _ => return val,

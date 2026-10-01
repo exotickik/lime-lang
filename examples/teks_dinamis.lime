@@ -1,0 +1,23 @@
+program TeksDinamis
+
+gunakan Teks
+
+fungsi tulis_baris(buf: &ubah daftar<bita>, label: teks, nilai_angka: angka) {
+    tambah_teks(buf, label)
+    tambah_angka(buf, nilai_angka)
+    baris_baru(buf)
+}
+
+utama {
+    ubah keluaran: daftar<bita> = daftar()
+    ubah n = 1
+    ubah total = 0
+    selama n <= 5 {
+        total = total + n * n
+        tulis_baris(ambil_ubah(keluaran), "kuadrat terkumpul: ", total)
+        n = n + 1
+    }
+    tambah_teks(ambil_ubah(keluaran), "selesai")
+    baris_baru(ambil_ubah(keluaran))
+    cetak_bita(ambil(keluaran))
+}
