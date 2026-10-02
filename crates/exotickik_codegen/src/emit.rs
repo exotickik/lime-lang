@@ -40,6 +40,9 @@ pub fn emit_module(module: &Module, target: &Target) -> String {
     if module.needs_malloc {
         writeln!(out, "declare ptr @malloc(i64)").ok();
     }
+    if module.needs_calloc {
+        writeln!(out, "declare ptr @calloc(i64, i64)").ok();
+    }
     if module.needs_free {
         writeln!(out, "declare void @free(ptr)").ok();
     }
@@ -66,6 +69,7 @@ pub fn emit_module(module: &Module, target: &Target) -> String {
         || module.needs_strcmp
         || module.needs_strlen
         || module.needs_malloc
+        || module.needs_calloc
         || module.needs_free
         || !module.externs.is_empty()
     {
@@ -267,6 +271,12 @@ fn emit_instr(
                 Type::Hasil { ok, err } => vec![Type::I32, (**ok).clone(), (**err).clone()],
                 Type::Daftar(t) => vec![
                     Type::Ref { inner: t.clone(), mutable: true },
+                    Type::I64,
+                    Type::I64,
+                ],
+                Type::Peta { key, val } => vec![
+                    Type::Ref { inner: key.clone(), mutable: true },
+                    Type::Ref { inner: val.clone(), mutable: true },
                     Type::I64,
                     Type::I64,
                 ],
@@ -526,6 +536,7 @@ fn ty_str(ty: &Type) -> String {
         Type::Hasil { ok, err } => format!("{{ i32, {}, {} }}", ty_str(ok), ty_str(err)),
         Type::Utas(_) => "i64".to_string(),
         Type::Daftar(_) => "{ ptr, i64, i64 }".to_string(),
+        Type::Peta { .. } => "{ ptr, ptr, i64, i64 }".to_string(),
         Type::Param(_) => "void".to_string(),
         Type::Fn { .. } => "ptr".to_string(),
         Type::Ptr => "ptr".to_string(),

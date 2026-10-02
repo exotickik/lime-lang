@@ -115,6 +115,20 @@ own C-ABI FFI path — no separate allocator library. Growable containers
   `daftar<T>` is Owned (frees its buffer on drop); `T` must be Copy for now. See
   `docs/MEMORY_MODEL.md`.
 
+### Maps (`peta<K, V>`)
+- `peta()` — a new empty hash map `peta<K, V>` (type from context).
+- `taruh(ambil_ubah(m), k, v)` — insert or overwrite key `k` with value `v`.
+- `ambil_peta(ambil(m), k, cadangan) -> V` — value for `k`, or `cadangan` if absent.
+- `ada(ambil(m), k) -> boolean` — is key `k` present?
+- `panjang(ambil(m)) -> angka` — number of entries.
+
+  `peta<K, V>` is a real open-addressing hash table (polynomial string hash, linear
+  probing, automatic growth and rehash at 75% load). It is Owned (frees its two
+  buffers on drop). Keys are `teks` for now (string-keyed — the shape symbol
+  tables, interning, and module tables need); integer keys are a documented
+  follow-up. Values must be Copy. Usable as a function parameter by reference
+  (`&peta<K, V>` / `&ubah peta<K, V>`). See `docs/MEMORY_MODEL.md`.
+
 ### Concurrency
 - `mulai(f, n)` — run `f` (a `fungsi(angka) -> angka`) on a new OS thread with
   argument `n`; returns a thread handle `Utas<angka>`.

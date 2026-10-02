@@ -1,0 +1,24 @@
+program Peta
+
+utama {
+    ubah kata: daftar<teks> = daftar()
+    dorong(ambil_ubah(kata), "apel")
+    dorong(ambil_ubah(kata), "jeruk")
+    dorong(ambil_ubah(kata), "apel")
+    dorong(ambil_ubah(kata), "apel")
+    dorong(ambil_ubah(kata), "jeruk")
+    dorong(ambil_ubah(kata), "pisang")
+    ubah hitung: peta<teks, angka> = peta()
+    nilai n = panjang(ambil(kata))
+    ubah i: angka = 0
+    selama i < n {
+        nilai w = elemen(ambil(kata), i)
+        nilai c = ambil_peta(ambil(hitung), w, 0)
+        taruh(ambil_ubah(hitung), w, c + 1)
+        i = i + 1
+    }
+    tampilkan(ambil_peta(ambil(hitung), "apel", 0))
+    tampilkan(ambil_peta(ambil(hitung), "jeruk", 0))
+    tampilkan(ambil_peta(ambil(hitung), "pisang", 0))
+    tampilkan(panjang(ambil(hitung)))
+}

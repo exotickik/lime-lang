@@ -102,6 +102,10 @@ generator selects signed vs unsigned instructions (`sdiv`/`udiv`,
   (`milik`): it owns its buffer and frees it on drop. Built with `daftar()`;
   `dorong`/`elemen`/`atur`/`panjang` append, read, write, and measure it. `T`
   must be Copy for now. See §7.2.
+- **`peta<K, V>`**: a growable hash map (open addressing, linear probing, rehash
+  on growth). Owned (`milik`): frees its buffers on drop. Built with `peta()`;
+  `taruh`/`ambil_peta`/`ada`/`panjang` insert, look up, test, and count. Keys are
+  `teks` for now; `V` must be Copy. See `docs/STANDARD_LIBRARY.md`.
 - **Function value** `fungsi(A, B) -> R`: a first-class reference to a function.
   A function name used as a value yields a function pointer; it can be stored,
   passed, returned, and called (`f(x)`). It is a bare machine pointer (Copy, no

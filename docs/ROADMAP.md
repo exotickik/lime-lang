@@ -154,9 +154,13 @@ Legend: ✅ done · 🟡 in progress · ⬜ planned
   alternative to the arena `Node` struct, not a hard blocker)
 - ⬜ Heap-recursive data types (nullable box / optional variant). Not required for
   an AST — the arena approach works today — but would enable pointer-based trees
-- ⬜ `peta<K, V>` map (symbol tables, interning) — the most load-bearing missing
-  container; then generic structs/enums, owned `teks`, and `Hasil` with owned
-  payloads (identifiers and diagnostics)
+- ✅ `peta<K, V>` hash map (Phase 27): real open-addressing table (polynomial
+  string hash, linear probing, automatic growth + rehash), `peta`/`taruh`/
+  `ambil_peta`/`ada`/`panjang`, Owned with deterministic buffer cleanup, usable by
+  reference. `teks` keys (symbol tables, interning, module tables); integer keys a
+  follow-up
+- ⬜ Generic structs/enums, owned `teks`, and `Hasil` with owned payloads
+  (identifiers and diagnostics)
 - ⬜ Port the bootstrap front end to Exotickik component by component, validated with
   `exotickik test` against the Rust bootstrap
 

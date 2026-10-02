@@ -1064,6 +1064,40 @@ mod tests {
     }
 
     #[test]
+    fn peta_ok() {
+        let d = check(
+            "program P\nutama { ubah m: peta<teks, angka> = peta() \
+             taruh(ambil_ubah(m), \"a\", 1) \
+             nilai v = ambil_peta(ambil(m), \"a\", 0) \
+             jika ada(ambil(m), \"a\") { } tampilkan(v) tampilkan(panjang(ambil(m))) }",
+        );
+        assert!(!d.has_errors(), "{:?}", d.diagnostics());
+    }
+
+    #[test]
+    fn peta_non_teks_key_errors() {
+        let d = check(
+            "program P\nutama { ubah m: peta<angka, angka> = peta() taruh(ambil_ubah(m), 1, 2) }",
+        );
+        assert!(has_code(&d, codes::E_COLLECTION_MISUSE));
+    }
+
+    #[test]
+    fn peta_owned_value_errors() {
+        let d = check("program P\nutama { ubah m: peta<teks, daftar<angka>> = peta() tampilkan(1) }");
+        assert!(has_code(&d, codes::E_COLLECTION_MISUSE));
+    }
+
+    #[test]
+    fn peta_moves_like_owned() {
+        let d = check(
+            "program P\nfungsi konsumsi(m: peta<teks, angka>) -> angka { kembalikan panjang(ambil(m)) }\n\
+             utama { ubah m: peta<teks, angka> = peta() nilai n = konsumsi(m) tampilkan(panjang(ambil(m))) }",
+        );
+        assert!(has_code(&d, codes::E_USE_AFTER_MOVE));
+    }
+
+    #[test]
     fn daftar_moves_like_owned() {
         let d = check(
             "program P\nfungsi konsumsi(d: daftar<angka>) -> angka { kembalikan panjang(ambil(d)) }\n\

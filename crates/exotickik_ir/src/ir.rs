@@ -167,6 +167,7 @@ pub struct Module {
     pub needs_strcmp: bool,
     pub needs_strlen: bool,
     pub needs_malloc: bool,
+    pub needs_calloc: bool,
     pub needs_free: bool,
     pub needs_pthread: bool,
     pub needs_realloc: bool,

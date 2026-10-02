@@ -30,6 +30,10 @@ pub enum Builtin {
     BacaFile,
     TulisFile,
     Kosong,
+    PetaBaru,
+    Taruh,
+    AmbilPeta,
+    Ada,
 }
 
 #[derive(Clone, Debug)]

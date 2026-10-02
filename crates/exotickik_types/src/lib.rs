@@ -54,6 +54,7 @@ pub enum Type {
     Hasil { ok: Box<Type>, err: Box<Type> },
     Utas(Box<Type>),
     Daftar(Box<Type>),
+    Peta { key: Box<Type>, val: Box<Type> },
     Fn { params: Vec<Type>, ret: Box<Type> },
     Param(String),
     Ptr,
@@ -145,6 +146,7 @@ impl Type {
             Type::Hasil { ok, err } => format!("Hasil<{}, {}>", ok.display(), err.display()),
             Type::Utas(r) => format!("Utas<{}>", r.display()),
             Type::Daftar(t) => format!("daftar<{}>", t.display()),
+            Type::Peta { key, val } => format!("peta<{}, {}>", key.display(), val.display()),
             Type::Param(name) => name.clone(),
             Type::Fn { params, ret } => {
                 let ps: Vec<String> = params.iter().map(|t| t.display()).collect();

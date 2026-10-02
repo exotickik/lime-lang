@@ -22,6 +22,7 @@ Type =
   | Hasil { ok: Type, err: Type }                 // recoverable result Hasil<T, R>
   | Utas(Type)                                    // OS-thread handle Utas<R>
   | Daftar(Type)                                  // growable list daftar<T>
+  | Peta { key: Type, val: Type }                 // hash map peta<K, V>
   | Fn { params: [Type], ret: Type }              // function value type fungsi(A)->R
   | Param(String)                                 // generic type variable
   | Ptr                                           // opaque FFI handle (pointer)

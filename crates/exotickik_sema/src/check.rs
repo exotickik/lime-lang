@@ -665,6 +665,10 @@ impl<'a> Checker<'a> {
         self.globals.insert("baca_file".to_string(), Res::Builtin(Builtin::BacaFile));
         self.globals.insert("tulis_file".to_string(), Res::Builtin(Builtin::TulisFile));
         self.globals.insert("kosong".to_string(), Res::Builtin(Builtin::Kosong));
+        self.globals.insert("peta".to_string(), Res::Builtin(Builtin::PetaBaru));
+        self.globals.insert("taruh".to_string(), Res::Builtin(Builtin::Taruh));
+        self.globals.insert("ambil_peta".to_string(), Res::Builtin(Builtin::AmbilPeta));
+        self.globals.insert("ada".to_string(), Res::Builtin(Builtin::Ada));
     }
 
     fn check_bodies(&mut self, program: &Program) {
@@ -1518,16 +1522,18 @@ impl<'a> Checker<'a> {
                 }
                 let at = self.check_expr(&args[0], None);
                 let is_daftar_ref = self.ref_daftar(&at, false).is_some();
+                let is_peta_ref = self.ref_peta(&at, false).is_some();
                 if !at.is_error()
                     && !is_daftar_ref
+                    && !is_peta_ref
                     && !matches!(at, Type::Array { .. } | Type::Str)
                 {
                     self.diags.emit(
                         Diagnostic::error(
                             codes::E_INVALID_OPERAND,
-                            format!("'panjang' butuh larik, teks, atau '&daftar<T>', bukan '{}'", at.display()),
+                            format!("'panjang' butuh larik, teks, '&daftar<T>', atau '&peta<K, V>', bukan '{}'", at.display()),
                         )
-                        .primary(args[0].span, "bukan larik, teks, atau daftar"),
+                        .primary(args[0].span, "bukan larik, teks, daftar, atau peta"),
                     );
                 }
                 Type::I64
@@ -1715,6 +1721,13 @@ impl<'a> Checker<'a> {
                 }
                 Type::Ptr
             }
+            Some(Res::Builtin(b @ Builtin::PetaBaru))
+            | Some(Res::Builtin(b @ Builtin::Taruh))
+            | Some(Res::Builtin(b @ Builtin::AmbilPeta))
+            | Some(Res::Builtin(b @ Builtin::Ada)) => {
+                self.results.name_res.insert(callee.id, Res::Builtin(b));
+                self.check_peta_builtin(b, call, args, expected)
+            }
             Some(Res::Local(_)) => self.check_indirect_call(call, callee, args),
             Some(_) | None => {
                 self.diags.emit(
@@ -1739,6 +1752,18 @@ impl<'a> Checker<'a> {
             }
             if let Type::Daftar(t) = &**inner {
                 return Some((**t).clone());
+            }
+        }
+        None
+    }
+
+    fn ref_peta(&self, ty: &Type, need_mut: bool) -> Option<(Type, Type)> {
+        if let Type::Ref { inner, mutable } = ty {
+            if need_mut && !*mutable {
+                return None;
+            }
+            if let Type::Peta { key, val } = &**inner {
+                return Some(((**key).clone(), (**val).clone()));
             }
         }
         None
@@ -1870,6 +1895,151 @@ impl<'a> Checker<'a> {
                     }
                 }
                 Type::Unit
+            }
+            _ => Type::Error,
+        }
+    }
+
+    fn check_peta_builtin(
+        &mut self,
+        b: Builtin,
+        call: &Expr,
+        args: &[Expr],
+        expected: Option<&Type>,
+    ) -> Type {
+        match b {
+            Builtin::PetaBaru => {
+                if !args.is_empty() {
+                    self.collection_error(call.span, "'peta()' tidak menerima argumen");
+                    for a in args {
+                        self.check_expr(a, None);
+                    }
+                }
+                match expected {
+                    Some(Type::Peta { key, val }) => {
+                        if **key != Type::Str {
+                            self.collection_error(
+                                call.span,
+                                format!("'peta' baru mendukung kunci 'teks', bukan '{}'", key.display()),
+                            );
+                        }
+                        if !self.is_copy(val) {
+                            self.collection_error(
+                                call.span,
+                                format!("'peta' belum mendukung nilai bertipe milik '{}'", val.display()),
+                            );
+                        }
+                        Type::Peta { key: key.clone(), val: val.clone() }
+                    }
+                    _ => {
+                        self.collection_error(call.span, "tipe 'peta' tidak bisa disimpulkan di sini");
+                        Type::Error
+                    }
+                }
+            }
+            Builtin::Taruh => {
+                if args.len() != 3 {
+                    self.collection_error(call.span, "'taruh' butuh 3 argumen (&ubah peta, kunci, nilai)");
+                    for a in args {
+                        self.check_expr(a, None);
+                    }
+                    return Type::Unit;
+                }
+                let mt = self.check_expr(&args[0], None);
+                match self.ref_peta(&mt, true) {
+                    Some((k, v)) => {
+                        let kt = self.check_expr(&args[1], Some(&k));
+                        if !kt.is_error() && !kt.assignable_to(&k) {
+                            self.collection_error(
+                                args[1].span,
+                                format!("kunci bertipe '{}', peta berkunci '{}'", kt.display(), k.display()),
+                            );
+                        }
+                        let vt = self.check_expr(&args[2], Some(&v));
+                        if !vt.is_error() && !vt.assignable_to(&v) {
+                            self.collection_error(
+                                args[2].span,
+                                format!("nilai bertipe '{}', peta berisi '{}'", vt.display(), v.display()),
+                            );
+                        }
+                    }
+                    None => {
+                        self.check_expr(&args[1], None);
+                        self.check_expr(&args[2], None);
+                        if !mt.is_error() {
+                            self.collection_error(
+                                args[0].span,
+                                "'taruh' butuh '&ubah peta<K, V>' pada argumen pertama",
+                            );
+                        }
+                    }
+                }
+                Type::Unit
+            }
+            Builtin::AmbilPeta => {
+                if args.len() != 3 {
+                    self.collection_error(call.span, "'ambil_peta' butuh 3 argumen (&peta, kunci, cadangan)");
+                    for a in args {
+                        self.check_expr(a, None);
+                    }
+                    return Type::Error;
+                }
+                let mt = self.check_expr(&args[0], None);
+                match self.ref_peta(&mt, false) {
+                    Some((k, v)) => {
+                        let kt = self.check_expr(&args[1], Some(&k));
+                        if !kt.is_error() && !kt.assignable_to(&k) {
+                            self.collection_error(args[1].span, "kunci peta harus 'teks'");
+                        }
+                        let ct = self.check_expr(&args[2], Some(&v));
+                        if !ct.is_error() && !ct.assignable_to(&v) {
+                            self.collection_error(
+                                args[2].span,
+                                format!("cadangan bertipe '{}', peta berisi '{}'", ct.display(), v.display()),
+                            );
+                        }
+                        v
+                    }
+                    None => {
+                        self.check_expr(&args[1], None);
+                        self.check_expr(&args[2], None);
+                        if !mt.is_error() {
+                            self.collection_error(
+                                args[0].span,
+                                "'ambil_peta' butuh '&peta<K, V>' pada argumen pertama",
+                            );
+                        }
+                        Type::Error
+                    }
+                }
+            }
+            Builtin::Ada => {
+                if args.len() != 2 {
+                    self.collection_error(call.span, "'ada' butuh 2 argumen (&peta, kunci)");
+                    for a in args {
+                        self.check_expr(a, None);
+                    }
+                    return Type::Bool;
+                }
+                let mt = self.check_expr(&args[0], None);
+                match self.ref_peta(&mt, false) {
+                    Some((k, _)) => {
+                        let kt = self.check_expr(&args[1], Some(&k));
+                        if !kt.is_error() && !kt.assignable_to(&k) {
+                            self.collection_error(args[1].span, "kunci peta harus 'teks'");
+                        }
+                    }
+                    None => {
+                        self.check_expr(&args[1], None);
+                        if !mt.is_error() {
+                            self.collection_error(
+                                args[0].span,
+                                "'ada' butuh '&peta<K, V>' pada argumen pertama",
+                            );
+                        }
+                    }
+                }
+                Type::Bool
             }
             _ => Type::Error,
         }
@@ -2183,6 +2353,10 @@ impl<'a> Checker<'a> {
             TypeExprKind::Applied { name, args } if name == "daftar" && args.len() == 1 => {
                 Type::Daftar(Box::new(self.resolve_type_generic(&args[0], type_params)))
             }
+            TypeExprKind::Applied { name, args } if name == "peta" && args.len() == 2 => Type::Peta {
+                key: Box::new(self.resolve_type_generic(&args[0], type_params)),
+                val: Box::new(self.resolve_type_generic(&args[1], type_params)),
+            },
             TypeExprKind::Applied { .. } => Type::Error,
             TypeExprKind::Ref { inner, mutable } => Type::Ref {
                 inner: Box::new(self.resolve_type_generic(inner, type_params)),
@@ -2671,6 +2845,11 @@ impl<'a> Checker<'a> {
                     let t = self.resolve_type(&args[0]);
                     return Type::Daftar(Box::new(t));
                 }
+                if name == "peta" && args.len() == 2 {
+                    let k = self.resolve_type(&args[0]);
+                    let v = self.resolve_type(&args[1]);
+                    return Type::Peta { key: Box::new(k), val: Box::new(v) };
+                }
                 self.diags.emit(
                     Diagnostic::error(
                         codes::E_UNKNOWN_TYPE,
@@ -2702,6 +2881,7 @@ impl<'a> Checker<'a> {
             Type::Hasil { ok, err } => self.is_copy(ok) && self.is_copy(err),
             Type::Utas(_) => true,
             Type::Daftar(_) => false,
+            Type::Peta { .. } => false,
             Type::Param(_) => true,
             _ => true,
         }
@@ -2803,6 +2983,10 @@ fn is_builtin_name(name: &str) -> bool {
             | "baca_file"
             | "tulis_file"
             | "kosong"
+            | "peta"
+            | "taruh"
+            | "ambil_peta"
+            | "ada"
     )
 }
 
@@ -2839,6 +3023,13 @@ fn unify(pat: &Type, actual: &Type, subst: &mut HashMap<String, Type>) -> bool {
         Type::Daftar(t) => {
             if let Type::Daftar(t2) = actual {
                 unify(t, t2, subst)
+            } else {
+                false
+            }
+        }
+        Type::Peta { key, val } => {
+            if let Type::Peta { key: k2, val: v2 } = actual {
+                unify(key, k2, subst) && unify(val, v2, subst)
             } else {
                 false
             }
@@ -2886,6 +3077,10 @@ fn subst_type(ty: &Type, subst: &HashMap<String, Type>) -> Type {
         },
         Type::Utas(r) => Type::Utas(Box::new(subst_type(r, subst))),
         Type::Daftar(t) => Type::Daftar(Box::new(subst_type(t, subst))),
+        Type::Peta { key, val } => Type::Peta {
+            key: Box::new(subst_type(key, subst)),
+            val: Box::new(subst_type(val, subst)),
+        },
         Type::Fn { params, ret } => Type::Fn {
             params: params.iter().map(|p| subst_type(p, subst)).collect(),
             ret: Box::new(subst_type(ret, subst)),
@@ -2933,6 +3128,13 @@ fn type_to_type_expr_kind(ty: &Type, results: &TypeckResults) -> TypeExprKind {
         Type::Daftar(t) => TypeExprKind::Applied {
             name: "daftar".to_string(),
             args: vec![TypeExpr { kind: type_to_type_expr_kind(t, results), span: dummy_span() }],
+        },
+        Type::Peta { key, val } => TypeExprKind::Applied {
+            name: "peta".to_string(),
+            args: vec![
+                TypeExpr { kind: type_to_type_expr_kind(key, results), span: dummy_span() },
+                TypeExpr { kind: type_to_type_expr_kind(val, results), span: dummy_span() },
+            ],
         },
         other => TypeExprKind::Named(other.display()),
     }

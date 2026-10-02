@@ -9,6 +9,7 @@ pub fn is_copy(ty: &Type, results: &TypeckResults) -> bool {
     match ty {
         Type::Kotak(_) => false,
         Type::Daftar(_) => false,
+        Type::Peta { .. } => false,
         Type::Struct(id) => {
             results.structs[id.0 as usize].fields.iter().all(|f| is_copy(&f.ty, results))
         }

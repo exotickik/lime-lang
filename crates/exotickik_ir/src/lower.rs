@@ -167,6 +167,31 @@ impl<'a> FnLowerer<'a> {
                 self.module.needs_free = true;
                 self.emit(None, InstrKind::Free { ptr: Operand::Val(data) });
             }
+            Type::Peta { key, val } => {
+                self.module.needs_free = true;
+                let keysp = self.fresh_value();
+                self.emit(
+                    Some(keysp),
+                    InstrKind::ExtractField {
+                        agg: value.clone(),
+                        agg_ty: ty.clone(),
+                        index: 0,
+                        field_ty: Type::Ref { inner: key.clone(), mutable: true },
+                    },
+                );
+                self.emit(None, InstrKind::Free { ptr: Operand::Val(keysp) });
+                let valsp = self.fresh_value();
+                self.emit(
+                    Some(valsp),
+                    InstrKind::ExtractField {
+                        agg: value,
+                        agg_ty: ty.clone(),
+                        index: 1,
+                        field_ty: Type::Ref { inner: val.clone(), mutable: true },
+                    },
+                );
+                self.emit(None, InstrKind::Free { ptr: Operand::Val(valsp) });
+            }
             Type::Kotak(inner) => {
                 if !self.is_copy_ty(inner) {
                     let iv = self.fresh_value();
@@ -1322,6 +1347,31 @@ impl<'a> FnLowerer<'a> {
                 Operand::Val(dst)
             }
             Some(Res::Builtin(Builtin::Kosong)) => Operand::Null,
+            Some(Res::Builtin(Builtin::PetaBaru)) => {
+                let ty = self.results.expr_type(expr.id).clone();
+                let dst = self.fresh_value();
+                self.emit(
+                    Some(dst),
+                    InstrKind::MakeStruct {
+                        ty,
+                        fields: vec![
+                            Operand::Null,
+                            Operand::Null,
+                            Operand::ConstInt(0, Type::I64),
+                            Operand::ConstInt(0, Type::I64),
+                        ],
+                    },
+                );
+                Operand::Val(dst)
+            }
+            Some(Res::Builtin(Builtin::Taruh)) => {
+                self.lower_taruh(&args[0], &args[1], &args[2]);
+                Operand::Unit
+            }
+            Some(Res::Builtin(Builtin::AmbilPeta)) => {
+                self.lower_ambil_peta(&args[0], &args[1], &args[2])
+            }
+            Some(Res::Builtin(Builtin::Ada)) => self.lower_ada(&args[0], &args[1]),
             Some(Res::Builtin(Builtin::Dorong)) => {
                 self.lower_dorong(&args[0], &args[1]);
                 Operand::Unit
@@ -1494,6 +1544,13 @@ impl<'a> FnLowerer<'a> {
                     Type::Ref { inner, .. } if matches!(*inner, Type::Daftar(_)) => {
                         let (ref_ptr, daftar_ty, _) = self.daftar_parts(&args[0]);
                         let lenp = self.daftar_field_ptr(ref_ptr, &daftar_ty, 1);
+                        let dst = self.fresh_value();
+                        self.emit(Some(dst), InstrKind::LoadPtr { ptr: lenp, ty: Type::I64 });
+                        Operand::Val(dst)
+                    }
+                    Type::Ref { inner, .. } if matches!(*inner, Type::Peta { .. }) => {
+                        let (ref_ptr, peta_ty, _, _) = self.peta_parts(&args[0]);
+                        let lenp = self.daftar_field_ptr(ref_ptr, &peta_ty, 2);
                         let dst = self.fresh_value();
                         self.emit(Some(dst), InstrKind::LoadPtr { ptr: lenp, ty: Type::I64 });
                         Operand::Val(dst)
@@ -1822,6 +1879,472 @@ impl<'a> FnLowerer<'a> {
         let (slot, elem_ty) = self.daftar_elem_slot(dref, iexpr);
         let x = self.lower_expr(xexpr);
         self.emit(None, InstrKind::StorePtr { ptr: slot, ty: elem_ty, value: x });
+    }
+
+    fn bin_i64(&mut self, op: ArithOp, lhs: Operand, rhs: Operand, signed: bool) -> Operand {
+        let d = self.fresh_value();
+        self.emit(Some(d), InstrKind::Bin { op, ty: Type::I64, signed, lhs, rhs });
+        Operand::Val(d)
+    }
+
+    fn peta_parts(&mut self, mref: &Expr) -> (Operand, Type, Type, Type) {
+        let arg_ty = self.results.expr_type(mref.id).clone();
+        let peta_ty = match &arg_ty {
+            Type::Ref { inner, .. } => (**inner).clone(),
+            other => other.clone(),
+        };
+        let (key_ty, val_ty) = match &peta_ty {
+            Type::Peta { key, val } => ((**key).clone(), (**val).clone()),
+            _ => (Type::Str, Type::I64),
+        };
+        let ref_ptr = self.lower_expr(mref);
+        (ref_ptr, peta_ty, key_ty, val_ty)
+    }
+
+    fn hash_teks(&mut self, key: Operand) -> Operand {
+        let h_slot = self.new_slot(Type::I64);
+        let i_slot = self.new_slot(Type::I64);
+        self.emit(None, InstrKind::Store { slot: h_slot, value: Operand::ConstInt(0, Type::I64) });
+        self.emit(None, InstrKind::Store { slot: i_slot, value: Operand::ConstInt(0, Type::I64) });
+        let head = self.new_block();
+        let body = self.new_block();
+        let done = self.new_block();
+        self.set_term(Terminator::Br(head));
+        self.current = head;
+        let i = self.load_slot(i_slot, Type::I64);
+        let cptr = self.fresh_value();
+        self.emit(
+            Some(cptr),
+            InstrKind::GepElem { base: key, elem_ty: Type::U8, index: Operand::Val(i) },
+        );
+        let cb = self.fresh_value();
+        self.emit(Some(cb), InstrKind::LoadPtr { ptr: Operand::Val(cptr), ty: Type::U8 });
+        let c = self.cast(Operand::Val(cb), Type::U8, Type::I64);
+        let isnul = self.fresh_value();
+        self.emit(
+            Some(isnul),
+            InstrKind::Cmp {
+                pred: CmpPred::Eq,
+                ty: Type::I64,
+                signed: false,
+                lhs: c.clone(),
+                rhs: Operand::ConstInt(0, Type::I64),
+            },
+        );
+        self.set_term(Terminator::CondBr { cond: Operand::Val(isnul), then_bb: done, else_bb: body });
+        self.current = body;
+        let h = self.load_slot(h_slot, Type::I64);
+        let h31 = self.bin_i64(ArithOp::Mul, Operand::Val(h), Operand::ConstInt(31, Type::I64), false);
+        let hnew = self.bin_i64(ArithOp::Add, h31, c, false);
+        self.emit(None, InstrKind::Store { slot: h_slot, value: hnew });
+        let i1 = self.bin_i64(ArithOp::Add, Operand::Val(i), Operand::ConstInt(1, Type::I64), false);
+        self.emit(None, InstrKind::Store { slot: i_slot, value: i1 });
+        self.set_term(Terminator::Br(head));
+        self.current = done;
+        let hf = self.load_slot(h_slot, Type::I64);
+        Operand::Val(hf)
+    }
+
+    fn peta_probe(
+        &mut self,
+        keys: Operand,
+        cap: Operand,
+        key: Operand,
+        keyhash: Operand,
+    ) -> (Operand, Operand) {
+        self.module.needs_strcmp = true;
+        let idx_slot = self.new_slot(Type::I64);
+        let found_slot = self.new_slot(Type::Bool);
+        let start = self.bin_i64(ArithOp::Rem, keyhash, cap.clone(), false);
+        self.emit(None, InstrKind::Store { slot: idx_slot, value: start });
+        let head = self.new_block();
+        let checkb = self.new_block();
+        let emptyb = self.new_block();
+        let foundb = self.new_block();
+        let nextb = self.new_block();
+        let done = self.new_block();
+        self.set_term(Terminator::Br(head));
+        self.current = head;
+        let i = self.load_slot(idx_slot, Type::I64);
+        let kptr = self.fresh_value();
+        self.emit(
+            Some(kptr),
+            InstrKind::GepElem { base: keys, elem_ty: Type::Str, index: Operand::Val(i) },
+        );
+        let k = self.fresh_value();
+        self.emit(Some(k), InstrKind::LoadPtr { ptr: Operand::Val(kptr), ty: Type::Str });
+        let isnull = self.fresh_value();
+        self.emit(
+            Some(isnull),
+            InstrKind::Cmp {
+                pred: CmpPred::Eq,
+                ty: Type::Str,
+                signed: false,
+                lhs: Operand::Val(k),
+                rhs: Operand::Null,
+            },
+        );
+        self.set_term(Terminator::CondBr { cond: Operand::Val(isnull), then_bb: emptyb, else_bb: checkb });
+        self.current = emptyb;
+        self.emit(None, InstrKind::Store { slot: found_slot, value: Operand::ConstBool(false) });
+        self.set_term(Terminator::Br(done));
+        self.current = checkb;
+        let cmp = self.fresh_value();
+        self.emit(
+            Some(cmp),
+            InstrKind::Call {
+                callee: "strcmp".to_string(),
+                args: vec![Operand::Val(k), key],
+                ret: Type::I32,
+                variadic_from: None,
+            },
+        );
+        let eq = self.fresh_value();
+        self.emit(
+            Some(eq),
+            InstrKind::Cmp {
+                pred: CmpPred::Eq,
+                ty: Type::I32,
+                signed: true,
+                lhs: Operand::Val(cmp),
+                rhs: Operand::ConstInt(0, Type::I32),
+            },
+        );
+        self.set_term(Terminator::CondBr { cond: Operand::Val(eq), then_bb: foundb, else_bb: nextb });
+        self.current = foundb;
+        self.emit(None, InstrKind::Store { slot: found_slot, value: Operand::ConstBool(true) });
+        self.set_term(Terminator::Br(done));
+        self.current = nextb;
+        let i1 = self.bin_i64(ArithOp::Add, Operand::Val(i), Operand::ConstInt(1, Type::I64), false);
+        let ni = self.bin_i64(ArithOp::Rem, i1, cap, false);
+        self.emit(None, InstrKind::Store { slot: idx_slot, value: ni });
+        self.set_term(Terminator::Br(head));
+        self.current = done;
+        let fi = self.load_slot(idx_slot, Type::I64);
+        let ff = self.load_slot(found_slot, Type::Bool);
+        (Operand::Val(fi), Operand::Val(ff))
+    }
+
+    fn peta_ensure(&mut self, ref_ptr: Operand, peta_ty: &Type, key_ty: &Type, val_ty: &Type) {
+        self.module.needs_malloc = true;
+        self.module.needs_calloc = true;
+        self.module.needs_free = true;
+        let kptr_ty = Type::Ref { inner: Box::new(key_ty.clone()), mutable: true };
+        let vptr_ty = Type::Ref { inner: Box::new(val_ty.clone()), mutable: true };
+        let lenp = self.daftar_field_ptr(ref_ptr.clone(), peta_ty, 2);
+        let capp = self.daftar_field_ptr(ref_ptr.clone(), peta_ty, 3);
+        let len = self.fresh_value();
+        self.emit(Some(len), InstrKind::LoadPtr { ptr: lenp, ty: Type::I64 });
+        let cap = self.fresh_value();
+        self.emit(Some(cap), InstrKind::LoadPtr { ptr: capp, ty: Type::I64 });
+        let len1 = self.bin_i64(ArithOp::Add, Operand::Val(len), Operand::ConstInt(1, Type::I64), true);
+        let lhs = self.bin_i64(ArithOp::Mul, len1, Operand::ConstInt(4, Type::I64), true);
+        let rhs = self.bin_i64(ArithOp::Mul, Operand::Val(cap), Operand::ConstInt(3, Type::I64), true);
+        let over = self.fresh_value();
+        self.emit(
+            Some(over),
+            InstrKind::Cmp { pred: CmpPred::Gt, ty: Type::I64, signed: true, lhs, rhs },
+        );
+        let grow = self.new_block();
+        let cont = self.new_block();
+        self.set_term(Terminator::CondBr { cond: Operand::Val(over), then_bb: grow, else_bb: cont });
+
+        self.current = grow;
+        let capzero = self.fresh_value();
+        self.emit(
+            Some(capzero),
+            InstrKind::Cmp {
+                pred: CmpPred::Eq,
+                ty: Type::I64,
+                signed: true,
+                lhs: Operand::Val(cap),
+                rhs: Operand::ConstInt(0, Type::I64),
+            },
+        );
+        let cap2 = self.bin_i64(ArithOp::Mul, Operand::Val(cap), Operand::ConstInt(2, Type::I64), true);
+        let newcap = self.fresh_value();
+        self.emit(
+            Some(newcap),
+            InstrKind::Select {
+                cond: Operand::Val(capzero),
+                then_val: Operand::ConstInt(8, Type::I64),
+                else_val: cap2,
+                ty: Type::I64,
+            },
+        );
+        let ksz = self.fresh_value();
+        self.emit(Some(ksz), InstrKind::SizeOf { ty: key_ty.clone() });
+        let newkeys = self.fresh_value();
+        self.emit(
+            Some(newkeys),
+            InstrKind::Call {
+                callee: "calloc".to_string(),
+                args: vec![Operand::Val(newcap), Operand::Val(ksz)],
+                ret: kptr_ty.clone(),
+                variadic_from: None,
+            },
+        );
+        let vsz = self.fresh_value();
+        self.emit(Some(vsz), InstrKind::SizeOf { ty: val_ty.clone() });
+        let vbytes = self.bin_i64(ArithOp::Mul, Operand::Val(newcap), Operand::Val(vsz), true);
+        let newvals = self.fresh_value();
+        self.emit(
+            Some(newvals),
+            InstrKind::Call {
+                callee: "malloc".to_string(),
+                args: vec![vbytes],
+                ret: vptr_ty.clone(),
+                variadic_from: None,
+            },
+        );
+        let keysp = self.daftar_field_ptr(ref_ptr.clone(), peta_ty, 0);
+        let valsp = self.daftar_field_ptr(ref_ptr.clone(), peta_ty, 1);
+        let oldkeys = self.fresh_value();
+        self.emit(Some(oldkeys), InstrKind::LoadPtr { ptr: keysp, ty: kptr_ty.clone() });
+        let oldvals = self.fresh_value();
+        self.emit(Some(oldvals), InstrKind::LoadPtr { ptr: valsp, ty: vptr_ty.clone() });
+
+        let j_slot = self.new_slot(Type::I64);
+        self.emit(None, InstrKind::Store { slot: j_slot, value: Operand::ConstInt(0, Type::I64) });
+        let rhead = self.new_block();
+        let rbody = self.new_block();
+        let rmove = self.new_block();
+        let rcont = self.new_block();
+        let rend = self.new_block();
+        self.set_term(Terminator::Br(rhead));
+        self.current = rhead;
+        let j = self.load_slot(j_slot, Type::I64);
+        let jdone = self.fresh_value();
+        self.emit(
+            Some(jdone),
+            InstrKind::Cmp {
+                pred: CmpPred::Ge,
+                ty: Type::I64,
+                signed: true,
+                lhs: Operand::Val(j),
+                rhs: Operand::Val(cap),
+            },
+        );
+        self.set_term(Terminator::CondBr { cond: Operand::Val(jdone), then_bb: rend, else_bb: rbody });
+        self.current = rbody;
+        let okslot = self.fresh_value();
+        self.emit(
+            Some(okslot),
+            InstrKind::GepElem {
+                base: Operand::Val(oldkeys),
+                elem_ty: key_ty.clone(),
+                index: Operand::Val(j),
+            },
+        );
+        let ok = self.fresh_value();
+        self.emit(Some(ok), InstrKind::LoadPtr { ptr: Operand::Val(okslot), ty: key_ty.clone() });
+        let oknull = self.fresh_value();
+        self.emit(
+            Some(oknull),
+            InstrKind::Cmp {
+                pred: CmpPred::Eq,
+                ty: Type::Str,
+                signed: false,
+                lhs: Operand::Val(ok),
+                rhs: Operand::Null,
+            },
+        );
+        self.set_term(Terminator::CondBr { cond: Operand::Val(oknull), then_bb: rcont, else_bb: rmove });
+        self.current = rmove;
+        let ovslot = self.fresh_value();
+        self.emit(
+            Some(ovslot),
+            InstrKind::GepElem {
+                base: Operand::Val(oldvals),
+                elem_ty: val_ty.clone(),
+                index: Operand::Val(j),
+            },
+        );
+        let ov = self.fresh_value();
+        self.emit(Some(ov), InstrKind::LoadPtr { ptr: Operand::Val(ovslot), ty: val_ty.clone() });
+        let h = self.hash_teks(Operand::Val(ok));
+        let (nidx, _f) =
+            self.peta_probe(Operand::Val(newkeys), Operand::Val(newcap), Operand::Val(ok), h);
+        let nkslot = self.fresh_value();
+        self.emit(
+            Some(nkslot),
+            InstrKind::GepElem { base: Operand::Val(newkeys), elem_ty: key_ty.clone(), index: nidx.clone() },
+        );
+        self.emit(
+            None,
+            InstrKind::StorePtr { ptr: Operand::Val(nkslot), ty: key_ty.clone(), value: Operand::Val(ok) },
+        );
+        let nvslot = self.fresh_value();
+        self.emit(
+            Some(nvslot),
+            InstrKind::GepElem { base: Operand::Val(newvals), elem_ty: val_ty.clone(), index: nidx },
+        );
+        self.emit(
+            None,
+            InstrKind::StorePtr { ptr: Operand::Val(nvslot), ty: val_ty.clone(), value: Operand::Val(ov) },
+        );
+        self.set_term(Terminator::Br(rcont));
+        self.current = rcont;
+        let j1 = self.bin_i64(ArithOp::Add, Operand::Val(j), Operand::ConstInt(1, Type::I64), true);
+        self.emit(None, InstrKind::Store { slot: j_slot, value: j1 });
+        self.set_term(Terminator::Br(rhead));
+        self.current = rend;
+        self.emit(None, InstrKind::Free { ptr: Operand::Val(oldkeys) });
+        self.emit(None, InstrKind::Free { ptr: Operand::Val(oldvals) });
+        let keysp2 = self.daftar_field_ptr(ref_ptr.clone(), peta_ty, 0);
+        let valsp2 = self.daftar_field_ptr(ref_ptr.clone(), peta_ty, 1);
+        let capp2 = self.daftar_field_ptr(ref_ptr, peta_ty, 3);
+        self.emit(
+            None,
+            InstrKind::StorePtr { ptr: keysp2, ty: kptr_ty, value: Operand::Val(newkeys) },
+        );
+        self.emit(
+            None,
+            InstrKind::StorePtr { ptr: valsp2, ty: vptr_ty, value: Operand::Val(newvals) },
+        );
+        self.emit(
+            None,
+            InstrKind::StorePtr { ptr: capp2, ty: Type::I64, value: Operand::Val(newcap) },
+        );
+        self.set_term(Terminator::Br(cont));
+        self.current = cont;
+    }
+
+    fn lower_taruh(&mut self, mref: &Expr, kexpr: &Expr, vexpr: &Expr) {
+        let (ref_ptr, peta_ty, key_ty, val_ty) = self.peta_parts(mref);
+        self.peta_ensure(ref_ptr.clone(), &peta_ty, &key_ty, &val_ty);
+        let kptr_ty = Type::Ref { inner: Box::new(key_ty.clone()), mutable: true };
+        let vptr_ty = Type::Ref { inner: Box::new(val_ty.clone()), mutable: true };
+        let keysp = self.daftar_field_ptr(ref_ptr.clone(), &peta_ty, 0);
+        let valsp = self.daftar_field_ptr(ref_ptr.clone(), &peta_ty, 1);
+        let capp = self.daftar_field_ptr(ref_ptr.clone(), &peta_ty, 3);
+        let keys = self.fresh_value();
+        self.emit(Some(keys), InstrKind::LoadPtr { ptr: keysp, ty: kptr_ty });
+        let vals = self.fresh_value();
+        self.emit(Some(vals), InstrKind::LoadPtr { ptr: valsp, ty: vptr_ty });
+        let cap = self.fresh_value();
+        self.emit(Some(cap), InstrKind::LoadPtr { ptr: capp, ty: Type::I64 });
+        let key = self.lower_expr(kexpr);
+        let h = self.hash_teks(key.clone());
+        let (idx, found) = self.peta_probe(Operand::Val(keys), Operand::Val(cap), key.clone(), h);
+        let kslot = self.fresh_value();
+        self.emit(
+            Some(kslot),
+            InstrKind::GepElem { base: Operand::Val(keys), elem_ty: key_ty.clone(), index: idx.clone() },
+        );
+        self.emit(None, InstrKind::StorePtr { ptr: Operand::Val(kslot), ty: key_ty, value: key });
+        let vslot = self.fresh_value();
+        self.emit(
+            Some(vslot),
+            InstrKind::GepElem { base: Operand::Val(vals), elem_ty: val_ty.clone(), index: idx },
+        );
+        let v = self.lower_expr(vexpr);
+        self.emit(None, InstrKind::StorePtr { ptr: Operand::Val(vslot), ty: val_ty, value: v });
+        let lenp = self.daftar_field_ptr(ref_ptr, &peta_ty, 2);
+        let len = self.fresh_value();
+        self.emit(Some(len), InstrKind::LoadPtr { ptr: lenp.clone(), ty: Type::I64 });
+        let inc = self.fresh_value();
+        self.emit(
+            Some(inc),
+            InstrKind::Select {
+                cond: found,
+                then_val: Operand::ConstInt(0, Type::I64),
+                else_val: Operand::ConstInt(1, Type::I64),
+                ty: Type::I64,
+            },
+        );
+        let len2 = self.bin_i64(ArithOp::Add, Operand::Val(len), Operand::Val(inc), true);
+        self.emit(None, InstrKind::StorePtr { ptr: lenp, ty: Type::I64, value: len2 });
+    }
+
+    fn lower_ambil_peta(&mut self, mref: &Expr, kexpr: &Expr, cadexpr: &Expr) -> Operand {
+        let (ref_ptr, peta_ty, key_ty, val_ty) = self.peta_parts(mref);
+        let kptr_ty = Type::Ref { inner: Box::new(key_ty.clone()), mutable: true };
+        let vptr_ty = Type::Ref { inner: Box::new(val_ty.clone()), mutable: true };
+        let keysp = self.daftar_field_ptr(ref_ptr.clone(), &peta_ty, 0);
+        let valsp = self.daftar_field_ptr(ref_ptr.clone(), &peta_ty, 1);
+        let capp = self.daftar_field_ptr(ref_ptr, &peta_ty, 3);
+        let keys = self.fresh_value();
+        self.emit(Some(keys), InstrKind::LoadPtr { ptr: keysp, ty: kptr_ty });
+        let vals = self.fresh_value();
+        self.emit(Some(vals), InstrKind::LoadPtr { ptr: valsp, ty: vptr_ty });
+        let cap = self.fresh_value();
+        self.emit(Some(cap), InstrKind::LoadPtr { ptr: capp, ty: Type::I64 });
+        let res_slot = self.new_slot(val_ty.clone());
+        let cad = self.lower_expr(cadexpr);
+        self.emit(None, InstrKind::Store { slot: res_slot, value: cad });
+        let cap0 = self.fresh_value();
+        self.emit(
+            Some(cap0),
+            InstrKind::Cmp {
+                pred: CmpPred::Eq,
+                ty: Type::I64,
+                signed: true,
+                lhs: Operand::Val(cap),
+                rhs: Operand::ConstInt(0, Type::I64),
+            },
+        );
+        let probe_bb = self.new_block();
+        let done_bb = self.new_block();
+        self.set_term(Terminator::CondBr { cond: Operand::Val(cap0), then_bb: done_bb, else_bb: probe_bb });
+        self.current = probe_bb;
+        let key = self.lower_expr(kexpr);
+        let h = self.hash_teks(key.clone());
+        let (idx, found) = self.peta_probe(Operand::Val(keys), Operand::Val(cap), key, h);
+        let foundbb = self.new_block();
+        let after = self.new_block();
+        self.set_term(Terminator::CondBr { cond: found, then_bb: foundbb, else_bb: after });
+        self.current = foundbb;
+        let vslot = self.fresh_value();
+        self.emit(
+            Some(vslot),
+            InstrKind::GepElem { base: Operand::Val(vals), elem_ty: val_ty.clone(), index: idx },
+        );
+        let v = self.fresh_value();
+        self.emit(Some(v), InstrKind::LoadPtr { ptr: Operand::Val(vslot), ty: val_ty.clone() });
+        self.emit(None, InstrKind::Store { slot: res_slot, value: Operand::Val(v) });
+        self.set_term(Terminator::Br(after));
+        self.current = after;
+        self.set_term(Terminator::Br(done_bb));
+        self.current = done_bb;
+        let r = self.load_slot(res_slot, val_ty);
+        Operand::Val(r)
+    }
+
+    fn lower_ada(&mut self, mref: &Expr, kexpr: &Expr) -> Operand {
+        let (ref_ptr, peta_ty, key_ty, _val_ty) = self.peta_parts(mref);
+        let kptr_ty = Type::Ref { inner: Box::new(key_ty.clone()), mutable: true };
+        let keysp = self.daftar_field_ptr(ref_ptr.clone(), &peta_ty, 0);
+        let capp = self.daftar_field_ptr(ref_ptr, &peta_ty, 3);
+        let keys = self.fresh_value();
+        self.emit(Some(keys), InstrKind::LoadPtr { ptr: keysp, ty: kptr_ty });
+        let cap = self.fresh_value();
+        self.emit(Some(cap), InstrKind::LoadPtr { ptr: capp, ty: Type::I64 });
+        let res_slot = self.new_slot(Type::Bool);
+        self.emit(None, InstrKind::Store { slot: res_slot, value: Operand::ConstBool(false) });
+        let cap0 = self.fresh_value();
+        self.emit(
+            Some(cap0),
+            InstrKind::Cmp {
+                pred: CmpPred::Eq,
+                ty: Type::I64,
+                signed: true,
+                lhs: Operand::Val(cap),
+                rhs: Operand::ConstInt(0, Type::I64),
+            },
+        );
+        let probe_bb = self.new_block();
+        let done_bb = self.new_block();
+        self.set_term(Terminator::CondBr { cond: Operand::Val(cap0), then_bb: done_bb, else_bb: probe_bb });
+        self.current = probe_bb;
+        let key = self.lower_expr(kexpr);
+        let h = self.hash_teks(key.clone());
+        let (_idx, found) = self.peta_probe(Operand::Val(keys), Operand::Val(cap), key, h);
+        self.emit(None, InstrKind::Store { slot: res_slot, value: found });
+        self.set_term(Terminator::Br(done_bb));
+        self.current = done_bb;
+        let r = self.load_slot(res_slot, Type::Bool);
+        Operand::Val(r)
     }
 
     fn call_i64(&mut self, callee: &str, args: Vec<Operand>) -> Operand {

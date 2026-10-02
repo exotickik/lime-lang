@@ -1,66 +1,87 @@
-# Phase 26 (Arena AST in Exotickik) — Design Assessment
+# Phase 27 (`peta<K, V>` hash map) — Design Assessment
 
-Baseline: `main` after `cocok` pattern matching (Phase 25). The self-hosting gap
-analysis listed recursive/heap data types as a blocker for an AST. This phase
-tests that assumption with evidence and, finding it wrong, delivers a real
-AST-building compiler in Exotickik — with no new language features.
+Baseline: `main` after the Lime → Exotickik rebrand (commit `7b23bc7`). The
+self-hosting gap analysis named a map as the most load-bearing missing container
+(symbol tables, interning, module tables). This phase delivers a real hash map.
 
-## The insight
+## Goal
 
-A compiler's AST is usually a heap-recursive, owned, tagged tree, and Exotickik lacks
-owned enum payloads and nullable boxes. But a tree does **not** require heap
-recursion: a data-oriented **arena** stores every node in one growable array and
-has nodes refer to their children by integer index. That needs only structs, an
-enum tag, a `daftar`, and recursion — all shipped. So the "recursive types block
-the AST" gap was overstated.
+A genuine, growable hash map `peta<K, V>` — not a fixed-key stub and not an
+O(n) association list — integrated with the ownership model, references, modules,
+and native codegen, with the operations a compiler's symbol tables need.
 
-## What was built
+## Design
 
-`examples/pohon/` — a two-phase arithmetic compiler, as a `modul` with
-`publik fungsi evaluasi(teks) -> angka`, a demo, and a `exotickik test` suite:
+- **Type**: `Type::Peta { key, val }`, resolved from `peta<K, V>`. Owned
+  (`milik`), so it moves and is dropped deterministically; `V` must be Copy.
+- **Keys**: `teks` for now. This is exactly the shape symbol tables, interning,
+  and module tables take (string → info); integer keys are a documented
+  follow-up. The `peta<K, V>` type stays general; the builtins currently require
+  `K == teks`.
+- **Representation**: two parallel heap arrays plus two counts —
+  `{ ptr keys, ptr values, i64 len, i64 cap }`. A NULL entry in `keys` marks an
+  empty bucket, so no separate state array is needed. Choosing parallel arrays
+  (rather than one array of `{state, K, V}` entries) avoids synthesizing an entry
+  struct type and reuses the existing `GepElem`/`SizeOf` element machinery.
+- **Hashing**: a polynomial string hash (`h = h*31 + byte`) over the key's bytes,
+  computed inline. Bucket index is `hash urem cap` (unsigned remainder, so `cap`
+  need not be a power of two and negative wraparound is impossible).
+- **Collisions**: open addressing with linear probing. One probe routine serves
+  lookup, insert, and rehash: it returns the matching bucket or the first empty
+  one.
+- **Growth**: when `(len+1)*4 > cap*3` (75% load, which also covers the `cap==0`
+  first insert), capacity doubles (from 8) and every entry is rehashed into fresh
+  buffers; the old buffers are freed. Keys buffer is `calloc`-zeroed so empty
+  buckets read as NULL.
+- **Empty-map safety**: `ambil_peta`/`ada` guard `cap == 0` before probing, so a
+  never-inserted map never does `urem 0`.
 
-1. **Lexer** → `daftar<Token>`, each `Token` carrying an `enum Jenis` kind.
-2. **Parser** (precedence climbing) that **builds an AST** rather than evaluating:
-   nodes are `tipe Node { jenis: Jenis, data: angka, kiri: angka, kanan: angka }`
-   pushed into an arena `daftar<Node>`; `kiri`/`kanan` are child indices (`-1` for
-   a leaf). `tambah_node` appends and returns the new index. The arena is threaded
-   through the recursive parser as a `&ubah daftar<Node>`, alongside the read-only
-   `&daftar<Token>` and a position carried in a Copy `Langkah { pos, idx }` struct.
-3. **Evaluator** `hitung(&daftar<Node>, idx)` — recurses over the arena,
-   dispatching on each node's `Jenis` with `cocok`.
+## Operations
 
-`evaluasi` lexes, parses into the arena, then walks the tree. Results match the
-inline calculator (182 / 230 / 98 / 56 / 100), proving the AST is built and
-traversed correctly.
+- `peta() -> peta<K, V>` — empty (no allocation until first insert).
+- `taruh(ambil_ubah(m), k, v)` — insert or overwrite; grows first if needed; only
+  bumps `len` when the key is new (via a `select`, no branch).
+- `ambil_peta(ambil(m), k, cadangan) -> V` — value or fallback.
+- `ada(ambil(m), k) -> boolean` — membership.
+- `panjang(ambil(m)) -> angka` — entry count (the shared `panjang` builtin now
+  accepts a `&peta`).
 
-## Why this matters for self-hosting
+## Ownership and cleanup
 
-This is the heart of a compiler front end — turning tokens into a tree and walking
-it — written entirely in Exotickik, today. It shows the language is already expressive
-enough for a parser-to-AST and a tree pass; what remains for a full self-hosted
-compiler is scale and ergonomics (a `peta` map for symbol tables, owned strings
-for identifiers/diagnostics), not a missing ability to represent trees.
+`peta<K, V>` is Owned in both `is_copy` paths, so it participates in moves,
+use-after-move checking, and deterministic drop exactly like `daftar<T>`.
+`emit_drop_value` frees the keys and values buffers at the owner's drop point;
+the stored `teks` keys are not owned (they point at existing strings), so only the
+two arrays are freed — no double free. References across FFI and owned payloads
+across FFI remain rejected.
 
-Notably, the parser simultaneously holds a shared borrow of the token list and a
-mutable borrow of the arena (two different `daftar`s) and threads both through
-recursion — exercising the borrow checker on realistic compiler code without
-tripping it.
+## Implementation
+
+- `exotickik_types`: `Type::Peta`, display.
+- `exotickik_sema`: `peta`/`taruh`/`ambil_peta`/`ada` builtins, `ref_peta`
+  helper, `check_peta_builtin` (key must be `teks`, value Copy), `panjang`
+  extended, and `Peta` arms in resolve/`is_copy`/`unify`/`subst`/
+  `type_to_type_expr_kind`/ownership.
+- `exotickik_ir`: `peta_parts`, `hash_teks`, `peta_probe`, `peta_ensure`
+  (grow + rehash), `lower_taruh`/`lower_ambil_peta`/`lower_ada`, `panjang` and
+  drop arms — all built from existing IR primitives (malloc/calloc/free, GepElem,
+  SizeOf, strcmp, Select, loops via blocks).
+- `exotickik_codegen`: `ty_str`/`MakeStruct` for the 4-field layout, and a
+  `calloc` runtime declaration.
 
 ## Tests
 
-- `cli/tests/selfhost.rs`: the AST calculator evaluates the five expressions
-  correctly and passes its own six-test `exotickik test` suite (alongside the existing
-  inline calculator's tests).
-- `examples/pohon/uji.exo`: the in-language suite.
+- `cli/tests/maps.rs`: put/get/overwrite/len, absent→default, `ada`, empty-map
+  safety, growth preserving all ten entries across a rehash, use by reference,
+  and three negative cases (non-`teks` key, owned value, move).
+- `exotickik_sema`: `peta_ok`, non-`teks` key, owned value, move semantics.
+- `examples/peta.exo`: a word-frequency counter.
 
-All prior tests still pass; 0 warnings; the repo still passes `fmt --check`.
+All 313 prior tests still pass; 0 warnings; repo passes `exotickik fmt --check`.
 
 ## Honest limitations
 
-- Still arithmetic only; the point is the architecture (lexer → AST → walk), not
-  the language it compiles.
-- The arena `Node` is a fixed struct holding the union of all node shapes
-  (`data`, `kiri`, `kanan`); inline per-variant payloads await enum associated
-  data (Phase 25 follow-up). This is an ergonomic nicety, not a blocker.
-- Name resolution / symbol tables still need a `peta<K, V>` map (next priority);
-  identifiers and messages still need owned strings. See `docs/SELF_HOSTING.md`.
+- `teks` keys only (integer/enum keys and a `himpunan<T>` set are follow-ups).
+- Values must be Copy (owned values await owned-payload support).
+- No deletion yet (no tombstones); scopes are dropped by discarding the map.
+- No iteration-over-entries builtin yet (lookup/insert/membership/count only).

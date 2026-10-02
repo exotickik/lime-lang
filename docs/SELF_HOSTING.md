@@ -95,8 +95,10 @@ current compiler.
    ```
    Generic *functions* already work and monomorphize; generic *types* do not yet.
 
-4. **Maps/sets (`peta<K, V>`, `himpunan<T>`).** Symbol tables, string interning,
-   and type environments need associative containers. Only `daftar<T>` exists.
+4. **Maps/sets.** ✅ `peta<K, V>` (a real string-keyed hash table) now exists —
+   symbol tables, string interning, and module tables are expressible (see
+   `examples/peta.exo`). A `himpunan<T>` set and integer-keyed maps remain
+   follow-ups.
 
 5. **First-class owned strings and richer results.** The compiler builds many
    strings (identifiers, messages). Today text is byte buffers (`daftar<bita>`)
@@ -110,11 +112,10 @@ The lexer, a real arena-based AST, and a recursive evaluator are **already
 demonstrated** (`examples/pohon/`). The remaining work is mostly about ergonomics
 and scale, in roughly this order:
 
-1. `peta<K, V>` map — the most load-bearing missing container (symbol tables,
-   string interning, type environments). Arena ASTs work without it, but name
-   resolution needs it.
+1. ✅ `peta<K, V>` map — done (Phase 27). String-keyed symbol tables and interning
+   are now expressible.
 2. Owned `teks` strings + `Hasil` with owned payloads — identifiers and
-   diagnostic messages.
+   diagnostic messages (next priority).
 3. Generic structs/enums — reusable typed containers instead of per-type structs.
 4. Enum associated data + binding patterns in `cocok` — inline node payloads, an
    ergonomic alternative to the arena `Node` struct (tag matching already works).
