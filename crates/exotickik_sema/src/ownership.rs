@@ -15,6 +15,10 @@ pub fn is_copy(ty: &Type, results: &TypeckResults) -> bool {
         }
         Type::Array { elem, .. } => is_copy(elem, results),
         Type::Hasil { ok, err } => is_copy(ok, results) && is_copy(err, results),
+        Type::Enum(id) => results.enums[id.0 as usize]
+            .variants
+            .iter()
+            .all(|v| v.payload.iter().all(|t| is_copy(t, results))),
         Type::Ref { .. } => true,
         _ => true,
     }
@@ -268,19 +272,32 @@ impl<'a> Own<'a> {
     }
 
     fn check_match(&mut self, m: &MatchStmt) {
-        self.visit(&m.scrutinee, false);
+        let scrut_ty = self.results.expr_type(m.scrutinee.id).clone();
+        let consume = self.owned(&scrut_ty);
+        self.visit(&m.scrutinee, consume);
         let before = self.moved.clone();
+        let before_declared = self.declared.clone();
         let mut arm_new_moves: Vec<HashSet<LocalId>> = Vec::new();
 
         for arm in &m.arms {
             self.moved = before.clone();
+            for bid in &arm.binding_ids {
+                if let Some(&local) = self.results.local_of_binding.get(bid) {
+                    self.declared.insert(local);
+                    self.moved.remove(&local);
+                }
+            }
             self.check_block(&arm.body);
-            arm_new_moves.push(self.new_moves(&before));
+            arm_new_moves.push(
+                self.new_moves(&before).into_iter().filter(|l| before_declared.contains(l)).collect(),
+            );
         }
         if let Some(block) = &m.default {
             self.moved = before.clone();
             self.check_block(block);
-            arm_new_moves.push(self.new_moves(&before));
+            arm_new_moves.push(
+                self.new_moves(&before).into_iter().filter(|l| before_declared.contains(l)).collect(),
+            );
         } else {
             arm_new_moves.push(HashSet::new());
         }

@@ -229,19 +229,6 @@ impl<'a> Checker<'a> {
                 let mut payload = Vec::new();
                 for te in &v.payload {
                     let t = self.resolve_type(te);
-                    if !t.is_error() && !self.is_copy(&t) {
-                        self.diags.emit(
-                            Diagnostic::error(
-                                codes::E_UNSUPPORTED,
-                                format!(
-                                    "varian '{}' membawa payload bertipe milik '{}' yang belum didukung",
-                                    v.name.name,
-                                    t.display()
-                                ),
-                            )
-                            .primary(te.span, "payload enum harus bertipe salinan untuk saat ini"),
-                        );
-                    }
                     payload.push(t);
                 }
                 resolved.push(VariantInfo { name: v.name.name.clone(), payload });
@@ -3294,19 +3281,6 @@ impl<'a> Checker<'a> {
                 let mut pte = te.clone();
                 substitute_type_expr(&mut pte, &subst, &self.results);
                 let t = self.resolve_type(&pte);
-                if !t.is_error() && !self.is_copy(&t) {
-                    self.diags.emit(
-                        Diagnostic::error(
-                            codes::E_UNSUPPORTED,
-                            format!(
-                                "varian '{}' membawa payload bertipe milik '{}' yang belum didukung",
-                                v.name.name,
-                                t.display()
-                            ),
-                        )
-                        .primary(te.span, "payload enum harus bertipe salinan untuk saat ini"),
-                    );
-                }
                 payload.push(t);
             }
             variants.push(VariantInfo { name: v.name.name.clone(), payload });

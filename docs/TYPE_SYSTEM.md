@@ -85,8 +85,9 @@ are suppressed to avoid cascading diagnostics.
   type → `E0212`), and a payload variant used bare (without `( … )`) is an error
   (`E0220`). Tag-only enum values support `==`/`!=` against the same enum type; a
   payload-carrying enum does not (use `cocok`). Both print as the variant name;
-  there is no implicit enum↔integer conversion. Enum payload fields must be Copy
-  for now — an owned payload type is rejected (`E0902`).
+  there is no implicit enum↔integer conversion. Enum payload fields may be Copy
+  or Owned; an enum with an owned payload is itself Owned and moves/drops its
+  active variant's payload (tag-conditional, see MEMORY_MODEL).
 - **Match** `cocok e { Var(a) => … }`: `e` must be an enum; arms name variants and
   must be exhaustive or supply `lain`. An arm may bind a variant's payload fields
   to immutable locals (one identifier per field) typed as the payload; the binder

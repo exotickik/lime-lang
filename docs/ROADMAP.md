@@ -187,8 +187,14 @@ Legend: ✅ done · 🟡 in progress · ⬜ planned
   to concrete enums like generic structs; instantiation from the expected type or
   inferred from a variant's payload arguments (`Pilihan.Ada(5)` ⇒ `Pilihan<angka>`).
   Reuses the enum associated-data representation
-- ⬜ Owned enum payloads (construction + tag-conditional drop + move-binding),
-  which also unblocks owned-`Hasil` inspection via `cocok`
+- ✅ Owned enum payloads (Phase 33): a variant may carry owned data (`daftar`,
+  `kotak`, `peta`, owned structs/enums, owned generic type args). An enum with an
+  owned payload is Owned — construction moves the payload in, the value moves,
+  and it drops by tag-conditional freeing of only the active variant's payload
+  (sharing the owned-`Hasil` machinery). `cocok` consumes an owned scrutinee;
+  binding an arm takes ownership of the payload, an unbound/`lain` arm drops the
+  active payload — released exactly once. Valgrind-clean (no leak, no
+  double-free). `daftar` with owned element types remains a separate follow-up
 - ⬜ Port the bootstrap front end to Exotickik component by component, validated with
   `exotickik test` against the Rust bootstrap
 

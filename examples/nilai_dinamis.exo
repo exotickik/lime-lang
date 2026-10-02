@@ -1,0 +1,49 @@
+program NilaiDinamis
+
+enum Nilai {
+    Angka(angka),
+    Teks(teks),
+    Larik(daftar<angka>),
+    Tabel(peta<teks, angka>),
+    Kosong,
+}
+
+fungsi ringkas(n: Nilai) -> angka {
+    cocok n {
+        Angka(x) => {
+            kembalikan x
+        }
+        Teks(s) => {
+            kembalikan panjang(s)
+        }
+        Larik(xs) => {
+            ubah total = 0
+            untuk i dari 0 sampai panjang(ambil(xs)) {
+                total = total + elemen(ambil(xs), i)
+            }
+            kembalikan total
+        }
+        Tabel(t) => {
+            kembalikan panjang(ambil(t))
+        }
+        Kosong => {
+            kembalikan 0
+        }
+    }
+    kembalikan 0 - 1
+}
+
+utama {
+    tampilkan(ringkas(Nilai.Angka(42)))
+    tampilkan(ringkas(Nilai.Teks("halo")))
+    ubah xs: daftar<angka> = daftar()
+    dorong(ambil_ubah(xs), 10)
+    dorong(ambil_ubah(xs), 20)
+    dorong(ambil_ubah(xs), 30)
+    tampilkan(ringkas(Nilai.Larik(xs)))
+    ubah t: peta<teks, angka> = peta()
+    taruh(ambil_ubah(t), "a", 1)
+    taruh(ambil_ubah(t), "b", 2)
+    tampilkan(ringkas(Nilai.Tabel(t)))
+    tampilkan(ringkas(Nilai.Kosong))
+}

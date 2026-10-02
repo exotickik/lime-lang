@@ -139,11 +139,33 @@ fn bare_payload_variant_rejected() {
 }
 
 #[test]
-fn owned_payload_instantiation_rejected() {
-    let src = "program E\n\
-        enum Simpan<T> { Buf(daftar<T>), Kosong }\n\
-        utama { nilai x: Simpan<bita> = Simpan.Kosong }";
-    let (code, err) = check_stderr("owned", src);
-    assert_ne!(code, 0);
-    assert!(err.contains("milik"), "stderr: {err}");
+fn generic_enum_owned_type_argument_works() {
+    let src = format!(
+        "program G\n{PILIHAN}\
+         utama {{\n\
+           ubah xs: daftar<angka> = daftar()\n\
+           dorong(ambil_ubah(xs), 10) dorong(ambil_ubah(xs), 20)\n\
+           nilai p: Pilihan<daftar<angka>> = Pilihan.Ada(xs)\n\
+           cocok p {{ Ada(v) => {{ tampilkan(panjang(ambil(v))) }} Kosong => {{ tampilkan(0) }} }}\n\
+         }}"
+    );
+    let (out, code) = run_source("owned_targ", &src);
+    assert_eq!(out, "2\n");
+    assert_eq!(code, 0);
+}
+
+#[test]
+fn generic_enum_owned_unused_payload_dropped() {
+    let src = format!(
+        "program G\n{PILIHAN}\
+         utama {{\n\
+           ubah xs: daftar<angka> = daftar()\n\
+           dorong(ambil_ubah(xs), 1)\n\
+           nilai p: Pilihan<daftar<angka>> = Pilihan.Ada(xs)\n\
+           cocok p {{ Ada => {{ tampilkan(-5) }} Kosong => {{ tampilkan(0) }} }}\n\
+         }}"
+    );
+    let (out, code) = run_source("owned_unused", &src);
+    assert_eq!(out, "-5\n");
+    assert_eq!(code, 0);
 }

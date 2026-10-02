@@ -227,13 +227,101 @@ fn bare_payload_variant_rejected() {
 }
 
 #[test]
-fn owned_payload_rejected() {
+fn owned_daftar_payload_works() {
+    let src = "program O\n\
+        enum Simpul { Daftar(daftar<angka>), Kosong }\n\
+        fungsi jumlah(s: Simpul) -> angka {\n\
+          cocok s {\n\
+            Daftar(d) => {\n\
+              ubah t = 0\n\
+              untuk i dari 0 sampai panjang(ambil(d)) { t = t + elemen(ambil(d), i) }\n\
+              kembalikan t\n\
+            }\n\
+            Kosong => { kembalikan 0 }\n\
+          }\n\
+          kembalikan -1\n\
+        }\n\
+        utama {\n\
+          ubah xs: daftar<angka> = daftar()\n\
+          dorong(ambil_ubah(xs), 5) dorong(ambil_ubah(xs), 15) dorong(ambil_ubah(xs), 25)\n\
+          tampilkan(jumlah(Simpul.Daftar(xs)))\n\
+          tampilkan(jumlah(Simpul.Kosong))\n\
+        }";
+    let (out, code) = run_source("owned_daftar", src);
+    assert_eq!(out, "45\n0\n");
+    assert_eq!(code, 0);
+}
+
+#[test]
+fn owned_kotak_payload_works() {
+    let src = "program O\n\
+        enum Bungkus { Satu(kotak<angka>), Nol }\n\
+        fungsi buka(b: Bungkus) -> angka {\n\
+          cocok b { Satu(k) => { kembalikan isi(k) } Nol => { kembalikan 0 } }\n\
+          kembalikan -1\n\
+        }\n\
+        utama { tampilkan(buka(Bungkus.Satu(kotak(77)))) tampilkan(buka(Bungkus.Nol)) }";
+    let (out, code) = run_source("owned_kotak", src);
+    assert_eq!(out, "77\n0\n");
+    assert_eq!(code, 0);
+}
+
+#[test]
+fn nested_owned_enum_payload() {
+    let src = "program N\n\
+        enum Dalam { Isi(daftar<angka>), Nol }\n\
+        enum Luar { Bungkus(Dalam), Habis }\n\
+        fungsi hitung(l: Luar) -> angka {\n\
+          cocok l {\n\
+            Bungkus(dlm) => {\n\
+              cocok dlm { Isi(xs) => { kembalikan panjang(ambil(xs)) } Nol => { kembalikan 0 } }\n\
+              kembalikan -9\n\
+            }\n\
+            Habis => { kembalikan -1 }\n\
+          }\n\
+          kembalikan -2\n\
+        }\n\
+        utama {\n\
+          ubah d: daftar<angka> = daftar()\n\
+          dorong(ambil_ubah(d), 3) dorong(ambil_ubah(d), 6) dorong(ambil_ubah(d), 9)\n\
+          tampilkan(hitung(Luar.Bungkus(Dalam.Isi(d))))\n\
+          tampilkan(hitung(Luar.Bungkus(Dalam.Nol)))\n\
+          tampilkan(hitung(Luar.Habis))\n\
+        }";
+    let (out, code) = run_source("nested_owned", src);
+    assert_eq!(out, "3\n0\n-1\n");
+    assert_eq!(code, 0);
+}
+
+#[test]
+fn owned_enum_dropped_unmatched() {
+    let src = "program D\n\
+        enum N { List(daftar<angka>), Kosong }\n\
+        utama {\n\
+          ubah d: daftar<angka> = daftar()\n\
+          dorong(ambil_ubah(d), 1) dorong(ambil_ubah(d), 2)\n\
+          nilai tak_dipakai = N.List(d)\n\
+          tampilkan(0)\n\
+        }";
+    let (out, code) = run_source("dropunmatched", src);
+    assert_eq!(out, "0\n");
+    assert_eq!(code, 0);
+}
+
+#[test]
+fn owned_payload_use_after_move_rejected() {
     let src = "program E\n\
-        enum B { Buf(daftar<bita>), Titik }\n\
-        utama { nilai x: B = B.Titik }";
-    let (code, err) = check_stderr("owned", src);
+        enum N { List(daftar<angka>), Kosong }\n\
+        utama {\n\
+          ubah d: daftar<angka> = daftar()\n\
+          dorong(ambil_ubah(d), 1)\n\
+          nilai a = N.List(d)\n\
+          nilai b = a\n\
+          cocok a { List(x) => { tampilkan(panjang(ambil(x))) } Kosong => {} }\n\
+        }";
+    let (code, err) = check_stderr("owned_uam", src);
     assert_ne!(code, 0);
-    assert!(err.contains("milik"), "stderr: {err}");
+    assert!(err.contains("E0280"), "stderr: {err}");
 }
 
 #[test]

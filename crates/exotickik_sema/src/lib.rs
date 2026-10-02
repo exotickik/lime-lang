@@ -277,12 +277,16 @@ mod tests {
     }
 
     #[test]
-    fn payload_enum_owned_payload_rejected() {
+    fn payload_enum_owned_payload_ok() {
         let d = check(
-            "program P\nenum Simpan { Buf(daftar<bita>), Kosong }\n\
-             utama { nilai x: Simpan = Simpan.Kosong }",
+            "program P\nenum Simpan { Buf(daftar<angka>), Kosong }\n\
+             fungsi n(s: Simpan) -> angka {\n\
+               cocok s { Buf(b) => { kembalikan panjang(ambil(b)) } Kosong => { kembalikan 0 } }\n\
+               kembalikan -1\n\
+             }\n\
+             utama { nilai x: Simpan = Simpan.Kosong tampilkan(n(x)) }",
         );
-        assert!(has_code(&d, codes::E_UNSUPPORTED));
+        assert!(!d.has_errors(), "{:?}", d.diagnostics());
     }
 
     #[test]

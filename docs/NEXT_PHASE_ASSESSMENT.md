@@ -112,8 +112,34 @@ variant's payload arguments against its declared payload (`Pilihan.Ada(5)` solve
 is a `E0270` error. Tests in `cli/tests/generic_enums.rs` and `exotickik_sema`,
 plus `examples/pilihan.exo`.
 
-## Next
+## Owned enum payloads (Phase 33, shipped on top of this)
 
-Owned enum payloads (construction + tag-conditional drop + move-binding), which
-also unblocks owned-`Hasil` inspection via `cocok`. Then begin porting the
-bootstrap front end's data structures to Exotickik sum types.
+The Copy-only restriction on enum payloads is removed. A variant may carry owned
+data (`daftar`, `kotak`, `peta`, owned structs/enums, owned generic type args).
+`ownership::is_copy` gained an `Enum` arm (an enum is Copy iff every variant
+payload is Copy), so an enum with an owned payload is classified Owned and flows
+through the existing move/drop machinery. `emit_drop_value` gained an `Enum` arm
+that reads the tag and, per variant that has owned fields, conditionally drops
+only that variant's owned payload — the same tag-conditional scheme as owned
+`Hasil`, so there is one tagged-union ownership model, not two. `undef_of` builds
+aggregate-typed undefs for payload enums (fixing nested payload enums). `cocok`
+consumes an owned scrutinee: an arm that binds takes ownership of the payload
+(dropped at arm end via `declare_owned`), an unbound or `lain` arm drops the
+active payload, and the scrutinee local is marked moved so it is not dropped
+again. Branch-consistency now ignores arm-local bindings. Tests in
+`cli/tests/enum_payload.rs`, `cli/tests/generic_enums.rs`, `exotickik_sema`, and
+`examples/nilai_dinamis.exo`; valgrind-clean (no leak, no double-free) across
+`daftar`/`kotak`/`peta`/nested/generic-owned programs.
+
+Owned `Hasil` inspection is unchanged: `coba` already moves the payload out, the
+inspection builtins stay Copy-only, and both `Hasil` and enums now share one
+tag-conditional drop path, so there is no conflicting model to reconcile.
+
+## Next — the self-hosted compiler (dogfooding)
+
+Language data-type work is now sufficient to start the real compiler in `.exo`.
+Begin with source/span infrastructure under `compiler/`, then a full Exotickik
+lexer validated differentially against the Rust bootstrap, then the parser, and
+onward through the pipeline. Add language/stdlib capability only when a compiler
+component proves it is needed (the first likely one: owned element types in
+`daftar<T>`, needed for token streams carrying owned payloads).

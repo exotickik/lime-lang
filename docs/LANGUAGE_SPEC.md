@@ -262,10 +262,13 @@ Such a variant is constructed by calling it with its payload
 (`Token.Angka(10)`), and the payload is read by **binding** it in a `cocok` arm
 (§3.6a). A variant with a payload must be constructed with arguments
 (`Token.Angka(10)`, never a bare `Token.Angka`); the argument count and types
-must match the declaration. Payload fields are currently restricted to Copy
-types (integers, `char`, `boolean`, `teks`, another enum, a Copy struct/array);
-owned payload types (`daftar`, `kotak`, `peta`) are a documented follow-up.
-A payload-carrying enum cannot be compared with `==`/`!=` (use `cocok`); a
+must match the declaration. Payload fields may be **Copy** types (integers,
+`char`, `boolean`, `teks`, another enum, a Copy struct/array) **or Owned** types
+(`daftar`, `kotak`, `peta`, owned structs/enums). An enum with any owned payload
+is itself an Owned type: constructing it **moves** the payload in, the value
+moves on assignment/argument/return, and it is **dropped** by freeing only the
+*active* variant's owned payload (a tag-conditional drop — see §3.6b). A
+payload-carrying enum cannot be compared with `==`/`!=` (use `cocok`); a
 tag-only enum still can.
 
 Representation: a tag-only enum is a distinct type carried as an `i32` tag whose
@@ -310,7 +313,34 @@ Pilihan.Kosong`, a return position, a call argument) or inferred from a variant'
 payload arguments (`Pilihan.Ada(5)` gives `Pilihan<angka>`). A payload-less
 variant of a generic enum (`Pilihan.Kosong`) carries nothing to infer from and so
 needs the expected type. Distinct instantiations (`Pilihan<angka>` and
-`Pilihan<boolean>`) are distinct types.
+`Pilihan<boolean>`) are distinct types. A generic enum may be instantiated with
+an owned type argument (`Pilihan<daftar<angka>>`, `Pilihan<kotak<angka>>`); the
+instance is then Owned and obeys §3.6b.
+
+### 3.6b Owned enums: move and drop
+
+An enum with any owned payload is an **Owned** type, with the same ownership
+discipline as any owned value:
+
+- **Construction** moves each owned argument into the enum
+  (`Simpul.Daftar(xs)` moves `xs`).
+- **Move**: assigning, passing, or returning an owned enum transfers ownership
+  of the active variant's payload; the source is then moved-out and using it is a
+  use-after-move error (`E0280`), exactly as for other owned values.
+- **Drop**: when an owned enum value goes out of scope without being moved, it is
+  dropped by reading its tag, selecting the **active** variant, and recursively
+  dropping only that variant's owned payload fields. Inactive variants' storage
+  is never touched. This is the same tag-conditional scheme as owned `Hasil`.
+- **`cocok` consumes an owned enum.** Matching an owned enum takes ownership of
+  the scrutinee. In an arm that **binds** the payload, each binding takes
+  ownership of its field (an owned binding is dropped at the end of its arm
+  unless moved again). In an arm that does **not** bind (or the `lain` arm), the
+  active variant's owned payload is dropped by the match. Either way the payload
+  is released exactly once; the scrutinee is not dropped again afterwards. Moves
+  performed inside arms still obey branch-consistency (`E0281`).
+
+Owned payloads are never silently copied and never leaked, and there is no
+garbage collector or hidden reference counting — drops are inserted statically.
 
 ### 3.7 Arrays
 A fixed-size array type is written `[T; N]` where `T` is the element type and `N`

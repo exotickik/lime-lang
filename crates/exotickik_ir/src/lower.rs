@@ -311,6 +311,74 @@ impl<'a> FnLowerer<'a> {
                 self.set_term(Terminator::Br(done));
                 self.current = done;
             }
+            Type::Enum(id) => {
+                let info = self.results.enum_info(*id).clone();
+                if !info.has_payload() {
+                    return;
+                }
+                let mut owned_variants: Vec<(u32, Vec<(u32, Type)>)> = Vec::new();
+                for (vtag, v) in info.variants.iter().enumerate() {
+                    let offset = info.variant_slot_offset(vtag as u32);
+                    let owned_fields: Vec<(u32, Type)> = v
+                        .payload
+                        .iter()
+                        .enumerate()
+                        .filter(|(_, t)| !self.is_copy_ty(t))
+                        .map(|(i, t)| ((offset + i) as u32, t.clone()))
+                        .collect();
+                    if !owned_fields.is_empty() {
+                        owned_variants.push((vtag as u32, owned_fields));
+                    }
+                }
+                if owned_variants.is_empty() {
+                    return;
+                }
+                let tag = self.fresh_value();
+                self.emit(
+                    Some(tag),
+                    InstrKind::ExtractField {
+                        agg: value.clone(),
+                        agg_ty: ty.clone(),
+                        index: 0,
+                        field_ty: Type::I32,
+                    },
+                );
+                let done = self.new_block();
+                for (vtag, fields) in owned_variants {
+                    let match_bb = self.new_block();
+                    let next_bb = self.new_block();
+                    let cmp = self.fresh_value();
+                    self.emit(
+                        Some(cmp),
+                        InstrKind::Cmp {
+                            pred: CmpPred::Eq,
+                            ty: Type::I32,
+                            signed: false,
+                            lhs: Operand::Val(tag),
+                            rhs: Operand::ConstInt(vtag as u128, Type::I32),
+                        },
+                    );
+                    self.set_term(Terminator::CondBr { cond: Operand::Val(cmp), then_bb: match_bb, else_bb: next_bb });
+                    self.current = match_bb;
+                    for (idx, fty) in fields {
+                        let fv = self.fresh_value();
+                        self.emit(
+                            Some(fv),
+                            InstrKind::ExtractField {
+                                agg: value.clone(),
+                                agg_ty: ty.clone(),
+                                index: idx,
+                                field_ty: fty.clone(),
+                            },
+                        );
+                        self.emit_drop_value(Operand::Val(fv), &fty);
+                    }
+                    self.set_term(Terminator::Br(done));
+                    self.current = next_bb;
+                }
+                self.set_term(Terminator::Br(done));
+                self.current = done;
+            }
             _ => {}
         }
     }
@@ -488,6 +556,7 @@ impl<'a> FnLowerer<'a> {
         } else {
             scrut.clone()
         };
+        let has_owned = !self.is_copy_ty(&Type::Enum(eid));
         let end_bb = self.new_block();
         for arm in &m.arms {
             let Some(tag) = self.results.enum_info(eid).variant_tag(&arm.variant.name) else {
@@ -509,20 +578,58 @@ impl<'a> FnLowerer<'a> {
             );
             self.set_term(Terminator::CondBr { cond: Operand::Val(cmp), then_bb: arm_bb, else_bb: next_bb });
             self.current = arm_bb;
-            self.bind_match_payload(arm, eid, tag, &scrut);
+            self.enter_owned_scope();
+            if arm.bindings.is_empty() {
+                if has_owned {
+                    self.drop_variant_payload(eid, tag, &scrut);
+                }
+            } else {
+                self.bind_match_payload(arm, eid, tag, &scrut);
+            }
             self.lower_block(&arm.body);
-            if self.block(self.current).term.is_none() {
+            let terminated = self.block(self.current).term.is_some();
+            self.exit_owned_scope();
+            if !terminated {
                 self.set_term(Terminator::Br(end_bb));
             }
             self.current = next_bb;
         }
         if let Some(d) = &m.default {
+            self.enter_owned_scope();
+            if has_owned {
+                self.emit_drop_value(scrut.clone(), &Type::Enum(eid));
+            }
             self.lower_block(d);
-        }
-        if self.block(self.current).term.is_none() {
+            let terminated = self.block(self.current).term.is_some();
+            self.exit_owned_scope();
+            if !terminated {
+                self.set_term(Terminator::Br(end_bb));
+            }
+        } else if self.block(self.current).term.is_none() {
             self.set_term(Terminator::Br(end_bb));
         }
         self.current = end_bb;
+    }
+
+    fn drop_variant_payload(&mut self, eid: exotickik_types::EnumId, tag: u32, scrut: &Operand) {
+        let offset = self.results.enum_info(eid).variant_slot_offset(tag);
+        let payload = self.results.enum_info(eid).variants[tag as usize].payload.clone();
+        for (i, fty) in payload.iter().enumerate() {
+            if self.is_copy_ty(fty) {
+                continue;
+            }
+            let fv = self.fresh_value();
+            self.emit(
+                Some(fv),
+                InstrKind::ExtractField {
+                    agg: scrut.clone(),
+                    agg_ty: Type::Enum(eid),
+                    index: (offset + i) as u32,
+                    field_ty: fty.clone(),
+                },
+            );
+            self.emit_drop_value(Operand::Val(fv), fty);
+        }
     }
 
     fn bind_match_payload(
@@ -557,6 +664,7 @@ impl<'a> FnLowerer<'a> {
             let slot = self.new_slot(field_ty.clone());
             self.slot_of_local.insert(local.0, slot);
             self.emit(None, InstrKind::Store { slot, value: Operand::Val(val) });
+            self.declare_owned(local, field_ty);
         }
     }
 
@@ -824,23 +932,28 @@ impl<'a> FnLowerer<'a> {
     }
 
     fn undef_of(&mut self, ty: &Type) -> Operand {
+        let aggregate = match ty {
+            Type::Struct(_)
+            | Type::Array { .. }
+            | Type::Hasil { .. }
+            | Type::Daftar(_)
+            | Type::Peta { .. }
+            | Type::Kotak(_) => true,
+            Type::Enum(id) => self.results.enum_info(*id).has_payload(),
+            _ => false,
+        };
+        if aggregate {
+            let slot = self.new_slot(ty.clone());
+            let dst = self.fresh_value();
+            self.emit(Some(dst), InstrKind::Load { slot });
+            return Operand::Val(dst);
+        }
         match ty {
             Type::Float(_) => Operand::ConstFloat(0.0, ty.clone()),
             Type::Bool => Operand::ConstBool(false),
             Type::Str => {
                 let id = self.module.intern_str(Vec::new());
                 Operand::Str(id)
-            }
-            Type::Struct(_)
-            | Type::Array { .. }
-            | Type::Hasil { .. }
-            | Type::Daftar(_)
-            | Type::Peta { .. }
-            | Type::Kotak(_) => {
-                let slot = self.new_slot(ty.clone());
-                let dst = self.fresh_value();
-                self.emit(Some(dst), InstrKind::Load { slot });
-                Operand::Val(dst)
             }
             _ => Operand::ConstInt(0, ty.clone()),
         }

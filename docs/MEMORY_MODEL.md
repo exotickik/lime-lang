@@ -46,6 +46,13 @@ exactly one binding.
   is itself Owned its contents are dropped first, then the allocation is released
   (libc `free`). Structs/arrays containing Owned fields drop those fields
   recursively.
+- A tagged value — `Hasil<T, R>` or an `enum` whose variants carry payloads — is
+  dropped **tag-conditionally**: the tag is read at runtime and only the active
+  variant's (or active `sukses`/`gagal` arm's) Owned payload is dropped; inactive
+  payload storage is never freed. An enum with any Owned payload is itself Owned.
+  Matching such an enum with `cocok` consumes it — a binding arm takes ownership
+  of the payload, an unbound or `lain` arm drops the active payload — so the
+  payload is released exactly once and the scrutinee is not dropped again.
 
 ## Move rules
 
