@@ -295,6 +295,23 @@ types. Binding is optional — an arm may omit the `( … )` and match the varia
 without reading its data. The binder count, when present, must equal the
 variant's payload arity, and binding on a payload-less variant is an error.
 
+**Generic enums.** An enum may declare type parameters, so a variant payload can
+be parameterized:
+```exotickik
+enum Pilihan<T> {
+    Ada(T),
+    Kosong
+}
+```
+Like generic structs, a generic enum is a template that is **monomorphized** into
+a concrete enum per set of type arguments; there is no runtime cost. The concrete
+instantiation is found from the expected type (`nilai x: Pilihan<angka> =
+Pilihan.Kosong`, a return position, a call argument) or inferred from a variant's
+payload arguments (`Pilihan.Ada(5)` gives `Pilihan<angka>`). A payload-less
+variant of a generic enum (`Pilihan.Kosong`) carries nothing to infer from and so
+needs the expected type. Distinct instantiations (`Pilihan<angka>` and
+`Pilihan<boolean>`) are distinct types.
+
 ### 3.7 Arrays
 A fixed-size array type is written `[T; N]` where `T` is the element type and `N`
 is a compile-time length:

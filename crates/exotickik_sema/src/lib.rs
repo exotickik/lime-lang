@@ -237,6 +237,37 @@ mod tests {
     }
 
     #[test]
+    fn generic_enum_inferred_ok() {
+        let d = check(
+            "program P\nenum Pilihan<T> { Ada(T), Kosong }\n\
+             fungsi buka(o: Pilihan<angka>) -> angka {\n\
+               cocok o { Ada(n) => { kembalikan n } Kosong => { kembalikan 0 } }\n\
+               kembalikan -1\n\
+             }\n\
+             utama { tampilkan(buka(Pilihan.Ada(5))) }",
+        );
+        assert!(!d.has_errors(), "{:?}", d.diagnostics());
+    }
+
+    #[test]
+    fn generic_enum_wrong_type_arity_rejected() {
+        let d = check(
+            "program P\nenum Pilihan<T> { Ada(T), Kosong }\n\
+             utama { nilai x: Pilihan<angka, angka> = Pilihan.Kosong }",
+        );
+        assert!(has_code(&d, codes::E_UNKNOWN_TYPE));
+    }
+
+    #[test]
+    fn generic_enum_cannot_infer_rejected() {
+        let d = check(
+            "program P\nenum Pilihan<T> { Ada(T), Kosong }\n\
+             utama { nilai x = Pilihan.Kosong tampilkan(1) }",
+        );
+        assert!(has_code(&d, codes::E_CANNOT_INFER));
+    }
+
+    #[test]
     fn payload_enum_wrong_arity_rejected() {
         let d = check(
             "program P\nenum Bentuk { Lingkaran(angka), Titik }\n\

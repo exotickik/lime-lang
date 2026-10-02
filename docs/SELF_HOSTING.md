@@ -72,8 +72,10 @@ current compiler.
    `Biner(Operator, kiri, kanan)`) instead of through the arena `Node` struct of
    gap 2 — though the arena approach remains valid. Payloads are currently Copy
    (integers, `char`, `boolean`, `teks`, enums, Copy structs — which covers token
-   kinds, literals and arena indices); owned payloads (`daftar`, `kotak`, `peta`)
-   and generic enums are the remaining enum work.
+   kinds, literals and arena indices). **Generic enums** also work now
+   (`Pilihan<T> { Ada(T) Kosong }`, monomorphized), giving typed optional/variant
+   containers. Owned payloads (`daftar`, `kotak`, `peta`) are the remaining enum
+   work.
 
 2. **Heap-recursive data types — a convenience, not a blocker.** A recursive
    struct *type-checks* through an owned box — `tipe Simpul { data: angka, berikut:
@@ -85,9 +87,11 @@ current compiler.
    would make pointer-based trees possible too, but the index-arena approach is a
    complete, idiomatic way to write the compiler's data structures now.
 
-3. **Generic data types.** ✅ Generic **structs** now work (`tipe Pasangan<T, U>
-   { … }`, monomorphized; see `examples/pasangan.exo`). Generic **enums** and
-   payload-carrying enum variants are the remaining data-type generics.
+3. **Generic data types.** ✅ Generic **structs** (`tipe Pasangan<T, U> { … }`,
+   see `examples/pasangan.exo`), payload-carrying enum variants, and generic
+   **enums** (`enum Pilihan<T> { Ada(T) Kosong }`, see `examples/pilihan.exo`)
+   all work now, monomorphized with no runtime cost. The remaining data-type
+   generics work is owned payloads inside enum variants.
 
 4. **Maps/sets.** ✅ `peta<K, V>` (a real string-keyed hash table) now exists —
    symbol tables, string interning, and module tables are expressible (see

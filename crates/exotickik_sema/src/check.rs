@@ -16,6 +16,10 @@ pub struct Checker<'a> {
     generic_struct_ids: HashMap<String, usize>,
     struct_instantiations: HashMap<(usize, Vec<Type>), StructId>,
     struct_instance_of: HashMap<u32, usize>,
+    generic_enums: Vec<EnumDecl>,
+    generic_enum_ids: HashMap<String, usize>,
+    enum_instantiations: HashMap<(usize, Vec<Type>), EnumId>,
+    enum_instance_of: HashMap<u32, usize>,
     generic_fns: Vec<Function>,
     instantiations: HashMap<(usize, Vec<Type>), usize>,
     mono_worklist: Vec<usize>,
@@ -44,6 +48,10 @@ impl<'a> Checker<'a> {
             generic_struct_ids: HashMap::new(),
             struct_instantiations: HashMap::new(),
             struct_instance_of: HashMap::new(),
+            generic_enums: Vec::new(),
+            generic_enum_ids: HashMap::new(),
+            enum_instantiations: HashMap::new(),
+            enum_instance_of: HashMap::new(),
             generic_fns: Vec::new(),
             instantiations: HashMap::new(),
             mono_worklist: Vec::new(),
@@ -133,6 +141,7 @@ impl<'a> Checker<'a> {
         self.resolve_struct_fields(program);
         self.validate_generic_struct_templates();
         self.resolve_enum_payloads(program);
+        self.validate_generic_enum_templates();
         self.collect_functions(program);
         self.collect_traits(program);
         self.collect_impls(program);
@@ -160,6 +169,8 @@ impl<'a> Checker<'a> {
             if let Item::Enum(e) = item {
                 if self.enum_ids.contains_key(&e.name.name)
                     || self.struct_ids.contains_key(&e.name.name)
+                    || self.generic_enum_ids.contains_key(&e.name.name)
+                    || self.generic_struct_ids.contains_key(&e.name.name)
                 {
                     self.diags.emit(
                         Diagnostic::error(
@@ -168,6 +179,12 @@ impl<'a> Checker<'a> {
                         )
                         .primary(e.name.span, "definisi ulang di sini"),
                     );
+                    continue;
+                }
+                if !e.type_params.is_empty() {
+                    let tidx = self.generic_enums.len();
+                    self.generic_enums.push(e.clone());
+                    self.generic_enum_ids.insert(e.name.name.clone(), tidx);
                     continue;
                 }
                 let mut seen: HashMap<String, ()> = HashMap::new();
@@ -1218,6 +1235,9 @@ impl<'a> Checker<'a> {
                     if let Some(&eid) = self.enum_ids.get(n) {
                         return self.check_enum_variant(expr.id, eid, field);
                     }
+                    if let Some(&tidx) = self.generic_enum_ids.get(n) {
+                        return self.check_generic_enum_bare_variant(expr.id, tidx, field, expected);
+                    }
                 }
                 self.check_field(base, field)
             }
@@ -1579,6 +1599,9 @@ impl<'a> Checker<'a> {
             if let ExprKind::Name(n) = &base.kind {
                 if let Some(&eid) = self.enum_ids.get(n) {
                     return self.check_enum_variant_ctor(call, eid, field, args);
+                }
+                if let Some(&tidx) = self.generic_enum_ids.get(n) {
+                    return self.check_generic_enum_variant_ctor(call, tidx, field, args, expected);
                 }
             }
             return self.check_method_call(call, base, field, args);
@@ -2955,6 +2978,161 @@ impl<'a> Checker<'a> {
         Type::Enum(eid)
     }
 
+    fn check_generic_enum_variant_ctor(
+        &mut self,
+        call: &Expr,
+        tidx: usize,
+        variant: &Ident,
+        args: &[Expr],
+        expected: Option<&Type>,
+    ) -> Type {
+        if let Some(Type::Enum(eid)) = expected {
+            if self.enum_instance_of.get(&eid.0) == Some(&tidx) {
+                let eid = *eid;
+                return self.check_enum_variant_ctor(call, eid, variant, args);
+            }
+        }
+        let template = self.generic_enums[tidx].clone();
+        let ename = template.name.name.clone();
+        let param_names: Vec<String> =
+            template.type_params.iter().map(|p| p.name.name.clone()).collect();
+        let Some(tv) = template.variants.iter().find(|v| v.name.name == variant.name) else {
+            self.diags.emit(
+                Diagnostic::error(
+                    codes::E_UNKNOWN_VARIANT,
+                    format!("enum '{}' tidak memiliki varian '{}'", ename, variant.name),
+                )
+                .primary(variant.span, "varian tidak dikenal"),
+            );
+            for a in args {
+                self.check_expr(a, None);
+            }
+            return Type::Error;
+        };
+        let arg_tys: Vec<Type> = args.iter().map(|a| self.check_expr(a, None)).collect();
+        let mut subst: HashMap<String, Type> = HashMap::new();
+        for (at, pte) in arg_tys.iter().zip(tv.payload.iter()) {
+            let pat = self.resolve_type_generic(pte, &param_names);
+            if !at.is_error() {
+                unify(&pat, at, &mut subst);
+            }
+        }
+        let targs: Vec<Type> = match param_names
+            .iter()
+            .map(|n| subst.get(n).cloned())
+            .collect::<Option<Vec<_>>>()
+        {
+            Some(v) => v,
+            None => {
+                self.diags.emit(
+                    Diagnostic::error(
+                        codes::E_CANNOT_INFER,
+                        format!("tidak bisa menyimpulkan parameter tipe untuk '{}'", ename),
+                    )
+                    .primary(call.span, "beri anotasi tipe pada tujuan")
+                    .help("mis. 'nilai x: Nama<angka> = Nama.Varian(...)'"),
+                );
+                return Type::Error;
+            }
+        };
+        let eid = self.monomorphize_enum(tidx, targs);
+        let tag = match self.results.enum_info(eid).variant_tag(&variant.name) {
+            Some(t) => t,
+            None => return Type::Error,
+        };
+        let payload = self.results.enum_info(eid).variants[tag as usize].payload.clone();
+        self.results.enum_variant.insert(call.id, (eid, tag));
+        if args.len() != payload.len() {
+            self.diags.emit(
+                Diagnostic::error(
+                    codes::E_ARITY_MISMATCH,
+                    format!(
+                        "varian '{}' membawa {} nilai, diberi {}",
+                        variant.name,
+                        payload.len(),
+                        args.len()
+                    ),
+                )
+                .primary(call.span, "jumlah data varian salah"),
+            );
+            return Type::Enum(eid);
+        }
+        for (i, pty) in payload.iter().enumerate() {
+            let at = &arg_tys[i];
+            if !at.is_error() && at != pty {
+                self.diags.emit(
+                    Diagnostic::error(
+                        codes::E_TYPE_MISMATCH_ASSIGN,
+                        format!(
+                            "data varian '{}' diharapkan '{}', ditemukan '{}'",
+                            variant.name,
+                            pty.display(),
+                            at.display()
+                        ),
+                    )
+                    .primary(args[i].span, "tipe data varian tidak cocok"),
+                );
+            }
+        }
+        Type::Enum(eid)
+    }
+
+    fn check_generic_enum_bare_variant(
+        &mut self,
+        node: NodeId,
+        tidx: usize,
+        variant: &Ident,
+        expected: Option<&Type>,
+    ) -> Type {
+        let template = self.generic_enums[tidx].clone();
+        let ename = template.name.name.clone();
+        let Some(tv) = template.variants.iter().find(|v| v.name.name == variant.name) else {
+            self.diags.emit(
+                Diagnostic::error(
+                    codes::E_UNKNOWN_VARIANT,
+                    format!("enum '{}' tidak memiliki varian '{}'", ename, variant.name),
+                )
+                .primary(variant.span, "varian tidak dikenal"),
+            );
+            return Type::Error;
+        };
+        if !tv.payload.is_empty() {
+            self.diags.emit(
+                Diagnostic::error(
+                    codes::E_ARITY_MISMATCH,
+                    format!(
+                        "varian '{}' dari enum '{}' membawa {} nilai dan harus dibentuk dengan '{}.{}(...)'",
+                        variant.name,
+                        ename,
+                        tv.payload.len(),
+                        ename,
+                        variant.name
+                    ),
+                )
+                .primary(variant.span, "varian ini butuh data"),
+            );
+            return Type::Error;
+        }
+        if let Some(Type::Enum(eid)) = expected {
+            if self.enum_instance_of.get(&eid.0) == Some(&tidx) {
+                let eid = *eid;
+                if let Some(tag) = self.results.enum_info(eid).variant_tag(&variant.name) {
+                    self.results.enum_variant.insert(node, (eid, tag));
+                    return Type::Enum(eid);
+                }
+            }
+        }
+        self.diags.emit(
+            Diagnostic::error(
+                codes::E_CANNOT_INFER,
+                format!("tidak bisa menyimpulkan parameter tipe untuk '{}'", ename),
+            )
+            .primary(variant.span, "beri anotasi tipe pada tujuan")
+            .help("mis. 'nilai x: Nama<angka> = Nama.Varian'"),
+        );
+        Type::Error
+    }
+
     fn check_field(&mut self, base: &Expr, field: &Ident) -> Type {
         let bt = self.check_expr(base, None);
         let bt = match bt {
@@ -3085,6 +3263,81 @@ impl<'a> Checker<'a> {
         id
     }
 
+    fn monomorphize_enum(&mut self, tidx: usize, args: Vec<Type>) -> EnumId {
+        let key = (tidx, args.clone());
+        if let Some(&id) = self.enum_instantiations.get(&key) {
+            return id;
+        }
+        let template = self.generic_enums[tidx].clone();
+        let param_names: Vec<String> =
+            template.type_params.iter().map(|p| p.name.name.clone()).collect();
+        let subst: HashMap<String, Type> =
+            param_names.iter().cloned().zip(args.iter().cloned()).collect();
+        let mangled = mangle_name(&template.name.name, &args);
+        let id = EnumId(self.results.enums.len() as u32);
+        self.results.enums.push(EnumInfo {
+            name: mangled.clone(),
+            variants: Vec::new(),
+            def_span: template.name.span,
+        });
+        self.enum_instantiations.insert(key, id);
+        self.enum_instance_of.insert(id.0, tidx);
+        self.enum_ids.insert(mangled, id);
+        let mut seen: HashMap<String, ()> = HashMap::new();
+        let mut variants = Vec::new();
+        for v in &template.variants {
+            if seen.insert(v.name.name.clone(), ()).is_some() {
+                continue;
+            }
+            let mut payload = Vec::new();
+            for te in &v.payload {
+                let mut pte = te.clone();
+                substitute_type_expr(&mut pte, &subst, &self.results);
+                let t = self.resolve_type(&pte);
+                if !t.is_error() && !self.is_copy(&t) {
+                    self.diags.emit(
+                        Diagnostic::error(
+                            codes::E_UNSUPPORTED,
+                            format!(
+                                "varian '{}' membawa payload bertipe milik '{}' yang belum didukung",
+                                v.name.name,
+                                t.display()
+                            ),
+                        )
+                        .primary(te.span, "payload enum harus bertipe salinan untuk saat ini"),
+                    );
+                }
+                payload.push(t);
+            }
+            variants.push(VariantInfo { name: v.name.name.clone(), payload });
+        }
+        self.results.enums[id.0 as usize].variants = variants;
+        id
+    }
+
+    fn validate_generic_enum_templates(&mut self) {
+        let templates = self.generic_enums.clone();
+        for t in &templates {
+            let param_names: Vec<String> =
+                t.type_params.iter().map(|p| p.name.name.clone()).collect();
+            let mut seen: HashMap<String, ()> = HashMap::new();
+            for v in &t.variants {
+                if seen.insert(v.name.name.clone(), ()).is_some() {
+                    self.diags.emit(
+                        Diagnostic::error(
+                            codes::E_REDEFINITION,
+                            format!("varian '{}' didefinisikan lebih dari sekali", v.name.name),
+                        )
+                        .primary(v.name.span, "varian ganda"),
+                    );
+                }
+                for te in &v.payload {
+                    let _ = self.resolve_type_generic(te, &param_names);
+                }
+            }
+        }
+    }
+
     fn validate_generic_struct_templates(&mut self) {
         let templates = self.generic_structs.clone();
         for t in &templates {
@@ -3137,6 +3390,17 @@ impl<'a> Checker<'a> {
                 }
                 if let Some(&tidx) = self.generic_struct_ids.get(name) {
                     let arity = self.generic_structs[tidx].type_params.len();
+                    self.diags.emit(
+                        Diagnostic::error(
+                            codes::E_UNKNOWN_TYPE,
+                            format!("tipe generik '{}' butuh {} argumen tipe", name, arity),
+                        )
+                        .primary(ty.span, format!("tulis '{}<...>'", name)),
+                    );
+                    return Type::Error;
+                }
+                if let Some(&tidx) = self.generic_enum_ids.get(name) {
+                    let arity = self.generic_enums[tidx].type_params.len();
                     self.diags.emit(
                         Diagnostic::error(
                             codes::E_UNKNOWN_TYPE,
@@ -3205,6 +3469,30 @@ impl<'a> Checker<'a> {
                     }
                     let id = self.monomorphize_struct(tidx, targs);
                     return Type::Struct(id);
+                }
+                if let Some(&tidx) = self.generic_enum_ids.get(name) {
+                    let arity = self.generic_enums[tidx].type_params.len();
+                    if args.len() != arity {
+                        self.diags.emit(
+                            Diagnostic::error(
+                                codes::E_UNKNOWN_TYPE,
+                                format!(
+                                    "tipe generik '{}' butuh {} argumen tipe, diberi {}",
+                                    name,
+                                    arity,
+                                    args.len()
+                                ),
+                            )
+                            .primary(ty.span, "jumlah argumen tipe salah"),
+                        );
+                        return Type::Error;
+                    }
+                    let targs: Vec<Type> = args.iter().map(|a| self.resolve_type(a)).collect();
+                    if targs.iter().any(|t| t.is_error()) {
+                        return Type::Error;
+                    }
+                    let id = self.monomorphize_enum(tidx, targs);
+                    return Type::Enum(id);
                 }
                 self.diags.emit(
                     Diagnostic::error(

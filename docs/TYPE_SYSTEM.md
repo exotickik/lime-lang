@@ -201,8 +201,9 @@ fungsi maksimum<T>(a: T, b: T) -> T {
   AST — not textual substitution.
 
 Trait bounds on type parameters (`<T: Sifat>`) are supported — see **Traits**
-below. Generic **structs** are supported (monomorphized); generic **enums** are
-not yet. **Not yet:** generic enums, explicit type arguments at the call
+below. Generic **structs** and generic **enums** are supported (monomorphized);
+a generic enum's instantiation is taken from the expected type or inferred from a
+variant's payload arguments. **Not yet:** explicit type arguments at the call
 site (turbofish). Nested generic calls (a generic calling another generic) are
 supported.
 

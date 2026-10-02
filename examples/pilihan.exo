@@ -1,0 +1,46 @@
+program Pilihan
+
+enum Pilihan<T> {
+    Ada(T),
+    Kosong,
+}
+
+fungsi cari(xs: &daftar<angka>, target: angka) -> Pilihan<angka> {
+    untuk i dari 0 sampai panjang(xs) {
+        jika elemen(xs, i) == target {
+            kembalikan Pilihan.Ada(i)
+        }
+    }
+    nilai tidak_ada: Pilihan<angka> = Pilihan.Kosong
+    kembalikan tidak_ada
+}
+
+fungsi ambil_atau(o: Pilihan<angka>, bawaan: angka) -> angka {
+    cocok o {
+        Ada(n) => {
+            kembalikan n
+        }
+        Kosong => {
+            kembalikan bawaan
+        }
+    }
+    kembalikan bawaan
+}
+
+utama {
+    ubah data: daftar<angka> = daftar()
+    dorong(ambil_ubah(data), 11)
+    dorong(ambil_ubah(data), 22)
+    dorong(ambil_ubah(data), 33)
+    tampilkan(ambil_atau(cari(ambil(data), 22), 0 - 1))
+    tampilkan(ambil_atau(cari(ambil(data), 99), 0 - 1))
+    nilai kabar: Pilihan<boolean> = Pilihan.Ada(benar)
+    cocok kabar {
+        Ada(b) => {
+            tampilkan(b)
+        }
+        Kosong => {
+            tampilkan(salah)
+        }
+    }
+}

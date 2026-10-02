@@ -1,4 +1,4 @@
-# Phase 31 (Enum associated data / sum types) — Design Assessment
+# Phases 31–32 (Enum associated data + generic enums) — Design Assessment
 
 Baseline: `main` after generic structs (Phase 30). Next in the self-hosting
 order: generic enums, then enum associated data. A payload-less generic enum has
@@ -96,17 +96,24 @@ valgrind-clean including the `daftar<Token>` program.
 - **Copy payloads only.** Owned payload types are rejected. Owned payloads need
   tag-conditional drop (the `Hasil` machinery generalizes) plus move-out binding
   that consumes the scrutinee; deferred to keep this phase sound and complete.
-- **No generic enums yet.** `type_params` parse and are carried on `EnumDecl`,
-  but a generic enum is not monomorphized; `Pilihan<T> { Ada(T) Kosong }` is the
-  next step and builds directly on this representation (the layout already
-  flattens payload fields, so substituting `T` and monomorphizing mirrors generic
-  structs).
 - A payload enum is not comparable with `==`/`!=`.
+
+## Generic enums (Phase 32, shipped on top of this)
+
+`enum Pilihan<T> { Ada(T) Kosong }` is now monomorphized exactly like generic
+structs: the template is stored, and each application `Pilihan<angka>` becomes a
+concrete `EnumInfo`/`EnumId` with `T` substituted into the variant payloads (the
+mangled instance name is registered in `enum_ids` so it round-trips through name
+resolution). The concrete enum is an ordinary one, so all the associated-data IR
+and codegen above are reused unchanged. The instantiation is taken from the
+expected type when it is a matching instance, otherwise inferred by unifying a
+variant's payload arguments against its declared payload (`Pilihan.Ada(5)` solves
+`T = angka`); a payload-less variant with no expected type cannot be inferred and
+is a `E0270` error. Tests in `cli/tests/generic_enums.rs` and `exotickik_sema`,
+plus `examples/pilihan.exo`.
 
 ## Next
 
-Owned enum payloads (construction + tag-conditional drop + move-binding), then
-generic enums (`Pilihan<T>`) by monomorphizing payload layouts the way generic
-structs monomorphize fields — which also unblocks owned-`Hasil` inspection via
-`cocok`. Then begin porting the bootstrap front end's data structures to Exotickik
-sum types.
+Owned enum payloads (construction + tag-conditional drop + move-binding), which
+also unblocks owned-`Hasil` inspection via `cocok`. Then begin porting the
+bootstrap front end's data structures to Exotickik sum types.

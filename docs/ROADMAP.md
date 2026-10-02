@@ -88,7 +88,8 @@ Legend: ✅ done · 🟡 in progress · ⬜ planned
   stored, returned, and called indirectly; bare function pointers, no allocation.
   Enables higher-order functions, and is the prerequisite for thread spawning and
   FFI callbacks
-- ⬜ Generic structs/enums, explicit type args, dynamic dispatch / trait objects
+- ✅ Generic structs and enums (monomorphized); ⬜ explicit type args (turbofish),
+  dynamic dispatch / trait objects
 - ✅ Error handling (`Hasil<T, R>`, Phase 12): built-in result type, `sukses`/
   `gagal` constructors, `coba` propagation (early-return), `berhasil`/
   `nilai_atau`/`gagal_atau` inspection, generic integration, native tagged-value
@@ -182,7 +183,12 @@ Legend: ✅ done · 🟡 in progress · ⬜ planned
 - ✅ Enum associated data + `cocok` payload binding (Phase 31): Copy payloads,
   tagged-aggregate representation. Owned payloads (which also unblock
   owned-`Hasil` inspection) and generic enums (`Pilihan<T>`) are the next step
-- ⬜ Owned enum payloads + generic enums
+- ✅ Generic enums (Phase 32): `enum Pilihan<T> { Ada(T) Kosong }`, monomorphized
+  to concrete enums like generic structs; instantiation from the expected type or
+  inferred from a variant's payload arguments (`Pilihan.Ada(5)` ⇒ `Pilihan<angka>`).
+  Reuses the enum associated-data representation
+- ⬜ Owned enum payloads (construction + tag-conditional drop + move-binding),
+  which also unblocks owned-`Hasil` inspection via `cocok`
 - ⬜ Port the bootstrap front end to Exotickik component by component, validated with
   `exotickik test` against the Rust bootstrap
 
