@@ -1,0 +1,20 @@
+modul Rentang
+
+publik tipe Rentang {
+    mulai: angka
+    akhir: angka
+}
+
+publik fungsi rentang(mulai: angka, akhir: angka) -> Rentang {
+    kembalikan Rentang { mulai: mulai, akhir: akhir }
+}
+
+publik fungsi panjang_rentang(r: Rentang) -> angka {
+    kembalikan r.akhir - r.mulai
+}
+
+publik fungsi gabung(a: Rentang, b: Rentang) -> Rentang {
+    nilai m = a.mulai
+    nilai n = b.akhir
+    kembalikan Rentang { mulai: m, akhir: n }
+}

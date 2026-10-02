@@ -1,0 +1,16 @@
+program Kompiler
+
+impor Lekser
+
+impor Token
+
+impor Sumber
+
+utama {
+    nilai src = dari_teks("fungsi tambah(a: angka) -> angka { kembalikan a + 1 }")
+    nilai toks = lekser(ambil(src))
+    tampilkan(panjang(ambil(toks)))
+    untuk i dari 0 sampai panjang(ambil(toks)) {
+        tampilkan(kode_jenis(elemen(ambil(toks), i).jenis))
+    }
+}

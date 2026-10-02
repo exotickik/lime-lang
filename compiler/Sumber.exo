@@ -1,0 +1,38 @@
+modul Sumber
+
+publik tipe Posisi {
+    baris: angka
+    kolom: angka
+}
+
+publik fungsi dari_teks(s: teks) -> daftar<bita> {
+    ubah keluaran: daftar<bita> = daftar()
+    nilai n = panjang(s)
+    untuk i dari 0 sampai n {
+        dorong(ambil_ubah(keluaran), bita_pada(s, i) sebagai bita)
+    }
+    kembalikan keluaran
+}
+
+publik fungsi byte_di(src: &daftar<bita>, i: angka) -> angka {
+    jika i < 0 || i >= panjang(src) {
+        kembalikan 0 - 1
+    }
+    kembalikan elemen(src, i) sebagai angka
+}
+
+publik fungsi posisi_di(src: &daftar<bita>, offset: angka) -> Posisi {
+    ubah baris = 1
+    ubah kolom = 1
+    ubah i = 0
+    selama i < offset && i < panjang(src) {
+        jika elemen(src, i) sebagai angka == 10 {
+            baris = baris + 1
+            kolom = 1
+        } lain {
+            kolom = kolom + 1
+        }
+        i = i + 1
+    }
+    kembalikan Posisi { baris: baris, kolom: kolom }
+}

@@ -195,8 +195,12 @@ Legend: ✅ done · 🟡 in progress · ⬜ planned
   binding an arm takes ownership of the payload, an unbound/`lain` arm drops the
   active payload — released exactly once. Valgrind-clean (no leak, no
   double-free). `daftar` with owned element types remains a separate follow-up
-- ⬜ Port the bootstrap front end to Exotickik component by component, validated with
-  `exotickik test` against the Rust bootstrap
+- 🟡 Port the bootstrap front end to Exotickik component by component (`compiler/`),
+  validated with `exotickik test` and differential tests against the Rust bootstrap.
+  Done: source/span infrastructure (`Rentang`, `Sumber`), token model (`Token`),
+  and a **real self-hosted lexer** (`Lekser`) for the actual Exotickik language —
+  differential-tested token-for-token against the bootstrap lexer
+  (`cli/tests/selfhost_lexer.rs`). Next: the parser → AST
 
   See `docs/SELF_HOSTING.md` for the evidence-based gap analysis.
 

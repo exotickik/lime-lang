@@ -1,0 +1,339 @@
+modul Lekser
+
+impor Token
+
+fungsi spasi(b: angka) -> boolean {
+    kembalikan b == 32 || b == 9 || b == 10 || b == 13
+}
+
+fungsi digit(b: angka) -> boolean {
+    kembalikan b >= 48 && b <= 57
+}
+
+fungsi huruf(b: angka) -> boolean {
+    jika b >= 65 && b <= 90 {
+        kembalikan benar
+    }
+    jika b >= 97 && b <= 122 {
+        kembalikan benar
+    }
+    kembalikan b == 95 || b >= 128
+}
+
+fungsi alnum(b: angka) -> boolean {
+    kembalikan huruf(b) || digit(b)
+}
+
+fungsi di(src: &daftar<bita>, i: angka) -> angka {
+    jika i < 0 || i >= panjang(src) {
+        kembalikan 0 - 1
+    }
+    kembalikan elemen(src, i) sebagai angka
+}
+
+fungsi lewati_trivia(src: &daftar<bita>, mulai: angka) -> angka {
+    ubah p = mulai
+    nilai n = panjang(src)
+    selama p < n {
+        nilai b = elemen(src, p) sebagai angka
+        jika spasi(b) {
+            p = p + 1
+        } lain jika b == 47 && di(src, p + 1) == 47 {
+            p = p + 2
+            selama p < n && elemen(src, p) sebagai angka != 10 {
+                p = p + 1
+            }
+        } lain jika b == 47 && di(src, p + 1) == 42 {
+            p = p + 2
+            ubah dalam = 1
+            selama dalam > 0 && p < n {
+                jika di(src, p) == 47 && di(src, p + 1) == 42 {
+                    p = p + 2
+                    dalam = dalam + 1
+                } lain jika di(src, p) == 42 && di(src, p + 1) == 47 {
+                    p = p + 2
+                    dalam = dalam - 1
+                } lain {
+                    p = p + 1
+                }
+            }
+        } lain {
+            berhenti
+        }
+    }
+    kembalikan p
+}
+
+fungsi akhir_pengenal(src: &daftar<bita>, mulai: angka) -> angka {
+    ubah p = mulai
+    selama alnum(di(src, p)) {
+        p = p + 1
+    }
+    kembalikan p
+}
+
+fungsi baca_angka(src: &daftar<bita>, mulai: angka) -> Token {
+    ubah p = mulai
+    ubah nilai_int = 0
+    nilai pecahan = salah
+    ubah adalah_pecahan = salah
+    jika di(src, p) == 48 && (di(src, p + 1) == 120 || di(src, p + 1) == 88) {
+        p = p + 2
+        selama benar {
+            nilai c = di(src, p)
+            jika c == 95 {
+                p = p + 1
+            } lain jika digit(c) {
+                nilai_int = nilai_int * 16 + (c - 48)
+                p = p + 1
+            } lain jika c >= 97 && c <= 102 {
+                nilai_int = nilai_int * 16 + (c - 97 + 10)
+                p = p + 1
+            } lain jika c >= 65 && c <= 70 {
+                nilai_int = nilai_int * 16 + (c - 65 + 10)
+                p = p + 1
+            } lain {
+                berhenti
+            }
+        }
+        kembalikan token(Jenis.Bulat(nilai_int), mulai, p)
+    }
+    jika di(src, p) == 48 && (di(src, p + 1) == 98 || di(src, p + 1) == 66) {
+        p = p + 2
+        selama di(src, p) == 48 || di(src, p) == 49 || di(src, p) == 95 {
+            jika di(src, p) != 95 {
+                nilai_int = nilai_int * 2 + (di(src, p) - 48)
+            }
+            p = p + 1
+        }
+        kembalikan token(Jenis.Bulat(nilai_int), mulai, p)
+    }
+    selama digit(di(src, p)) || di(src, p) == 95 {
+        jika di(src, p) != 95 {
+            nilai_int = nilai_int * 10 + (di(src, p) - 48)
+        }
+        p = p + 1
+    }
+    jika di(src, p) == 46 && digit(di(src, p + 1)) {
+        adalah_pecahan = benar
+        p = p + 1
+        selama digit(di(src, p)) || di(src, p) == 95 {
+            p = p + 1
+        }
+    }
+    jika di(src, p) == 101 || di(src, p) == 69 {
+        adalah_pecahan = benar
+        p = p + 1
+        jika di(src, p) == 43 || di(src, p) == 45 {
+            p = p + 1
+        }
+        selama digit(di(src, p)) || di(src, p) == 95 {
+            p = p + 1
+        }
+    }
+    p = lewati_suffix(src, p)
+    jika adalah_pecahan || pecahan {
+        kembalikan token(Jenis.Pecahan, mulai, p)
+    }
+    kembalikan token(Jenis.Bulat(nilai_int), mulai, p)
+}
+
+fungsi lewati_suffix(src: &daftar<bita>, mulai: angka) -> angka {
+    nilai b = di(src, mulai)
+    jika !(b == 105 || b == 117 || b == 102) {
+        kembalikan mulai
+    }
+    ubah p = mulai
+    selama alnum(di(src, p)) {
+        p = p + 1
+    }
+    kembalikan p
+}
+
+fungsi baca_teks(src: &daftar<bita>, mulai: angka) -> Token {
+    ubah p = mulai + 1
+    nilai n = panjang(src)
+    selama p < n {
+        nilai c = elemen(src, p) sebagai angka
+        jika c == 34 {
+            p = p + 1
+            kembalikan token(Jenis.LiteralTeks, mulai, p)
+        }
+        jika c == 10 {
+            kembalikan token(Jenis.TakDikenal, mulai, p)
+        }
+        jika c == 92 {
+            p = p + 2
+        } lain {
+            p = p + 1
+        }
+    }
+    kembalikan token(Jenis.TakDikenal, mulai, p)
+}
+
+fungsi nilai_escape(c: angka) -> angka {
+    jika c == 110 {
+        kembalikan 10
+    }
+    jika c == 114 {
+        kembalikan 13
+    }
+    jika c == 116 {
+        kembalikan 9
+    }
+    jika c == 48 {
+        kembalikan 0
+    }
+    kembalikan c
+}
+
+fungsi baca_karakter(src: &daftar<bita>, mulai: angka) -> Token {
+    ubah p = mulai + 1
+    ubah kode = 0
+    jika di(src, p) == 92 {
+        p = p + 1
+        kode = nilai_escape(di(src, p))
+        p = p + 1
+    } lain {
+        kode = di(src, p)
+        p = p + 1
+    }
+    jika di(src, p) == 39 {
+        p = p + 1
+        kembalikan token(Jenis.Karakter(kode), mulai, p)
+    }
+    kembalikan token(Jenis.TakDikenal, mulai, p)
+}
+
+fungsi baca_operator(src: &daftar<bita>, mulai: angka) -> Token {
+    nilai b = di(src, mulai)
+    nilai c = di(src, mulai + 1)
+    jika b == 45 && c == 62 {
+        kembalikan token(Jenis.Panah, mulai, mulai + 2)
+    }
+    jika b == 61 && c == 62 {
+        kembalikan token(Jenis.FatPanah, mulai, mulai + 2)
+    }
+    jika b == 61 && c == 61 {
+        kembalikan token(Jenis.SamaSama, mulai, mulai + 2)
+    }
+    jika b == 33 && c == 61 {
+        kembalikan token(Jenis.TakSama, mulai, mulai + 2)
+    }
+    jika b == 60 && c == 61 {
+        kembalikan token(Jenis.KurangSama, mulai, mulai + 2)
+    }
+    jika b == 62 && c == 61 {
+        kembalikan token(Jenis.LebihSama, mulai, mulai + 2)
+    }
+    jika b == 38 && c == 38 {
+        kembalikan token(Jenis.AmpAmp, mulai, mulai + 2)
+    }
+    jika b == 124 && c == 124 {
+        kembalikan token(Jenis.PipaPipa, mulai, mulai + 2)
+    }
+    nilai akhir = mulai + 1
+    jika b == 40 {
+        kembalikan token(Jenis.LParen, mulai, akhir)
+    }
+    jika b == 41 {
+        kembalikan token(Jenis.RParen, mulai, akhir)
+    }
+    jika b == 123 {
+        kembalikan token(Jenis.LBrace, mulai, akhir)
+    }
+    jika b == 125 {
+        kembalikan token(Jenis.RBrace, mulai, akhir)
+    }
+    jika b == 91 {
+        kembalikan token(Jenis.LBracket, mulai, akhir)
+    }
+    jika b == 93 {
+        kembalikan token(Jenis.RBracket, mulai, akhir)
+    }
+    jika b == 44 {
+        kembalikan token(Jenis.Koma, mulai, akhir)
+    }
+    jika b == 58 {
+        kembalikan token(Jenis.TitikDua, mulai, akhir)
+    }
+    jika b == 59 {
+        kembalikan token(Jenis.TitikKoma, mulai, akhir)
+    }
+    jika b == 46 {
+        kembalikan token(Jenis.Titik, mulai, akhir)
+    }
+    jika b == 61 {
+        kembalikan token(Jenis.Sama, mulai, akhir)
+    }
+    jika b == 60 {
+        kembalikan token(Jenis.Kurang, mulai, akhir)
+    }
+    jika b == 62 {
+        kembalikan token(Jenis.Lebih, mulai, akhir)
+    }
+    jika b == 43 {
+        kembalikan token(Jenis.Tambah, mulai, akhir)
+    }
+    jika b == 45 {
+        kembalikan token(Jenis.Minus, mulai, akhir)
+    }
+    jika b == 42 {
+        kembalikan token(Jenis.Bintang, mulai, akhir)
+    }
+    jika b == 47 {
+        kembalikan token(Jenis.Garis, mulai, akhir)
+    }
+    jika b == 37 {
+        kembalikan token(Jenis.Persen, mulai, akhir)
+    }
+    jika b == 33 {
+        kembalikan token(Jenis.Seru, mulai, akhir)
+    }
+    jika b == 38 {
+        kembalikan token(Jenis.Amp, mulai, akhir)
+    }
+    kembalikan token(Jenis.TakDikenal, mulai, akhir)
+}
+
+publik fungsi lekser(src: &daftar<bita>) -> daftar<Token> {
+    ubah hasil: daftar<Token> = daftar()
+    ubah pos = 0
+    nilai n = panjang(src)
+    selama benar {
+        pos = lewati_trivia(src, pos)
+        nilai mulai = pos
+        jika pos >= n {
+            dorong(ambil_ubah(hasil), token(Jenis.Akhir, mulai, mulai))
+            berhenti
+        }
+        nilai b = elemen(src, pos) sebagai angka
+        jika huruf(b) {
+            nilai akhir = akhir_pengenal(src, mulai)
+            nilai kode = kode_kata_kunci(src, mulai, akhir)
+            jika kode < 0 {
+                dorong(ambil_ubah(hasil), token(Jenis.Pengenal, mulai, akhir))
+            } lain {
+                dorong(ambil_ubah(hasil), token(Jenis.KataKunci(kode), mulai, akhir))
+            }
+            pos = akhir
+        } lain jika digit(b) {
+            nilai t = baca_angka(src, mulai)
+            pos = t.rentang.akhir
+            dorong(ambil_ubah(hasil), t)
+        } lain jika b == 34 {
+            nilai t = baca_teks(src, mulai)
+            pos = t.rentang.akhir
+            dorong(ambil_ubah(hasil), t)
+        } lain jika b == 39 {
+            nilai t = baca_karakter(src, mulai)
+            pos = t.rentang.akhir
+            dorong(ambil_ubah(hasil), t)
+        } lain {
+            nilai t = baca_operator(src, mulai)
+            pos = t.rentang.akhir
+            dorong(ambil_ubah(hasil), t)
+        }
+    }
+    kembalikan hasil
+}

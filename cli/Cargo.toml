@@ -12,3 +12,8 @@ path = "src/main.rs"
 exotickik_driver.workspace = true
 exotickik_codegen.workspace = true
 exotickik_fmt.workspace = true
+
+[dev-dependencies]
+exotickik_lexer.workspace = true
+exotickik_span.workspace = true
+exotickik_diagnostics.workspace = true

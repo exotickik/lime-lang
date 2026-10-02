@@ -14,8 +14,11 @@ name = "exotickik_cli"
 version = "0.1.0"
 dependencies = [
  "exotickik_codegen",
+ "exotickik_diagnostics",
  "exotickik_driver",
  "exotickik_fmt",
+ "exotickik_lexer",
+ "exotickik_span",
 ]
 
 [[package]]

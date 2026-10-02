@@ -1,0 +1,408 @@
+modul Token
+
+impor Rentang
+
+publik enum Jenis {
+    Pengenal,
+    KataKunci(angka),
+    Bulat(angka),
+    Pecahan,
+    LiteralTeks,
+    Karakter(angka),
+    LParen,
+    RParen,
+    LBrace,
+    RBrace,
+    LBracket,
+    RBracket,
+    Koma,
+    TitikDua,
+    TitikKoma,
+    Titik,
+    Panah,
+    FatPanah,
+    Sama,
+    SamaSama,
+    TakSama,
+    Kurang,
+    KurangSama,
+    Lebih,
+    LebihSama,
+    Tambah,
+    Minus,
+    Bintang,
+    Garis,
+    Persen,
+    AmpAmp,
+    Amp,
+    PipaPipa,
+    Seru,
+    Akhir,
+    TakDikenal,
+}
+
+publik tipe Token {
+    jenis: Jenis
+    rentang: Rentang
+}
+
+publik fungsi token(jenis: Jenis, mulai: angka, akhir: angka) -> Token {
+    kembalikan Token { jenis: jenis, rentang: Rentang { mulai: mulai, akhir: akhir } }
+}
+
+publik fungsi cocok_kata(src: &daftar<bita>, mulai: angka, akhir: angka, kw: teks) -> boolean {
+    nilai len = akhir - mulai
+    jika len != panjang(kw) {
+        kembalikan salah
+    }
+    untuk i dari 0 sampai len {
+        jika elemen(src, mulai + i) sebagai angka != bita_pada(kw, i) sebagai angka {
+            kembalikan salah
+        }
+    }
+    kembalikan benar
+}
+
+publik fungsi kode_kata_kunci(src: &daftar<bita>, mulai: angka, akhir: angka) -> angka {
+    jika cocok_kata(src, mulai, akhir, "program") {
+        kembalikan 0
+    }
+    jika cocok_kata(src, mulai, akhir, "modul") {
+        kembalikan 1
+    }
+    jika cocok_kata(src, mulai, akhir, "utama") {
+        kembalikan 2
+    }
+    jika cocok_kata(src, mulai, akhir, "fungsi") {
+        kembalikan 3
+    }
+    jika cocok_kata(src, mulai, akhir, "kembalikan") {
+        kembalikan 4
+    }
+    jika cocok_kata(src, mulai, akhir, "nilai") {
+        kembalikan 5
+    }
+    jika cocok_kata(src, mulai, akhir, "ubah") {
+        kembalikan 6
+    }
+    jika cocok_kata(src, mulai, akhir, "jika") {
+        kembalikan 7
+    }
+    jika cocok_kata(src, mulai, akhir, "lain") {
+        kembalikan 8
+    }
+    jika cocok_kata(src, mulai, akhir, "selama") {
+        kembalikan 9
+    }
+    jika cocok_kata(src, mulai, akhir, "untuk") {
+        kembalikan 10
+    }
+    jika cocok_kata(src, mulai, akhir, "dari") {
+        kembalikan 11
+    }
+    jika cocok_kata(src, mulai, akhir, "sampai") {
+        kembalikan 12
+    }
+    jika cocok_kata(src, mulai, akhir, "hingga") {
+        kembalikan 13
+    }
+    jika cocok_kata(src, mulai, akhir, "pada") {
+        kembalikan 14
+    }
+    jika cocok_kata(src, mulai, akhir, "berhenti") {
+        kembalikan 15
+    }
+    jika cocok_kata(src, mulai, akhir, "lanjut") {
+        kembalikan 16
+    }
+    jika cocok_kata(src, mulai, akhir, "benar") {
+        kembalikan 17
+    }
+    jika cocok_kata(src, mulai, akhir, "salah") {
+        kembalikan 18
+    }
+    jika cocok_kata(src, mulai, akhir, "tipe") {
+        kembalikan 19
+    }
+    jika cocok_kata(src, mulai, akhir, "enum") {
+        kembalikan 20
+    }
+    jika cocok_kata(src, mulai, akhir, "sifat") {
+        kembalikan 21
+    }
+    jika cocok_kata(src, mulai, akhir, "implementasi") {
+        kembalikan 22
+    }
+    jika cocok_kata(src, mulai, akhir, "cocok") {
+        kembalikan 23
+    }
+    jika cocok_kata(src, mulai, akhir, "coba") {
+        kembalikan 24
+    }
+    jika cocok_kata(src, mulai, akhir, "gunakan") {
+        kembalikan 25
+    }
+    jika cocok_kata(src, mulai, akhir, "impor") {
+        kembalikan 26
+    }
+    jika cocok_kata(src, mulai, akhir, "ekstern") {
+        kembalikan 27
+    }
+    jika cocok_kata(src, mulai, akhir, "publik") {
+        kembalikan 28
+    }
+    jika cocok_kata(src, mulai, akhir, "dan") {
+        kembalikan 29
+    }
+    jika cocok_kata(src, mulai, akhir, "atau") {
+        kembalikan 30
+    }
+    jika cocok_kata(src, mulai, akhir, "bukan") {
+        kembalikan 31
+    }
+    jika cocok_kata(src, mulai, akhir, "sebagai") {
+        kembalikan 32
+    }
+    kembalikan 0 - 1
+}
+
+publik fungsi kode_jenis(j: Jenis) -> angka {
+    cocok j {
+        Pengenal => {
+            kembalikan 0
+        }
+        KataKunci(k) => {
+            kembalikan 1
+        }
+        Bulat(v) => {
+            kembalikan 2
+        }
+        Pecahan => {
+            kembalikan 3
+        }
+        LiteralTeks => {
+            kembalikan 4
+        }
+        Karakter(c) => {
+            kembalikan 5
+        }
+        LParen => {
+            kembalikan 6
+        }
+        RParen => {
+            kembalikan 7
+        }
+        LBrace => {
+            kembalikan 8
+        }
+        RBrace => {
+            kembalikan 9
+        }
+        LBracket => {
+            kembalikan 10
+        }
+        RBracket => {
+            kembalikan 11
+        }
+        Koma => {
+            kembalikan 12
+        }
+        TitikDua => {
+            kembalikan 13
+        }
+        TitikKoma => {
+            kembalikan 14
+        }
+        Titik => {
+            kembalikan 15
+        }
+        Panah => {
+            kembalikan 16
+        }
+        FatPanah => {
+            kembalikan 17
+        }
+        Sama => {
+            kembalikan 18
+        }
+        SamaSama => {
+            kembalikan 19
+        }
+        TakSama => {
+            kembalikan 20
+        }
+        Kurang => {
+            kembalikan 21
+        }
+        KurangSama => {
+            kembalikan 22
+        }
+        Lebih => {
+            kembalikan 23
+        }
+        LebihSama => {
+            kembalikan 24
+        }
+        Tambah => {
+            kembalikan 25
+        }
+        Minus => {
+            kembalikan 26
+        }
+        Bintang => {
+            kembalikan 27
+        }
+        Garis => {
+            kembalikan 28
+        }
+        Persen => {
+            kembalikan 29
+        }
+        AmpAmp => {
+            kembalikan 30
+        }
+        Amp => {
+            kembalikan 31
+        }
+        PipaPipa => {
+            kembalikan 32
+        }
+        Seru => {
+            kembalikan 33
+        }
+        Akhir => {
+            kembalikan 34
+        }
+        TakDikenal => {
+            kembalikan 35
+        }
+    }
+    kembalikan 0 - 1
+}
+
+publik fungsi kata_kunci_dari(j: Jenis) -> angka {
+    cocok j {
+        KataKunci(k) => {
+            kembalikan k
+        }
+        lain => {
+            kembalikan 0 - 1
+        }
+    }
+    kembalikan 0 - 1
+}
+
+publik fungsi nilai_bulat(j: Jenis) -> angka {
+    cocok j {
+        Bulat(v) => {
+            kembalikan v
+        }
+        lain => {
+            kembalikan 0 - 1
+        }
+    }
+    kembalikan 0 - 1
+}
+
+publik fungsi nama_kata_kunci(kode: angka) -> teks {
+    jika kode == 0 {
+        kembalikan "program"
+    }
+    jika kode == 1 {
+        kembalikan "modul"
+    }
+    jika kode == 2 {
+        kembalikan "utama"
+    }
+    jika kode == 3 {
+        kembalikan "fungsi"
+    }
+    jika kode == 4 {
+        kembalikan "kembalikan"
+    }
+    jika kode == 5 {
+        kembalikan "nilai"
+    }
+    jika kode == 6 {
+        kembalikan "ubah"
+    }
+    jika kode == 7 {
+        kembalikan "jika"
+    }
+    jika kode == 8 {
+        kembalikan "lain"
+    }
+    jika kode == 9 {
+        kembalikan "selama"
+    }
+    jika kode == 10 {
+        kembalikan "untuk"
+    }
+    jika kode == 11 {
+        kembalikan "dari"
+    }
+    jika kode == 12 {
+        kembalikan "sampai"
+    }
+    jika kode == 13 {
+        kembalikan "hingga"
+    }
+    jika kode == 14 {
+        kembalikan "pada"
+    }
+    jika kode == 15 {
+        kembalikan "berhenti"
+    }
+    jika kode == 16 {
+        kembalikan "lanjut"
+    }
+    jika kode == 17 {
+        kembalikan "benar"
+    }
+    jika kode == 18 {
+        kembalikan "salah"
+    }
+    jika kode == 19 {
+        kembalikan "tipe"
+    }
+    jika kode == 20 {
+        kembalikan "enum"
+    }
+    jika kode == 21 {
+        kembalikan "sifat"
+    }
+    jika kode == 22 {
+        kembalikan "implementasi"
+    }
+    jika kode == 23 {
+        kembalikan "cocok"
+    }
+    jika kode == 24 {
+        kembalikan "coba"
+    }
+    jika kode == 25 {
+        kembalikan "gunakan"
+    }
+    jika kode == 26 {
+        kembalikan "impor"
+    }
+    jika kode == 27 {
+        kembalikan "ekstern"
+    }
+    jika kode == 28 {
+        kembalikan "publik"
+    }
+    jika kode == 29 {
+        kembalikan "dan"
+    }
+    jika kode == 30 {
+        kembalikan "atau"
+    }
+    jika kode == 31 {
+        kembalikan "bukan"
+    }
+    jika kode == 32 {
+        kembalikan "sebagai"
+    }
+    kembalikan "?"
+}

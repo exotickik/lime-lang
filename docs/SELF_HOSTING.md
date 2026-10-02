@@ -27,6 +27,30 @@ suite, both pinned by `cli/tests/selfhost.rs` (they evaluate `12 + 34 * 5 = 182`
 `examples/pohon/` is the important result: **Exotickik can already build and traverse a
 real AST today**, which is the heart of a compiler front end.
 
+### The real self-hosted compiler has started (`compiler/`)
+
+`compiler/` holds the beginning of the actual Exotickik compiler written in Exotickik,
+split into modules (not one giant file):
+
+- `Rentang.exo` — source spans (`Rentang { mulai, akhir }`) with join/length.
+- `Sumber.exo` — source access: `teks` → `daftar<bita>`, bounds-safe byte peek,
+  and byte-offset → line/column (`Posisi`).
+- `Token.exo` — the token model: a payload-carrying `Jenis` enum (identifiers,
+  keywords by code, integer values, literals, every punctuation/operator, EOF,
+  error), the `Token` struct (`jenis` + `Rentang`), keyword classification over
+  byte ranges, and kind/keyword/int accessors.
+- `Lekser.exo` — a **real lexer for the actual Exotickik language** over
+  `&daftar<bita>` producing `daftar<Token>`: identifiers/keywords, decimal/hex/
+  binary integers with value, float literals, strings, chars (with escapes),
+  all one- and two-character operators, line and nested block comments, and
+  lexical-error tokens. It mirrors the bootstrap lexer's token boundaries.
+
+Validated two ways: `compiler/uji_lekser.exo` is an `exotickik test` suite (7 tests),
+and `cli/tests/selfhost_lexer.rs` runs that suite **and** tokenizes the same
+representative sources with the Rust bootstrap lexer, asserting both produce the
+identical token-kind streams (a head-to-head differential). This is the first
+real compiler component; the parser is next.
+
 ### What this proves Exotickik can already express
 
 The evaluator exercises, in Exotickik, the machinery a compiler front end is built

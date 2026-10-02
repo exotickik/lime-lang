@@ -1,0 +1,116 @@
+program UjiLekser
+
+impor Lekser
+
+impor Token
+
+impor Sumber
+
+fungsi kinds(s: teks) -> daftar<angka> {
+    nilai src = dari_teks(s)
+    nilai toks = lekser(ambil(src))
+    ubah k: daftar<angka> = daftar()
+    untuk i dari 0 sampai panjang(ambil(toks)) {
+        dorong(ambil_ubah(k), kode_jenis(elemen(ambil(toks), i).jenis))
+    }
+    kembalikan k
+}
+
+fungsi jumlah(s: teks) -> angka {
+    nilai k = kinds(s)
+    kembalikan panjang(ambil(k))
+}
+
+fungsi kind_di(s: teks, i: angka) -> angka {
+    nilai k = kinds(s)
+    kembalikan elemen(ambil(k), i)
+}
+
+fungsi kw_di(s: teks, i: angka) -> angka {
+    nilai src = dari_teks(s)
+    nilai toks = lekser(ambil(src))
+    kembalikan kata_kunci_dari(elemen(ambil(toks), i).jenis)
+}
+
+fungsi int_di(s: teks, i: angka) -> angka {
+    nilai src = dari_teks(s)
+    nilai toks = lekser(ambil(src))
+    kembalikan nilai_bulat(elemen(ambil(toks), i).jenis)
+}
+
+fungsi uji_kata_kunci_dan_pengenal() -> boolean {
+    nilai s = "fungsi tambah nilai x"
+    jika jumlah(s) != 5 {
+        kembalikan salah
+    }
+    jika kind_di(s, 0) != 1 {
+        kembalikan salah
+    }
+    jika kw_di(s, 0) != 3 {
+        kembalikan salah
+    }
+    jika kind_di(s, 1) != 0 {
+        kembalikan salah
+    }
+    jika kind_di(s, 2) != 1 {
+        kembalikan salah
+    }
+    jika kw_di(s, 2) != 5 {
+        kembalikan salah
+    }
+    jika kind_di(s, 3) != 0 {
+        kembalikan salah
+    }
+    kembalikan kind_di(s, 4) == 34
+}
+
+fungsi uji_operator() -> boolean {
+    nilai s = "-> => == != <= >= && || + - * / % = < >"
+    jika jumlah(s) != 17 {
+        kembalikan salah
+    }
+    kembalikan kind_di(s, 0) == 16 && kind_di(s, 1) == 17 && kind_di(s, 2) == 19 && kind_di(s, 3) == 20 && kind_di(s, 4) == 22 && kind_di(s, 5) == 24 && kind_di(s, 6) == 30 && kind_di(s, 7) == 32 && kind_di(s, 8) == 25 && kind_di(s, 9) == 26 && kind_di(s, 10) == 27 && kind_di(s, 11) == 28 && kind_di(s, 12) == 29 && kind_di(s, 13) == 18 && kind_di(s, 14) == 21 && kind_di(s, 15) == 23
+}
+
+fungsi uji_angka() -> boolean {
+    nilai s = "42 0xFF 0b1010 1_000 10i32"
+    jika kind_di(s, 0) != 2 {
+        kembalikan salah
+    }
+    jika int_di(s, 0) != 42 {
+        kembalikan salah
+    }
+    jika int_di(s, 1) != 255 {
+        kembalikan salah
+    }
+    jika int_di(s, 2) != 10 {
+        kembalikan salah
+    }
+    jika int_di(s, 3) != 1000 {
+        kembalikan salah
+    }
+    kembalikan int_di(s, 4) == 10
+}
+
+fungsi uji_pecahan() -> boolean {
+    nilai s = "3.14 2.5e-3"
+    kembalikan kind_di(s, 0) == 3 && kind_di(s, 1) == 3
+}
+
+fungsi uji_teks_dan_karakter() -> boolean {
+    nilai s = "\"halo\" 'a'"
+    kembalikan kind_di(s, 0) == 4 && kind_di(s, 1) == 5
+}
+
+fungsi uji_komentar() -> boolean {
+    nilai s = "nilai // komentar\n x /* blok /* bersarang */ */ y"
+    jika jumlah(s) != 4 {
+        kembalikan salah
+    }
+    kembalikan kind_di(s, 0) == 1 && kind_di(s, 1) == 0 && kind_di(s, 2) == 0 && kind_di(s, 3) == 34
+}
+
+fungsi uji_struktur_fungsi() -> boolean {
+    nilai s = "fungsi f(a: angka) -> angka { kembalikan a + 1 }"
+    kembalikan jumlah(s) == 16
+}
