@@ -1,0 +1,75 @@
+modul Ast
+
+impor Rentang
+
+publik enum JenisSimpul {
+    Bulat(angka),
+    Uner(angka),
+    Biner(angka),
+    Galat,
+}
+
+publik tipe Simpul {
+    jenis: JenisSimpul
+    kiri: angka
+    kanan: angka
+    rentang: Rentang
+}
+
+publik fungsi simpul(jenis: JenisSimpul, kiri: angka, kanan: angka, mulai: angka, akhir: angka) -> Simpul {
+    kembalikan Simpul { jenis: jenis, kiri: kiri, kanan: kanan, rentang: Rentang { mulai: mulai, akhir: akhir } }
+}
+
+publik fungsi op_biner_dari(s: Simpul) -> angka {
+    cocok s.jenis {
+        Biner(op) => {
+            kembalikan op
+        }
+        lain => {
+            kembalikan 0 - 1
+        }
+    }
+    kembalikan 0 - 1
+}
+
+publik fungsi op_uner_dari(s: Simpul) -> angka {
+    cocok s.jenis {
+        Uner(op) => {
+            kembalikan op
+        }
+        lain => {
+            kembalikan 0 - 1
+        }
+    }
+    kembalikan 0 - 1
+}
+
+publik fungsi nilai_bulat_dari(s: Simpul) -> angka {
+    cocok s.jenis {
+        Bulat(v) => {
+            kembalikan v
+        }
+        lain => {
+            kembalikan 0 - 1
+        }
+    }
+    kembalikan 0 - 1
+}
+
+publik fungsi kode_simpul(s: Simpul) -> angka {
+    cocok s.jenis {
+        Bulat(v) => {
+            kembalikan 0
+        }
+        Uner(op) => {
+            kembalikan 1
+        }
+        Biner(op) => {
+            kembalikan 2
+        }
+        Galat => {
+            kembalikan 3
+        }
+    }
+    kembalikan 0 - 1
+}

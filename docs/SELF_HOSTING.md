@@ -48,8 +48,24 @@ split into modules (not one giant file):
 Validated two ways: `compiler/uji_lekser.exo` is an `exotickik test` suite (7 tests),
 and `cli/tests/selfhost_lexer.rs` runs that suite **and** tokenizes the same
 representative sources with the Rust bootstrap lexer, asserting both produce the
-identical token-kind streams (a head-to-head differential). This is the first
-real compiler component; the parser is next.
+identical token-kind streams (a head-to-head differential).
+
+- `Ast.exo` — the AST node model: a `Simpul` arena node (a payload `JenisSimpul`
+  kind — integer literal, unary, binary, error — plus `kiri`/`kanan` child
+  indices and a `Rentang`), with accessors.
+- `Parser.exo` — a **precedence-climbing expression parser** over the real token
+  stream (`&daftar<Token>`) building an arena (`daftar<Simpul>`, children by
+  index): integer literals, parenthesised expressions, unary `-`/`!`/`bukan`,
+  and the full binary operator set with correct precedence and left
+  associativity (`||`/`atau`, `&&`/`dan`, `==`/`!=`, `<`/`<=`/`>`/`>=`, `+`/`-`,
+  `*`/`/`/`%`).
+
+Validated by `compiler/uji_parser.exo` (8 tests that parse and evaluate
+expressions, checking precedence/associativity) and `cli/tests/selfhost_parser.rs`,
+which runs that suite **and** evaluates the same expressions through the Rust
+bootstrap (`tampilkan(E)`), asserting both agree. The lexer and expression parser
+are the first real compiler components; statement/item parsing and semantic
+analysis are next.
 
 ### What this proves Exotickik can already express
 

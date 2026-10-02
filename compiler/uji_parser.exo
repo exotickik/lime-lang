@@ -1,0 +1,139 @@
+program UjiParser
+
+impor Lekser
+
+impor Token
+
+impor Ast
+
+impor Parser
+
+impor Sumber
+
+fungsi hitung(arena: &daftar<Simpul>, idx: angka) -> angka {
+    nilai s = elemen(arena, idx)
+    nilai k = kode_simpul(s)
+    jika k == 0 {
+        kembalikan nilai_bulat_dari(s)
+    }
+    jika k == 1 {
+        nilai op = op_uner_dari(s)
+        nilai v = hitung(arena, s.kiri)
+        jika op == 0 {
+            kembalikan 0 - v
+        }
+        jika v == 0 {
+            kembalikan 1
+        }
+        kembalikan 0
+    }
+    jika k == 2 {
+        nilai op = op_biner_dari(s)
+        nilai a = hitung(arena, s.kiri)
+        nilai b = hitung(arena, s.kanan)
+        jika op == 0 {
+            kembalikan a + b
+        }
+        jika op == 1 {
+            kembalikan a - b
+        }
+        jika op == 2 {
+            kembalikan a * b
+        }
+        jika op == 3 {
+            kembalikan a / b
+        }
+        jika op == 4 {
+            kembalikan a % b
+        }
+        jika op == 5 {
+            jika a == b {
+                kembalikan 1
+            }
+            kembalikan 0
+        }
+        jika op == 6 {
+            jika a != b {
+                kembalikan 1
+            }
+            kembalikan 0
+        }
+        jika op == 7 {
+            jika a < b {
+                kembalikan 1
+            }
+            kembalikan 0
+        }
+        jika op == 8 {
+            jika a <= b {
+                kembalikan 1
+            }
+            kembalikan 0
+        }
+        jika op == 9 {
+            jika a > b {
+                kembalikan 1
+            }
+            kembalikan 0
+        }
+        jika op == 10 {
+            jika a >= b {
+                kembalikan 1
+            }
+            kembalikan 0
+        }
+        jika op == 11 {
+            jika a != 0 && b != 0 {
+                kembalikan 1
+            }
+            kembalikan 0
+        }
+        jika op == 12 {
+            jika a != 0 || b != 0 {
+                kembalikan 1
+            }
+            kembalikan 0
+        }
+    }
+    kembalikan 0
+}
+
+fungsi eval(s: teks) -> angka {
+    nilai src = dari_teks(s)
+    nilai toks = lekser(ambil(src))
+    ubah arena: daftar<Simpul> = daftar()
+    nilai akar = urai_ekspresi(ambil(toks), ambil_ubah(arena))
+    kembalikan hitung(ambil(arena), akar)
+}
+
+fungsi uji_presedensi() -> boolean {
+    kembalikan eval("12 + 34 * 5") == 182
+}
+
+fungsi uji_kurung() -> boolean {
+    kembalikan eval("(12 + 34) * 5") == 230
+}
+
+fungsi uji_campuran() -> boolean {
+    kembalikan eval("100 - 2 * 3 + 4") == 98
+}
+
+fungsi uji_kiri_asosiatif() -> boolean {
+    kembalikan eval("20 / 5 / 2") == 2 && eval("10 - 3 - 2") == 5
+}
+
+fungsi uji_uner() -> boolean {
+    kembalikan eval("0 - 5 + 3") == 0 - 2 && eval("3 * 4") == 12
+}
+
+fungsi uji_perbandingan() -> boolean {
+    kembalikan eval("3 < 5") == 1 && eval("5 < 3") == 0 && eval("4 == 4") == 1 && eval("4 != 4") == 0
+}
+
+fungsi uji_logika() -> boolean {
+    kembalikan eval("1 dan 0") == 0 && eval("1 atau 0") == 1 && eval("bukan 0") == 1
+}
+
+fungsi uji_presedensi_logika() -> boolean {
+    kembalikan eval("1 atau 0 dan 0") == 1 && eval("2 > 1 dan 3 > 2") == 1
+}

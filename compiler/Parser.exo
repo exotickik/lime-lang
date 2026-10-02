@@ -1,0 +1,164 @@
+modul Parser
+
+impor Token
+
+impor Ast
+
+publik tipe Langkah {
+    idx: angka
+    pos: angka
+}
+
+fungsi jenis_di(toks: &daftar<Token>, pos: angka) -> Jenis {
+    kembalikan elemen(toks, pos).jenis
+}
+
+fungsi op_biner(j: Jenis) -> angka {
+    nilai k = kode_jenis(j)
+    jika k == 25 {
+        kembalikan 0
+    }
+    jika k == 26 {
+        kembalikan 1
+    }
+    jika k == 27 {
+        kembalikan 2
+    }
+    jika k == 28 {
+        kembalikan 3
+    }
+    jika k == 29 {
+        kembalikan 4
+    }
+    jika k == 19 {
+        kembalikan 5
+    }
+    jika k == 20 {
+        kembalikan 6
+    }
+    jika k == 21 {
+        kembalikan 7
+    }
+    jika k == 22 {
+        kembalikan 8
+    }
+    jika k == 23 {
+        kembalikan 9
+    }
+    jika k == 24 {
+        kembalikan 10
+    }
+    jika k == 30 {
+        kembalikan 11
+    }
+    jika k == 32 {
+        kembalikan 12
+    }
+    jika k == 1 {
+        nilai kw = kata_kunci_dari(j)
+        jika kw == 29 {
+            kembalikan 11
+        }
+        jika kw == 30 {
+            kembalikan 12
+        }
+    }
+    kembalikan 0 - 1
+}
+
+fungsi prec(op: angka) -> angka {
+    jika op == 12 {
+        kembalikan 1
+    }
+    jika op == 11 {
+        kembalikan 2
+    }
+    jika op == 5 || op == 6 {
+        kembalikan 3
+    }
+    jika op >= 7 && op <= 10 {
+        kembalikan 4
+    }
+    jika op == 0 || op == 1 {
+        kembalikan 5
+    }
+    kembalikan 6
+}
+
+fungsi tambah(arena: &ubah daftar<Simpul>, s: Simpul) -> angka {
+    nilai idx = panjang(arena)
+    dorong(arena, s)
+    kembalikan idx
+}
+
+fungsi urai_primary(toks: &daftar<Token>, arena: &ubah daftar<Simpul>, pos: angka) -> Langkah {
+    nilai j = jenis_di(toks, pos)
+    nilai k = kode_jenis(j)
+    jika k == 2 {
+        nilai v = nilai_bulat(j)
+        nilai r = elemen(toks, pos).rentang
+        nilai idx = tambah(arena, simpul(JenisSimpul.Bulat(v), 0 - 1, 0 - 1, r.mulai, r.akhir))
+        kembalikan Langkah { idx: idx, pos: pos + 1 }
+    }
+    jika k == 6 {
+        nilai dalam = urai_biner(toks, arena, pos + 1, 1)
+        ubah p = dalam.pos
+        jika kode_jenis(jenis_di(toks, p)) == 7 {
+            p = p + 1
+        }
+        kembalikan Langkah { idx: dalam.idx, pos: p }
+    }
+    nilai r = elemen(toks, pos).rentang
+    nilai idx = tambah(arena, simpul(JenisSimpul.Galat, 0 - 1, 0 - 1, r.mulai, r.akhir))
+    kembalikan Langkah { idx: idx, pos: pos + 1 }
+}
+
+fungsi urai_uner(toks: &daftar<Token>, arena: &ubah daftar<Simpul>, pos: angka) -> Langkah {
+    nilai j = jenis_di(toks, pos)
+    nilai k = kode_jenis(j)
+    jika k == 26 {
+        nilai operan = urai_uner(toks, arena, pos + 1)
+        nilai r = elemen(toks, pos).rentang
+        nilai idx = tambah(arena, simpul(JenisSimpul.Uner(0), operan.idx, 0 - 1, r.mulai, r.akhir))
+        kembalikan Langkah { idx: idx, pos: operan.pos }
+    }
+    jika k == 33 {
+        nilai operan = urai_uner(toks, arena, pos + 1)
+        nilai r = elemen(toks, pos).rentang
+        nilai idx = tambah(arena, simpul(JenisSimpul.Uner(1), operan.idx, 0 - 1, r.mulai, r.akhir))
+        kembalikan Langkah { idx: idx, pos: operan.pos }
+    }
+    jika k == 1 && kata_kunci_dari(j) == 31 {
+        nilai operan = urai_uner(toks, arena, pos + 1)
+        nilai r = elemen(toks, pos).rentang
+        nilai idx = tambah(arena, simpul(JenisSimpul.Uner(1), operan.idx, 0 - 1, r.mulai, r.akhir))
+        kembalikan Langkah { idx: idx, pos: operan.pos }
+    }
+    kembalikan urai_primary(toks, arena, pos)
+}
+
+fungsi urai_biner(toks: &daftar<Token>, arena: &ubah daftar<Simpul>, pos: angka, min_prec: angka) -> Langkah {
+    nilai kiri = urai_uner(toks, arena, pos)
+    ubah idx = kiri.idx
+    ubah p = kiri.pos
+    selama benar {
+        nilai op = op_biner(jenis_di(toks, p))
+        jika op < 0 {
+            berhenti
+        }
+        nilai pr = prec(op)
+        jika pr < min_prec {
+            berhenti
+        }
+        nilai kanan = urai_biner(toks, arena, p + 1, pr + 1)
+        nilai r = elemen(toks, p).rentang
+        idx = tambah(arena, simpul(JenisSimpul.Biner(op), idx, kanan.idx, r.mulai, r.akhir))
+        p = kanan.pos
+    }
+    kembalikan Langkah { idx: idx, pos: p }
+}
+
+publik fungsi urai_ekspresi(toks: &daftar<Token>, arena: &ubah daftar<Simpul>) -> angka {
+    nilai hasil = urai_biner(toks, arena, 0, 1)
+    kembalikan hasil.idx
+}
