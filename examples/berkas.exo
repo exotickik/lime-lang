@@ -1,0 +1,23 @@
+program Berkas
+
+gunakan Teks
+
+utama {
+    ubah laporan: daftar<bita> = daftar()
+    ubah n = 1
+    selama n <= 5 {
+        tambah_teks(ambil_ubah(laporan), "nilai ")
+        tambah_angka(ambil_ubah(laporan), n)
+        tambah_teks(ambil_ubah(laporan), " kuadrat ")
+        tambah_angka(ambil_ubah(laporan), n * n)
+        baris_baru(ambil_ubah(laporan))
+        n = n + 1
+    }
+    nilai tersimpan = tulis_file("/tmp/exotickik_laporan.txt", ambil(laporan))
+    tampilkan(tersimpan)
+    ubah dibaca: daftar<bita> = daftar()
+    nilai ok = baca_file("/tmp/exotickik_laporan.txt", ambil_ubah(dibaca))
+    tampilkan(ok)
+    tampilkan(panjang(ambil(dibaca)))
+    cetak_bita(ambil(dibaca))
+}

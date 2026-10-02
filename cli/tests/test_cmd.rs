@@ -1,20 +1,20 @@
 use std::path::PathBuf;
 use std::process::Command;
 
-fn lime() -> Command {
-    Command::new(env!("CARGO_BIN_EXE_lime"))
+fn exotickik() -> Command {
+    Command::new(env!("CARGO_BIN_EXE_exotickik"))
 }
 
 fn dir(tag: &str) -> PathBuf {
-    let d = std::env::temp_dir().join(format!("lime_test_{}_{}", tag, std::process::id()));
+    let d = std::env::temp_dir().join(format!("exotickik_test_{}_{}", tag, std::process::id()));
     std::fs::create_dir_all(&d).unwrap();
     d
 }
 
 fn run_test(tag: &str, src: &str) -> (String, i32) {
-    let path = dir(tag).join("uji.lime");
+    let path = dir(tag).join("uji.exo");
     std::fs::write(&path, src).unwrap();
-    let out = lime().arg("test").arg(&path).output().unwrap();
+    let out = exotickik().arg("test").arg(&path).output().unwrap();
     let combined = format!(
         "{}{}",
         String::from_utf8_lossy(&out.stdout),

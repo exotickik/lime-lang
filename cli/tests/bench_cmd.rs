@@ -1,20 +1,20 @@
 use std::path::PathBuf;
 use std::process::Command;
 
-fn lime() -> Command {
-    Command::new(env!("CARGO_BIN_EXE_lime"))
+fn exotickik() -> Command {
+    Command::new(env!("CARGO_BIN_EXE_exotickik"))
 }
 
 fn dir(tag: &str) -> PathBuf {
-    let d = std::env::temp_dir().join(format!("lime_bench_{}_{}", tag, std::process::id()));
+    let d = std::env::temp_dir().join(format!("exotickik_bench_{}_{}", tag, std::process::id()));
     std::fs::create_dir_all(&d).unwrap();
     d
 }
 
 fn run_bench(tag: &str, src: &str, extra: &[&str]) -> (String, i32) {
-    let path = dir(tag).join("tolok.lime");
+    let path = dir(tag).join("tolok.exo");
     std::fs::write(&path, src).unwrap();
-    let mut cmd = lime();
+    let mut cmd = exotickik();
     cmd.arg("bench").arg(&path);
     for a in extra {
         cmd.arg(a);

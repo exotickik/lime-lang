@@ -1,6 +1,6 @@
-# LIME — Native General-Purpose Programming Language
+# EXOTICKIK — Native General-Purpose Programming Language
 
-You are the lead compiler engineer responsible for creating **Lime**, a completely new general-purpose programming language.
+You are the lead compiler engineer responsible for creating **Exotickik**, a completely new general-purpose programming language.
 
 This is NOT a C++ wrapper.
 
@@ -10,7 +10,7 @@ This is NOT a syntax translator.
 
 This is NOT a language that generates C or C++ code.
 
-Lime must be designed as an independent programming language with its own:
+Exotickik must be designed as an independent programming language with its own:
 
 * syntax
 * grammar
@@ -38,7 +38,7 @@ The final compiler must produce **native machine code**.
 
 # 1. CORE VISION
 
-Lime is intended to be a serious general-purpose programming language capable of building:
+Exotickik is intended to be a serious general-purpose programming language capable of building:
 
 * desktop applications
 * games
@@ -54,7 +54,7 @@ The long-term performance target is the class of languages such as C++, Rust, an
 
 Do NOT sacrifice the language architecture merely to make the first prototype easier.
 
-The first implementation may be incomplete, but its architecture must be designed so Lime can eventually become a serious production language.
+The first implementation may be incomplete, but its architecture must be designed so Exotickik can eventually become a serious production language.
 
 ---
 
@@ -64,20 +64,20 @@ These rules are mandatory.
 
 ## DO NOT:
 
-* transpile Lime into C
-* transpile Lime into C++
+* transpile Exotickik into C
+* transpile Exotickik into C++
 * generate C++ as an intermediate representation
 * generate C as an intermediate representation
-* implement Lime as a Python/JavaScript interpreter
-* implement Lime as a wrapper around another language
+* implement Exotickik as a Python/JavaScript interpreter
+* implement Exotickik as a wrapper around another language
 * fake compilation
 * create placeholder compiler stages that pretend to generate native code
 
 LLVM may be used as a **backend infrastructure and optimization/code-generation component**.
 
-Using LLVM does NOT mean Lime is based on C++ syntax or semantics.
+Using LLVM does NOT mean Exotickik is based on C++ syntax or semantics.
 
-Lime's frontend, language semantics, AST, type system, IR design, diagnostics, and language rules must belong to Lime.
+Exotickik's frontend, language semantics, AST, type system, IR design, diagnostics, and language rules must belong to Exotickik.
 
 ---
 
@@ -87,13 +87,13 @@ Before implementing the compiler, design the language itself.
 
 Do not simply copy C++ syntax.
 
-Lime should have a clean, modern, readable syntax.
+Exotickik should have a clean, modern, readable syntax.
 
-The syntax may take inspiration from multiple languages, but Lime must have its own coherent design.
+The syntax may take inspiration from multiple languages, but Exotickik must have its own coherent design.
 
-For example, Lime could look conceptually like:
+For example, Exotickik could look conceptually like:
 
-```lime
+```exotickik
 program Halo
 
 utama {
@@ -103,15 +103,15 @@ utama {
 
 Variables:
 
-```lime
-nilai nama = "Lime"
+```exotickik
+nilai nama = "Exotickik"
 nilai umur: angka = 20
 nilai aktif: boolean = benar
 ```
 
 Functions:
 
-```lime
+```exotickik
 fungsi tambah(a: angka, b: angka) -> angka {
     kembalikan a + b
 }
@@ -119,7 +119,7 @@ fungsi tambah(a: angka, b: angka) -> angka {
 
 Conditions:
 
-```lime
+```exotickik
 jika umur >= 18 {
     tampilkan("Dewasa")
 } lain {
@@ -129,7 +129,7 @@ jika umur >= 18 {
 
 Loops:
 
-```lime
+```exotickik
 untuk nilai i dari 0 sampai 10 {
     tampilkan(i)
 }
@@ -145,7 +145,7 @@ Do not blindly copy these examples if they create poor language design.
 
 # 4. LANGUAGE IDENTITY
 
-Lime must have a clear identity.
+Exotickik must have a clear identity.
 
 Design:
 
@@ -188,7 +188,7 @@ Provide sensible aliases if desired.
 
 This is extremely important.
 
-Lime is intended to compete in performance-sensitive native software.
+Exotickik is intended to compete in performance-sensitive native software.
 
 Do NOT automatically introduce a garbage collector.
 
@@ -215,11 +215,11 @@ Avoid hidden allocations whenever possible.
 
 # 6. ZERO-COST ABSTRACTIONS
 
-Lime should aim for abstractions that compile efficiently.
+Exotickik should aim for abstractions that compile efficiently.
 
 Examples:
 
-```lime
+```exotickik
 fungsi maksimum(a: angka, b: angka) -> angka {
     jika a > b {
         kembalikan a
@@ -237,11 +237,11 @@ Design the language so abstraction does not automatically mean runtime overhead.
 
 # 7. GENERICS
 
-Lime should eventually support generic programming.
+Exotickik should eventually support generic programming.
 
 Conceptually:
 
-```lime
+```exotickik
 fungsi maksimum<T>(a: T, b: T) -> T {
     ...
 }
@@ -257,11 +257,11 @@ The architecture should allow monomorphization or another efficient native strat
 
 # 8. STRUCTS / DATA TYPES
 
-Lime needs user-defined data structures.
+Exotickik needs user-defined data structures.
 
 For example:
 
-```lime
+```exotickik
 tipe Pemain {
     nama: teks
     skor: i32
@@ -270,7 +270,7 @@ tipe Pemain {
 
 Methods:
 
-```lime
+```exotickik
 tipe Pemain {
     nama: teks
     skor: i32
@@ -299,11 +299,11 @@ Prefer a simpler modern design unless there is a strong reason otherwise.
 
 # 9. MODULE SYSTEM
 
-Lime needs a real module system.
+Exotickik needs a real module system.
 
 Example:
 
-```lime
+```exotickik
 gunakan matematika
 gunakan jaringan
 gunakan filesystem
@@ -311,7 +311,7 @@ gunakan filesystem
 
 And user modules:
 
-```lime
+```exotickik
 impor utilitas
 ```
 
@@ -327,18 +327,18 @@ Design:
 
 # 10. PACKAGE MANAGER
 
-Lime should eventually have its own package manager.
+Exotickik should eventually have its own package manager.
 
 For example:
 
 ```text
-lime init
-lime build
-lime run
-lime test
-lime tambah paket
-lime hapus paket
-lime perbarui
+exotickik init
+exotickik build
+exotickik run
+exotickik test
+exotickik tambah paket
+exotickik hapus paket
+exotickik perbarui
 ```
 
 Package definitions should be designed from the beginning even if the registry is implemented later.
@@ -350,7 +350,7 @@ Package definitions should be designed from the beginning even if the registry i
 The compiler architecture must be:
 
 ```text
-Lime Source
+Exotickik Source
      ↓
 Lexer
      ↓
@@ -362,7 +362,7 @@ Semantic Analysis
      ↓
 Type Checking
      ↓
-Lime IR
+Exotickik IR
      ↓
 Optimization
      ↓
@@ -375,18 +375,18 @@ Linker
 Native Executable
 ```
 
-Lime IR must be conceptually independent from the source syntax.
+Exotickik IR must be conceptually independent from the source syntax.
 
-LLVM may be used after Lime's own semantic/IR stages.
+LLVM may be used after Exotickik's own semantic/IR stages.
 
 Possible architecture:
 
 ```text
-Lime AST
+Exotickik AST
    ↓
-Lime Semantic IR
+Exotickik Semantic IR
    ↓
-Lime Optimization
+Exotickik Optimization
    ↓
 LLVM IR
    ↓
@@ -395,7 +395,7 @@ LLVM Optimization
 Machine Code
 ```
 
-Do NOT convert Lime source directly into C++.
+Do NOT convert Exotickik source directly into C++.
 
 ---
 
@@ -424,25 +424,25 @@ C/C++ interoperability is allowed ONLY as an external FFI.
 
 Example:
 
-```lime
+```exotickik
 ekstern fungsi printf(...)
 ```
 
-or another clean Lime FFI design.
+or another clean Exotickik FFI design.
 
 This means:
 
 ```text
-Lime → native ABI → C library
+Exotickik → native ABI → C library
 ```
 
 NOT:
 
 ```text
-Lime → C++ source → compiler
+Exotickik → C++ source → compiler
 ```
 
-Lime must remain an independent language.
+Exotickik must remain an independent language.
 
 ---
 
@@ -453,7 +453,7 @@ Create a modular standard library.
 Initial areas:
 
 ```text
-lime/std/
+exotickik/std/
 ├── io
 ├── string
 ├── collections
@@ -477,16 +477,16 @@ Create stable interfaces and expand incrementally.
 The compiler executable should eventually support:
 
 ```text
-lime build main.lime
-lime run main.lime
-lime check main.lime
-lime test
-lime fmt
-lime init
-lime clean
-lime tambah
-lime --version
-lime --help
+exotickik build main.exo
+exotickik run main.exo
+exotickik check main.exo
+exotickik test
+exotickik fmt
+exotickik init
+exotickik clean
+exotickik tambah
+exotickik --version
+exotickik --help
 ```
 
 The command-line interface should feel like a professional compiler toolchain.
@@ -506,7 +506,7 @@ error
 Good:
 
 ```text
-main.lime:12:18: error: variabel 'umur' belum didefinisikan
+main.exo:12:18: error: variabel 'umur' belum didefinisikan
 
 12 | tampilkan(umur)
                  ^^^^
@@ -533,10 +533,10 @@ Design the diagnostic engine as a reusable compiler subsystem.
 Create:
 
 ```text
-lime fmt
+exotickik fmt
 ```
 
-The formatter must parse Lime source rather than performing dangerous text replacements.
+The formatter must parse Exotickik source rather than performing dangerous text replacements.
 
 Formatting should be deterministic.
 
@@ -603,7 +603,7 @@ Do not trust the compiler merely because it builds.
 
 Create test programs such as:
 
-```lime
+```exotickik
 program Hello
 
 utama {
@@ -651,11 +651,11 @@ Create benchmarks for:
 
 Do not make unsupported claims such as:
 
-> "Lime is faster than C++."
+> "Exotickik is faster than C++."
 
 Instead, create reproducible benchmarks.
 
-Compare Lime against equivalent implementations in established languages when useful.
+Compare Exotickik against equivalent implementations in established languages when useful.
 
 ---
 
@@ -666,7 +666,7 @@ Use a modular architecture.
 Suggested structure:
 
 ```text
-lime/
+exotickik/
 ├── compiler/
 │   ├── lexer/
 │   ├── parser/
@@ -715,7 +715,7 @@ Do NOT attempt to implement everything at once.
 
 Before substantial implementation:
 
-* define Lime identity
+* define Exotickik identity
 * define grammar
 * define type system
 * define memory model
@@ -748,15 +748,15 @@ Implement:
 * source locations
 * diagnostics
 * basic CLI
-* `lime check`
+* `exotickik check`
 
 At the end:
 
 ```text
-lime check hello.lime
+exotickik check hello.exo
 ```
 
-must actually parse and validate Lime source.
+must actually parse and validate Exotickik source.
 
 ---
 
@@ -780,7 +780,7 @@ Implement:
 
 Implement:
 
-* Lime IR
+* Exotickik IR
 * lowering
 * LLVM integration if selected
 * object generation
@@ -790,7 +790,7 @@ Implement:
 At the end:
 
 ```text
-lime build hello.lime
+exotickik build hello.exo
 ```
 
 must produce a real executable.
@@ -936,7 +936,7 @@ First:
 1. Inspect the repository.
 2. Inspect the available build environment.
 3. Determine available compiler/toolchain dependencies.
-4. Design Lime's language architecture.
+4. Design Exotickik's language architecture.
 5. Write the initial language specification.
 6. Write the compiler architecture.
 7. Define the memory model.
@@ -948,6 +948,6 @@ First:
 
 The final objective is:
 
-> **Lime should become a real independent native programming language, not a C++ clone and not a C++ translator.**
+> **Exotickik should become a real independent native programming language, not a C++ clone and not a C++ translator.**
 
 Build the foundation correctly so the project can eventually grow into a serious programming ecosystem.

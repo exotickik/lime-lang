@@ -1,13 +1,13 @@
-# Phase 26 (Arena AST in Lime) — Design Assessment
+# Phase 26 (Arena AST in Exotickik) — Design Assessment
 
 Baseline: `main` after `cocok` pattern matching (Phase 25). The self-hosting gap
 analysis listed recursive/heap data types as a blocker for an AST. This phase
 tests that assumption with evidence and, finding it wrong, delivers a real
-AST-building compiler in Lime — with no new language features.
+AST-building compiler in Exotickik — with no new language features.
 
 ## The insight
 
-A compiler's AST is usually a heap-recursive, owned, tagged tree, and Lime lacks
+A compiler's AST is usually a heap-recursive, owned, tagged tree, and Exotickik lacks
 owned enum payloads and nullable boxes. But a tree does **not** require heap
 recursion: a data-oriented **arena** stores every node in one growable array and
 has nodes refer to their children by integer index. That needs only structs, an
@@ -17,7 +17,7 @@ the AST" gap was overstated.
 ## What was built
 
 `examples/pohon/` — a two-phase arithmetic compiler, as a `modul` with
-`publik fungsi evaluasi(teks) -> angka`, a demo, and a `lime test` suite:
+`publik fungsi evaluasi(teks) -> angka`, a demo, and a `exotickik test` suite:
 
 1. **Lexer** → `daftar<Token>`, each `Token` carrying an `enum Jenis` kind.
 2. **Parser** (precedence climbing) that **builds an AST** rather than evaluating:
@@ -36,7 +36,7 @@ traversed correctly.
 ## Why this matters for self-hosting
 
 This is the heart of a compiler front end — turning tokens into a tree and walking
-it — written entirely in Lime, today. It shows the language is already expressive
+it — written entirely in Exotickik, today. It shows the language is already expressive
 enough for a parser-to-AST and a tree pass; what remains for a full self-hosted
 compiler is scale and ergonomics (a `peta` map for symbol tables, owned strings
 for identifiers/diagnostics), not a missing ability to represent trees.
@@ -49,9 +49,9 @@ tripping it.
 ## Tests
 
 - `cli/tests/selfhost.rs`: the AST calculator evaluates the five expressions
-  correctly and passes its own six-test `lime test` suite (alongside the existing
+  correctly and passes its own six-test `exotickik test` suite (alongside the existing
   inline calculator's tests).
-- `examples/pohon/uji.lime`: the in-language suite.
+- `examples/pohon/uji.exo`: the in-language suite.
 
 All prior tests still pass; 0 warnings; the repo still passes `fmt --check`.
 

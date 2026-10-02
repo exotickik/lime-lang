@@ -1,16 +1,16 @@
 use std::path::PathBuf;
 use std::process::Command;
 
-fn lime() -> Command {
-    Command::new(env!("CARGO_BIN_EXE_lime"))
+fn exotickik() -> Command {
+    Command::new(env!("CARGO_BIN_EXE_exotickik"))
 }
 
 fn run_source(tag: &str, src: &str) -> (String, i32) {
-    let dir = std::env::temp_dir().join(format!("lime_struct_{}_{}", tag, std::process::id()));
+    let dir = std::env::temp_dir().join(format!("exotickik_struct_{}_{}", tag, std::process::id()));
     std::fs::create_dir_all(&dir).unwrap();
-    let path = dir.join("prog.lime");
+    let path = dir.join("prog.exo");
     std::fs::write(&path, src).unwrap();
-    let out = lime().arg("run").arg(&path).output().unwrap();
+    let out = exotickik().arg("run").arg(&path).output().unwrap();
     (String::from_utf8_lossy(&out.stdout).into_owned(), out.status.code().unwrap_or(-1))
 }
 

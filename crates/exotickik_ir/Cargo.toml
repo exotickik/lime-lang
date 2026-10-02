@@ -1,0 +1,19 @@
+[package]
+name = "exotickik_ir"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+exotickik_span.workspace = true
+exotickik_diagnostics.workspace = true
+exotickik_ast.workspace = true
+exotickik_types.workspace = true
+exotickik_sema.workspace = true
+
+[dev-dependencies]
+exotickik_lexer.workspace = true
+exotickik_parser.workspace = true
+
+[lib]
+path = "src/lib.rs"

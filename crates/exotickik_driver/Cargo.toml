@@ -1,0 +1,20 @@
+[package]
+name = "exotickik_driver"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+exotickik_span.workspace = true
+exotickik_diagnostics.workspace = true
+exotickik_lexer.workspace = true
+exotickik_ast.workspace = true
+exotickik_parser.workspace = true
+exotickik_types.workspace = true
+exotickik_sema.workspace = true
+exotickik_ir.workspace = true
+exotickik_codegen.workspace = true
+exotickik_fmt.workspace = true
+
+[lib]
+path = "src/lib.rs"

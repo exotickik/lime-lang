@@ -1,8 +1,8 @@
 use std::path::PathBuf;
 use std::process::Command;
 
-fn lime() -> Command {
-    Command::new(env!("CARGO_BIN_EXE_lime"))
+fn exotickik() -> Command {
+    Command::new(env!("CARGO_BIN_EXE_exotickik"))
 }
 
 fn example(rel: &str) -> PathBuf {
@@ -10,8 +10,8 @@ fn example(rel: &str) -> PathBuf {
 }
 
 #[test]
-fn lime_written_calculator_evaluates_correctly() {
-    let out = lime().arg("run").arg(example("kalkulator/main.lime")).output().unwrap();
+fn exotickik_written_calculator_evaluates_correctly() {
+    let out = exotickik().arg("run").arg(example("kalkulator/main.exo")).output().unwrap();
     assert_eq!(out.status.code().unwrap_or(-1), 0);
     assert_eq!(
         String::from_utf8_lossy(&out.stdout),
@@ -20,15 +20,15 @@ fn lime_written_calculator_evaluates_correctly() {
 }
 
 #[test]
-fn lime_written_calculator_passes_its_own_tests() {
-    let out = lime().arg("test").arg(example("kalkulator/uji.lime")).output().unwrap();
+fn exotickik_written_calculator_passes_its_own_tests() {
+    let out = exotickik().arg("test").arg(example("kalkulator/uji.exo")).output().unwrap();
     assert_eq!(out.status.code().unwrap_or(-1), 0);
     assert!(String::from_utf8_lossy(&out.stdout).contains("6 lulus, 0 gagal"));
 }
 
 #[test]
-fn lime_written_ast_calculator_evaluates_correctly() {
-    let out = lime().arg("run").arg(example("pohon/main.lime")).output().unwrap();
+fn exotickik_written_ast_calculator_evaluates_correctly() {
+    let out = exotickik().arg("run").arg(example("pohon/main.exo")).output().unwrap();
     assert_eq!(out.status.code().unwrap_or(-1), 0);
     assert_eq!(
         String::from_utf8_lossy(&out.stdout),
@@ -37,8 +37,8 @@ fn lime_written_ast_calculator_evaluates_correctly() {
 }
 
 #[test]
-fn lime_written_ast_calculator_passes_its_own_tests() {
-    let out = lime().arg("test").arg(example("pohon/uji.lime")).output().unwrap();
+fn exotickik_written_ast_calculator_passes_its_own_tests() {
+    let out = exotickik().arg("test").arg(example("pohon/uji.exo")).output().unwrap();
     assert_eq!(out.status.code().unwrap_or(-1), 0);
     assert!(String::from_utf8_lossy(&out.stdout).contains("6 lulus, 0 gagal"));
 }

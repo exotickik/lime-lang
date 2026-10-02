@@ -1,7 +1,7 @@
 mod manifest;
 
-use lime_codegen::Target;
-use lime_driver::Compiler;
+use exotickik_codegen::Target;
+use exotickik_driver::Compiler;
 use std::path::{Path, PathBuf};
 use std::process::exit;
 
@@ -25,11 +25,11 @@ fn main() {
         "emit-ir" => cmd_emit_ir(rest),
         "init" => cmd_init(rest),
         "clean" => cmd_clean(rest),
-        "version" | "--version" | "-V" => println!("lime {}", VERSION),
+        "version" | "--version" | "-V" => println!("exotickik {}", VERSION),
         "help" | "--help" | "-h" => print_help(),
         other => {
             eprintln!("error: perintah tidak dikenal '{}'", other);
-            eprintln!("jalankan 'lime help' untuk daftar perintah");
+            eprintln!("jalankan 'exotickik help' untuk daftar perintah");
             exit(1);
         }
     }
@@ -118,13 +118,13 @@ fn parse_common(args: &[String], _want_file: bool) -> Common {
         },
         None => {
             let path = manifest::find().unwrap_or_else(|| {
-                fail("butuh file sumber .lime, atau 'lime.toml' di direktori ini (lihat 'lime init')")
+                fail("butuh file sumber .exo, atau 'exotickik.toml' di direktori ini (lihat 'exotickik init')")
             });
             let m = manifest::load(&path).unwrap_or_else(|e| fail(&e));
             let file = m.entry_path();
             if !file.exists() {
                 fail(&format!(
-                    "entri proyek '{}' tidak ada (atur [build] entri di lime.toml)",
+                    "entri proyek '{}' tidak ada (atur [build] entri di exotickik.toml)",
                     file.display()
                 ));
             }
@@ -227,21 +227,21 @@ fn cmd_fmt(args: &[String]) {
         match manifest::find() {
             Some(p) => {
                 let dir = p.parent().map(|d| d.to_path_buf()).unwrap_or_default();
-                collect_lime_files(&dir, &mut targets);
+                collect_exotickik_files(&dir, &mut targets);
             }
-            None => fail("butuh file/direktori .lime, atau 'lime.toml' di direktori ini"),
+            None => fail("butuh file/direktori .exo, atau 'exotickik.toml' di direktori ini"),
         }
     } else {
         for p in &paths {
             if p.is_dir() {
-                collect_lime_files(p, &mut targets);
+                collect_exotickik_files(p, &mut targets);
             } else {
                 targets.push(p.clone());
             }
         }
     }
     if targets.is_empty() {
-        fail("tidak ada file .lime untuk diformat");
+        fail("tidak ada file .exo untuk diformat");
     }
     targets.sort();
 
@@ -282,7 +282,7 @@ fn fmt_one(file: &Path) -> (String, String) {
         Ok(s) => s,
         Err(e) => fail(&format!("tidak bisa membaca '{}': {}", file.display(), e)),
     };
-    match lime_fmt::format_source(&file.to_string_lossy(), &src) {
+    match exotickik_fmt::format_source(&file.to_string_lossy(), &src) {
         Ok(formatted) => (src, formatted),
         Err(errors) => {
             for e in errors {
@@ -293,7 +293,7 @@ fn fmt_one(file: &Path) -> (String, String) {
     }
 }
 
-fn collect_lime_files(dir: &Path, out: &mut Vec<PathBuf>) {
+fn collect_exotickik_files(dir: &Path, out: &mut Vec<PathBuf>) {
     let entries = match std::fs::read_dir(dir) {
         Ok(e) => e,
         Err(e) => fail(&format!("tidak bisa membaca direktori '{}': {}", dir.display(), e)),
@@ -303,12 +303,12 @@ fn collect_lime_files(dir: &Path, out: &mut Vec<PathBuf>) {
         if path.is_dir() {
             let skip = path
                 .file_name()
-                .map(|n| n == "target" || n == ".lime-build" || n == ".git")
+                .map(|n| n == "target" || n == ".exotickik-build" || n == ".git")
                 .unwrap_or(false);
             if !skip {
-                collect_lime_files(&path, out);
+                collect_exotickik_files(&path, out);
             }
-        } else if path.extension().map(|e| e == "lime").unwrap_or(false) {
+        } else if path.extension().map(|e| e == "exo").unwrap_or(false) {
             out.push(path);
         }
     }
@@ -320,20 +320,20 @@ fn cmd_init(args: &[String]) {
         "[paket]\nnama = \"{name}\"\nversi = \"0.1.0\"\n\n[build]\ntarget = \"host\"\n"
     );
     let main_src = format!(
-        "program {}\n\nutama {{\n    tampilkan(\"Halo dari Lime!\")\n}}\n",
+        "program {}\n\nutama {{\n    tampilkan(\"Halo dari Exotickik!\")\n}}\n",
         capitalize(&name)
     );
     if let Err(e) = std::fs::create_dir_all("src") {
         fail(&format!("tidak bisa membuat direktori 'src': {}", e));
     }
-    write_new_file("lime.toml", &manifest);
-    write_new_file("src/main.lime", &main_src);
-    println!("proyek Lime '{}' dibuat.", name);
-    println!("jalankan: lime run src/main.lime");
+    write_new_file("exotickik.toml", &manifest);
+    write_new_file("src/main.exo", &main_src);
+    println!("proyek Exotickik '{}' dibuat.", name);
+    println!("jalankan: exotickik run src/main.exo");
 }
 
 fn cmd_clean(_args: &[String]) {
-    let _ = std::fs::remove_dir_all(".lime-build");
+    let _ = std::fs::remove_dir_all(".exotickik-build");
     println!("membersihkan artefak build.");
 }
 
@@ -362,10 +362,10 @@ fn fail(msg: &str) -> ! {
 
 fn print_help() {
     println!(
-        "lime {VERSION} — toolchain bahasa pemrograman Lime\n\
+        "exotickik {VERSION} — toolchain bahasa pemrograman Exotickik\n\
 \n\
 PENGGUNAAN:\n\
-    lime <perintah> [argumen]\n\
+    exotickik <perintah> [argumen]\n\
 \n\
 PERINTAH:\n\
     build <file>     kompilasi ke executable native\n\
@@ -375,13 +375,13 @@ PERINTAH:\n\
     bench <file>     ukur fungsi tolok ukur ('tolok_*'); --iterasi N\n\
     fmt [path...]    format kode (--write menimpa, --check periksa; dir/proyek)\n\
     emit-ir <file>   cetak LLVM IR yang dihasilkan\n\
-    init [nama]        buat proyek Lime baru\n\
+    init [nama]        buat proyek Exotickik baru\n\
     clean              hapus artefak build\n\
     version            tampilkan versi\n\
     help               tampilkan bantuan ini\n\
 \n\
-Tanpa argumen <file>, perintah build/run/check/test/bench memakai 'lime.toml'\n\
-di direktori ini (atau induknya). Lihat 'lime init'.\n\
+Tanpa argumen <file>, perintah build/run/check/test/bench memakai 'exotickik.toml'\n\
+di direktori ini (atau induknya). Lihat 'exotickik init'.\n\
 \n\
 OPSI (build/run/check):\n\
     -o, --output <file>   nama executable keluaran\n\

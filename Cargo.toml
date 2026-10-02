@@ -1,17 +1,17 @@
 [workspace]
 resolver = "2"
 members = [
-    "crates/lime_span",
-    "crates/lime_diagnostics",
-    "crates/lime_lexer",
-    "crates/lime_ast",
-    "crates/lime_parser",
-    "crates/lime_types",
-    "crates/lime_sema",
-    "crates/lime_ir",
-    "crates/lime_codegen",
-    "crates/lime_fmt",
-    "crates/lime_driver",
+    "crates/exotickik_span",
+    "crates/exotickik_diagnostics",
+    "crates/exotickik_lexer",
+    "crates/exotickik_ast",
+    "crates/exotickik_parser",
+    "crates/exotickik_types",
+    "crates/exotickik_sema",
+    "crates/exotickik_ir",
+    "crates/exotickik_codegen",
+    "crates/exotickik_fmt",
+    "crates/exotickik_driver",
     "cli",
 ]
 
@@ -19,21 +19,21 @@ members = [
 version = "0.1.0"
 edition = "2021"
 license = "MIT OR Apache-2.0"
-authors = ["Lime contributors"]
+authors = ["Exotickik contributors"]
 rust-version = "1.75"
 
 [workspace.dependencies]
-lime_span = { path = "crates/lime_span" }
-lime_diagnostics = { path = "crates/lime_diagnostics" }
-lime_lexer = { path = "crates/lime_lexer" }
-lime_ast = { path = "crates/lime_ast" }
-lime_parser = { path = "crates/lime_parser" }
-lime_types = { path = "crates/lime_types" }
-lime_sema = { path = "crates/lime_sema" }
-lime_ir = { path = "crates/lime_ir" }
-lime_codegen = { path = "crates/lime_codegen" }
-lime_fmt = { path = "crates/lime_fmt" }
-lime_driver = { path = "crates/lime_driver" }
+exotickik_span = { path = "crates/exotickik_span" }
+exotickik_diagnostics = { path = "crates/exotickik_diagnostics" }
+exotickik_lexer = { path = "crates/exotickik_lexer" }
+exotickik_ast = { path = "crates/exotickik_ast" }
+exotickik_parser = { path = "crates/exotickik_parser" }
+exotickik_types = { path = "crates/exotickik_types" }
+exotickik_sema = { path = "crates/exotickik_sema" }
+exotickik_ir = { path = "crates/exotickik_ir" }
+exotickik_codegen = { path = "crates/exotickik_codegen" }
+exotickik_fmt = { path = "crates/exotickik_fmt" }
+exotickik_driver = { path = "crates/exotickik_driver" }
 
 [profile.release]
 opt-level = 3

@@ -1,14 +1,14 @@
 # Self-Hosting: Status and Gap Analysis
 
-Self-hosting means the Lime compiler is itself written in Lime and compiled by a
-previous Lime compiler. The bootstrap compiler (in Rust) is the starting point;
+Self-hosting means the Exotickik compiler is itself written in Exotickik and compiled by a
+previous Exotickik compiler. The bootstrap compiler (in Rust) is the starting point;
 this document records concrete, evidence-based progress toward replacing it, and
 the specific language gaps that still block it.
 
 ## What has been demonstrated
 
-Two non-trivial, compiler-shaped programs are now written **entirely in Lime**,
-each a `modul` with `publik fungsi evaluasi(teks) -> angka` and its own `lime test`
+Two non-trivial, compiler-shaped programs are now written **entirely in Exotickik**,
+each a `modul` with `publik fungsi evaluasi(teks) -> angka` and its own `exotickik test`
 suite, both pinned by `cli/tests/selfhost.rs` (they evaluate `12 + 34 * 5 = 182`,
 `(12 + 34) * 5 = 230`, `1000 / 5 / 2 = 100`).
 
@@ -24,12 +24,12 @@ suite, both pinned by `cli/tests/selfhost.rs` (they evaluate `12 + 34 * 5 = 182`
   `&ubah daftar<Node>` through recursion; the evaluator recurses over
   `&daftar<Node>`, dispatching on each node's `enum Jenis` with `cocok`.
 
-`examples/pohon/` is the important result: **Lime can already build and traverse a
+`examples/pohon/` is the important result: **Exotickik can already build and traverse a
 real AST today**, which is the heart of a compiler front end.
 
-### What this proves Lime can already express
+### What this proves Exotickik can already express
 
-The evaluator exercises, in Lime, the machinery a compiler front end is built
+The evaluator exercises, in Exotickik, the machinery a compiler front end is built
 from:
 
 - **Lexing**: `teks` byte access (`bita_pada`), classification, and numeric
@@ -43,10 +43,10 @@ from:
   recurse (precedence climbing), threading position/result through a Copy
   `Langkah` struct — no global mutable state needed.
 - **Modules + tooling**: the module is consumed by both a demo and a test file,
-  and the whole thing builds, runs, formats (`lime fmt`), and tests
-  (`lime test`) through the normal toolchain.
+  and the whole thing builds, runs, formats (`exotickik fmt`), and tests
+  (`exotickik test`) through the normal toolchain.
 
-So Lime can express scanning and evaluation. The compiler's **tree-building
+So Exotickik can express scanning and evaluation. The compiler's **tree-building
 core** is what still needs new language features.
 
 ## Gaps blocking a self-hosted compiler (evidence-based)
@@ -59,7 +59,7 @@ current compiler.
    over enum variants now exists (statement form, with exhaustiveness checking
    and an optional `lain` default — see `docs/LANGUAGE_SPEC.md`), so dispatch on a
    node's kind is already expressible:
-   ```lime
+   ```exotickik
    cocok simpul {
        Angka => { ... }
        Biner => { ... }
@@ -83,7 +83,7 @@ current compiler.
    is non-nullable and there is no optional/variant to terminate the recursion.
    **However, a tree does not require heap-recursive types:** `examples/pohon/`
    builds a working AST as an **arena** (`daftar<Node>`, children referenced by
-   integer index), which Lime expresses today. Nullable boxes / optional variants
+   integer index), which Exotickik expresses today. Nullable boxes / optional variants
    would make pointer-based trees possible too, but the index-arena approach is a
    complete, idiomatic way to write the compiler's data structures now.
 
@@ -118,10 +118,10 @@ and scale, in roughly this order:
 3. Generic structs/enums — reusable typed containers instead of per-type structs.
 4. Enum associated data + binding patterns in `cocok` — inline node payloads, an
    ergonomic alternative to the arena `Node` struct (tag matching already works).
-5. Port the bootstrap front end to Lime, component by component (lexer and an AST
+5. Port the bootstrap front end to Exotickik, component by component (lexer and an AST
    parser/evaluator are demonstrated; next: a full parser → AST, then sema, then
-   IR), each validated with `lime test` against the Rust bootstrap's behavior.
+   IR), each validated with `exotickik test` against the Rust bootstrap's behavior.
 
 These are tracked in `docs/ROADMAP.md`. `examples/pohon/` stands as executable
 proof that a lexer, a real AST, and a tree-walking evaluator are all expressible
-in Lime today.
+in Exotickik today.

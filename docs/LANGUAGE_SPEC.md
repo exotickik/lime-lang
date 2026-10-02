@@ -1,16 +1,16 @@
-# Lime Language Specification (Bootstrap Edition)
+# Exotickik Language Specification (Bootstrap Edition)
 
 > Status: **living document**. This describes the language as implemented by the
-> bootstrap compiler (`limec`) plus the immediate design intent. Sections marked
+> bootstrap compiler (`exotickikc`) plus the immediate design intent. Sections marked
 > **(planned)** are specified but not yet implemented in the bootstrap.
 
-Lime is an independent, statically-typed, natively-compiled, general-purpose
+Exotickik is an independent, statically-typed, natively-compiled, general-purpose
 programming language. Its keywords are Indonesian — this is a deliberate identity
 choice, not a translation layer: the grammar, semantics, IR and toolchain are
-Lime's own.
+Exotickik's own.
 
-Lime is **not** a C/C++ wrapper, transpiler or macro layer. The compiler lowers a
-Lime-owned AST to a Lime-owned SSA IR, and only then to LLVM IR for machine-code
+Exotickik is **not** a C/C++ wrapper, transpiler or macro layer. The compiler lowers a
+Exotickik-owned AST to a Exotickik-owned SSA IR, and only then to LLVM IR for machine-code
 generation. LLVM is used strictly as a backend.
 
 ---
@@ -18,7 +18,7 @@ generation. LLVM is used strictly as a backend.
 ## 1. Lexical structure
 
 ### 1.1 Encoding
-Source files are UTF-8. The recommended extension is `.lime`.
+Source files are UTF-8. The recommended extension is `.exo`.
 
 ### 1.2 Comments
 ```
@@ -69,10 +69,10 @@ Escape sequences in strings/chars: `\n \r \t \\ \" \' \0 \u{XXXX}`.
 ## 2. Types
 
 ### 2.1 Primitive types
-| Lime | Meaning | LLVM lowering |
+| Exotickik | Meaning | LLVM lowering |
 |---|---|---|
 | `i8 i16 i32 i64` | signed integers | `i8 i16 i32 i64` |
-| `u8 u16 u32 u64` | unsigned integers | `i8 i16 i32 i64` (signedness tracked by Lime) |
+| `u8 u16 u32 u64` | unsigned integers | `i8 i16 i32 i64` (signedness tracked by Exotickik) |
 | `f32 f64` | IEEE-754 floats | `float double` |
 | `boolean` | true/false | `i1` |
 | `karakter` | Unicode scalar value | `i32` |
@@ -84,9 +84,9 @@ Escape sequences in strings/chars: `\n \r \t \\ \" \' \0 \u{XXXX}`.
 Aliases available in the root scope: `angka` = `i64`, `bool` = `boolean`,
 `char` = `karakter`, `string` = `teks`.
 
-Signedness is part of the Lime type but not of the LLVM integer type; the code
+Signedness is part of the Exotickik type but not of the LLVM integer type; the code
 generator selects signed vs unsigned instructions (`sdiv`/`udiv`,
-`icmp slt`/`icmp ult`, `sext`/`zext`) from the Lime type.
+`icmp slt`/`icmp ult`, `sext`/`zext`) from the Exotickik type.
 
 ### 2.2 Composite types
 - **Struct** (`tipe`): named product type with named fields. Fully implemented
@@ -97,7 +97,7 @@ generator selects signed vs unsigned instructions (`sdiv`/`udiv`,
   next step and the representation is designed to accommodate them.
 - **Array** `[T; N]`: fixed-size inline array (see §3.7). Slices (`[T]`) planned.
 - **`kotak<T>`**: an owned, heap-allocated cell holding one `T` (see §3.9). This
-  is Lime's first **owned (`milik`)** type; it moves rather than copies.
+  is Exotickik's first **owned (`milik`)** type; it moves rather than copies.
 - **`daftar<T>`**: a growable, heap-backed list of `T` (a vector). Owned
   (`milik`): it owns its buffer and frees it on drop. Built with `daftar()`;
   `dorong`/`elemen`/`atur`/`panjang` append, read, write, and measure it. `T`
@@ -106,7 +106,7 @@ generator selects signed vs unsigned instructions (`sdiv`/`udiv`,
   A function name used as a value yields a function pointer; it can be stored,
   passed, returned, and called (`f(x)`). It is a bare machine pointer (Copy, no
   allocation). Example:
-  ```lime
+  ```exotickik
   fungsi terapkan(f: fungsi(angka) -> angka, x: angka) -> angka { kembalikan f(x) }
   ```
 
@@ -149,13 +149,13 @@ defaults apply only when no other constraint fixes the type.
 
 ### 3.1 Program header
 Every compilation unit begins with a program header naming the unit:
-```lime
+```exotickik
 program Halo
 ```
 
 ### 3.2 The entry point
 Exactly one `utama` block per program defines the process entry point:
-```lime
+```exotickik
 utama {
     tampilkan("Halo dunia!")
 }
@@ -164,8 +164,8 @@ utama {
 `utama` may contain a trailing `kembalikan <angka>` to set the exit code.
 
 ### 3.3 Bindings
-```lime
-nilai nama = "Lime"        // immutable
+```exotickik
+nilai nama = "Exotickik"        // immutable
 nilai umur: angka = 20     // immutable, annotated
 ubah skor: i32 = 0         // mutable
 skor = skor + 10           // reassignment (only for `ubah`)
@@ -173,7 +173,7 @@ skor = skor + 10           // reassignment (only for `ubah`)
 Assigning to a `nilai` binding is a compile error.
 
 ### 3.4 Functions
-```lime
+```exotickik
 fungsi tambah(a: angka, b: angka) -> angka {
     kembalikan a + b
 }
@@ -187,7 +187,7 @@ All paths through a function with a non-`hampa` return type must return a value
 
 ### 3.5 Structs
 Declaration:
-```lime
+```exotickik
 tipe Pemain {
     posisi: Titik
     skor: i32
@@ -196,7 +196,7 @@ tipe Pemain {
 Construction uses a struct literal — the type name followed by a brace list of
 `field: nilai` pairs (trailing comma allowed). Every field must be supplied
 exactly once, with a value assignable to the field's type:
-```lime
+```exotickik
 nilai p = Pemain {
     posisi: Titik { x: 3, y: 4 },
     skor: 100
@@ -223,7 +223,7 @@ to `insertvalue`, reads to `extractvalue`, and mutation to a load / nested
 
 ### 3.6 Enums
 An enum declares a fixed set of named variants:
-```lime
+```exotickik
 enum Hasil {
     Berhasil,
     Gagal,
@@ -231,7 +231,7 @@ enum Hasil {
 }
 ```
 A variant is referred to as `Enum.Variant`:
-```lime
+```exotickik
 nilai s = Hasil.Berhasil
 ```
 Enums are value types. Supported operations:
@@ -253,7 +253,7 @@ payload union can be added later without changing the surface for tag-only enums
 ### 3.7 Arrays
 A fixed-size array type is written `[T; N]` where `T` is the element type and `N`
 is a compile-time length:
-```lime
+```exotickik
 nilai angka: [i32; 4] = [10, 20, 30, 40]
 ```
 An array literal `[e1, e2, ...]` has type `[T; k]` inferred from its elements
@@ -265,7 +265,7 @@ An array literal `[e1, e2, ...]` has type `[T; k]` inferred from its elements
 - **Length** `panjang(xs)` returns the element count as `angka` (a compile-time
   constant).
 - **Iteration** in two forms:
-  ```lime
+  ```exotickik
   untuk x pada xs { ... }               // for-each: x is a copy of each element
   untuk i dari 0 sampai panjang(xs) { xs[i] }   // index-based
   ```
@@ -286,7 +286,7 @@ length) are planned and will build on this foundation.
 
 ### 3.8 Generic functions
 A function may declare type parameters in `<...>` after its name:
-```lime
+```exotickik
 fungsi maksimum<T>(a: T, b: T) -> T {
     jika a > b { kembalikan a }
     kembalikan b
@@ -302,13 +302,13 @@ concrete `T`. See `docs/TYPE_SYSTEM.md` for the full rules and current limits
 (generic structs/enums, explicit type arguments, and trait bounds are planned).
 
 ### 3.9 Ownership and `kotak<T>`
-Lime has no garbage collector. Every type is either **`salinan` (Copy)** — all
+Exotickik has no garbage collector. Every type is either **`salinan` (Copy)** — all
 the types above — or **`milik` (Owned)**. The category is decided by the
 compiler, not annotated. A type is Owned iff it is `kotak<T>` or an aggregate
 that transitively contains one.
 
 `kotak<T>` is an owned, heap-allocated cell:
-```lime
+```exotickik
 nilai b = kotak(42)      // allocates a heap i64, owned by b
 tampilkan(isi(b))        // isi reads a copy of the contents: 42
 ```
@@ -318,7 +318,7 @@ tampilkan(isi(b))        // isi reads a copy of the contents: 42
 Owned values **move**: binding, passing, returning, or placing one into a
 literal transfers ownership and leaves the source moved-out. Using a moved-out
 binding is an error:
-```lime
+```exotickik
 nilai b = kotak(5)
 nilai c = b              // b moved into c
 tampilkan(isi(b))        // error E0280: nilai ini sudah dipindahkan
@@ -339,7 +339,7 @@ A reference borrows an existing value without owning it. `&T` is a shared
 (read-only) reference; `&ubah T` is a mutable one. References are created with
 the builtins `ambil` / `ambil_ubah`, read with `*r`, and (for `&ubah`) written
 with `*r = e`:
-```lime
+```exotickik
 fungsi naik(x: &ubah angka) {
     *x = *x + 1           // write through a mutable reference
 }
@@ -369,7 +369,7 @@ See `docs/MEMORY_MODEL.md` for the complete borrowing rules and their rationale.
 A trait names a set of method signatures; an implementation supplies them for a
 type. Dispatch is **static**: a method call compiles to a direct function call,
 with no vtable and no runtime cost.
-```lime
+```exotickik
 sifat Luas {
     fungsi luas(diri: &Diri) -> angka
 }
@@ -404,7 +404,7 @@ utama {
 A recoverable result is the built-in generic type `Hasil<T, R>`: either a success
 carrying a `T` or a failure carrying an error `R`. Errors are ordinary values —
 there is no unwinding and no hidden control flow.
-```lime
+```exotickik
 fungsi bagi(a: angka, b: angka) -> Hasil<angka, teks> {
     jika b == 0 { kembalikan gagal("pembagian dengan nol") }
     kembalikan sukses(a / b)
@@ -434,7 +434,7 @@ utama {
 
 ## 4. Statements
 
-```lime
+```exotickik
 jika c { ... } lain jika d { ... } lain { ... }
 
 selama kondisi { ... }
@@ -492,7 +492,7 @@ binds tighter than binary operators and only converts numeric/`karakter` types.
 
 `tampilkan(x)` — print `x` followed by a newline. Accepts `teks`, any integer
 type, `f32`/`f64`, `boolean`, and `karakter`. Lowered to a `printf`-family call
-against libc through Lime's FFI path (native ABI, not C source).
+against libc through Exotickik's FFI path (native ABI, not C source).
 
 `panjang(x)` — length of an array or `teks`. `kotak(x)` / `isi(k)` — build and
 read an owned heap cell (§3.9). `ambil(x)` / `ambil_ubah(x)` — borrow a place as
@@ -506,7 +506,7 @@ operate on it (§7.2). These names are reserved builtins and cannot be redefined
 `daftar<T>` is a growable, heap-backed list. It is Owned: it owns its buffer and
 frees it on drop, and moves rather than copies. Accessors take references, so
 they never consume the list:
-```lime
+```exotickik
 ubah d: daftar<angka> = daftar()
 dorong(ambil_ubah(d), 10)          // append (grows the buffer as needed)
 dorong(ambil_ubah(d), 20)
@@ -524,7 +524,7 @@ Text is built and manipulated as a byte list `daftar<bita>` — a mutable, growa
 string. `bita_pada(s, i)` reads byte `i` of a `teks` (for scanning input),
 `cetak_bita(&buf)` writes a byte buffer to output, and the `Teks` library module
 (`gunakan Teks`) builds text into a buffer:
-```lime
+```exotickik
 gunakan Teks
 utama {
     ubah buf: daftar<bita> = daftar()
@@ -535,13 +535,13 @@ utama {
 }
 ```
 `Teks` provides `tambah_teks`, `tambah_angka`, `tambah_bita`, and `baris_baru`;
-it is written in Lime itself. A heap-allocated owned `teks` (so a built buffer can
+it is written in Exotickik itself. A heap-allocated owned `teks` (so a built buffer can
 become a first-class string value) is a documented follow-up.
 
 ### 7.4 File I/O (`baca_file` / `tulis_file`)
 Whole-file reads and writes operate on the same `daftar<bita>` byte buffers used
 for dynamic text, so building a file and printing it share one representation:
-```lime
+```exotickik
 gunakan Teks
 utama {
     ubah out: daftar<bita> = daftar()
@@ -559,7 +559,7 @@ utama {
 returns a `boolean`. `baca_file(nama, ambil_ubah(buf))` reads the whole file into
 `buf` (freeing its previous contents) and returns `benar`, or `salah` when the
 file cannot be opened. Both lower to libc `fopen`/`fread`/`fwrite`/`fclose` over
-Lime's native-ABI FFI; the `FILE*` handle never surfaces in the language. Because
+Exotickik's native-ABI FFI; the `FILE*` handle never surfaces in the language. Because
 `Hasil<T, R>` requires Copy payloads, file results are a `boolean` with the data
 delivered through the mutable buffer rather than a returned owned value — a richer
 error type is a follow-up tied to heap-owned results.
@@ -568,7 +568,7 @@ error type is a follow-up tied to heap-owned results.
 `mulai(f, n)` runs the function `f` (a `fungsi(angka) -> angka`) on a new OS
 thread with argument `n`, returning a thread handle `Utas<angka>`. `tunggu(h)`
 joins the thread and returns its result:
-```lime
+```exotickik
 fungsi kerja(n: angka) -> angka { kembalikan n * n }
 utama {
     nilai a = mulai(kerja, 10)
@@ -578,7 +578,7 @@ utama {
 ```
 Threads are real OS threads (via `pthread`). The argument is passed by value
 (a Copy `angka`) and the result is returned through the join, so there is no
-shared mutable state and therefore no data races — the safety comes from Lime's
+shared mutable state and therefore no data races — the safety comes from Exotickik's
 ownership rules, not a lock. This first cut supports `angka -> angka` workers on
 POSIX hosts; richer payloads, channels, and Windows threads are documented
 follow-ups (`docs/MEMORY_MODEL.md`).
@@ -589,15 +589,15 @@ follow-ups (`docs/MEMORY_MODEL.md`).
 
 A program can span several files. A **library file** begins with `modul <Nama>`;
 the **entry file** begins with `program <Nama>` and holds `utama`. `impor <Nama>`
-loads `<Nama>.lime` from the importing file's directory:
+loads `<Nama>.exo` from the importing file's directory:
 
-```lime
-// file Matematika.lime
+```exotickik
+// file Matematika.exo
 modul Matematika
 publik fungsi tambah(a: angka, b: angka) -> angka { kembalikan a + b }
 fungsi rahasia() -> angka { kembalikan 0 }        // module-private
 
-// file main.lime
+// file main.exo
 program Aplikasi
 impor Matematika
 utama { tampilkan(tambah(2, 3)) }                 // 5
@@ -612,19 +612,19 @@ utama { tampilkan(tambah(2, 3)) }                 // 5
   are a documented follow-up. `gunakan` is reserved for future standard-library
   modules.
 
-```lime
+```exotickik
 ekstern fungsi printf(fmt: teks, ...) -> i32   // C ABI FFI declaration
 ```
 
 `ekstern fungsi` declares a function supplied by a native library and bound over
-the platform ABI (`...` marks it variadic). Lime never emits or consumes C
-source; this is the only interop path. To keep Lime's memory safety, Owned types
-(`E0297`) and Lime references (`E0298`) may not cross the FFI boundary.
+the platform ABI (`...` marks it variadic). Exotickik never emits or consumes C
+source; this is the only interop path. To keep Exotickik's memory safety, Owned types
+(`E0297`) and Exotickik references (`E0298`) may not cross the FFI boundary.
 
-**Callbacks.** A Lime function can be passed to a native function that expects a
+**Callbacks.** A Exotickik function can be passed to a native function that expects a
 function pointer, by giving the parameter a function type:
 
-```lime
+```exotickik
 ekstern fungsi atexit(f: fungsi()) -> i32
 fungsi pamit() { tampilkan("selesai") }
 utama { atexit(pamit) }                        // C calls pamit at exit
@@ -633,14 +633,14 @@ utama { atexit(pamit) }                        // C calls pamit at exit
 **Opaque pointers (`pointer`).** The `pointer` type is an opaque native handle
 for binding C APIs that pass pointers around (`FILE*`, allocator handles, …). It
 is Copy and crosses the FFI boundary freely, but it is deliberately *opaque*:
-Lime cannot dereference it (`*p` is an error), cannot cast it to or from an
+Exotickik cannot dereference it (`*p` is an error), cannot cast it to or from an
 integer (`E02F0`), and cannot print it. A `pointer` is obtained only as the
 return of an `ekstern` function or from `kosong()` (the null pointer), and
 compared with `==` / `!=` (typically against `kosong()` for a null check). It
-therefore adds no way to read or write memory from Lime, so memory safety is
+therefore adds no way to read or write memory from Exotickik, so memory safety is
 preserved.
 
-```lime
+```exotickik
 ekstern fungsi fopen(nama: teks, mode: teks) -> pointer
 ekstern fungsi fclose(f: pointer) -> i32
 utama {
@@ -666,7 +666,7 @@ the language identity.
 
 ## 9. Example
 
-```lime
+```exotickik
 program Fibonacci
 
 fungsi fib(n: angka) -> angka {

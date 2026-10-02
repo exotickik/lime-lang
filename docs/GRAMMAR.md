@@ -1,8 +1,8 @@
-# Lime Grammar (EBNF)
+# Exotickik Grammar (EBNF)
 
 This is the concrete grammar the bootstrap parser implements. Notation:
 `{ x }` = zero or more, `[ x ]` = optional, `|` = alternation, `'x'` = terminal.
-Whitespace and comments are insignificant between tokens. Lime is
+Whitespace and comments are insignificant between tokens. Exotickik is
 newline-insensitive except that statements are separated by their own structure
 (no semicolons required); an optional `;` is accepted as a statement terminator.
 

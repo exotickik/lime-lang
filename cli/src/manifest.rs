@@ -11,7 +11,7 @@ pub struct Manifest {
 
 impl Manifest {
     pub fn entry_path(&self) -> PathBuf {
-        let rel = self.entri.clone().unwrap_or_else(|| "src/main.lime".to_string());
+        let rel = self.entri.clone().unwrap_or_else(|| "src/main.exo".to_string());
         self.dir.join(rel)
     }
 }
@@ -19,7 +19,7 @@ impl Manifest {
 pub fn find() -> Option<PathBuf> {
     let mut dir = std::env::current_dir().ok()?;
     loop {
-        let candidate = dir.join("lime.toml");
+        let candidate = dir.join("exotickik.toml");
         if candidate.is_file() {
             return Some(candidate);
         }
@@ -105,9 +105,9 @@ mod tests {
     use super::*;
 
     fn parse_tagged(tag: &str, src: &str) -> Manifest {
-        let dir = std::env::temp_dir().join(format!("lime_mani_{}_{}", tag, std::process::id()));
+        let dir = std::env::temp_dir().join(format!("exotickik_mani_{}_{}", tag, std::process::id()));
         std::fs::create_dir_all(&dir).unwrap();
-        let path = dir.join("lime.toml");
+        let path = dir.join("exotickik.toml");
         std::fs::write(&path, src).unwrap();
         load(&path).unwrap()
     }
@@ -116,10 +116,10 @@ mod tests {
     fn reads_fields_and_sections() {
         let m = parse_tagged(
             "fields",
-            "[paket]\nnama = \"halo\"\nversi = \"0.1.0\"\n\n[build]\nentri = \"kode/a.lime\"\noptimasi = 1\ntarget = \"host\"\n",
+            "[paket]\nnama = \"halo\"\nversi = \"0.1.0\"\n\n[build]\nentri = \"kode/a.exo\"\noptimasi = 1\ntarget = \"host\"\n",
         );
         assert_eq!(m.nama.as_deref(), Some("halo"));
-        assert_eq!(m.entri.as_deref(), Some("kode/a.lime"));
+        assert_eq!(m.entri.as_deref(), Some("kode/a.exo"));
         assert_eq!(m.optimasi, Some(1));
         assert_eq!(m.target.as_deref(), Some("host"));
     }
@@ -139,14 +139,14 @@ mod tests {
     #[test]
     fn default_entry_when_unset() {
         let m = parse_tagged("defentry", "[paket]\nnama = \"x\"\n");
-        assert!(m.entry_path().ends_with("src/main.lime"));
+        assert!(m.entry_path().ends_with("src/main.exo"));
     }
 
     #[test]
     fn rejects_bad_optimasi() {
-        let dir = std::env::temp_dir().join(format!("lime_mani_bad_{}", std::process::id()));
+        let dir = std::env::temp_dir().join(format!("exotickik_mani_bad_{}", std::process::id()));
         std::fs::create_dir_all(&dir).unwrap();
-        let path = dir.join("lime.toml");
+        let path = dir.join("exotickik.toml");
         std::fs::write(&path, "[build]\noptimasi = 9\n").unwrap();
         assert!(load(&path).is_err());
     }

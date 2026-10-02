@@ -1,18 +1,18 @@
 use std::path::PathBuf;
 use std::process::Command;
 
-fn lime() -> Command {
-    Command::new(env!("CARGO_BIN_EXE_lime"))
+fn exotickik() -> Command {
+    Command::new(env!("CARGO_BIN_EXE_exotickik"))
 }
 
 fn workdir(tag: &str) -> PathBuf {
-    let dir = std::env::temp_dir().join(format!("lime_e2e_{}_{}", tag, std::process::id()));
+    let dir = std::env::temp_dir().join(format!("exotickik_e2e_{}_{}", tag, std::process::id()));
     std::fs::create_dir_all(&dir).unwrap();
     dir
 }
 
 fn write_program(dir: &PathBuf, src: &str) -> PathBuf {
-    let path = dir.join("prog.lime");
+    let path = dir.join("prog.exo");
     std::fs::write(&path, src).unwrap();
     path
 }
@@ -20,14 +20,14 @@ fn write_program(dir: &PathBuf, src: &str) -> PathBuf {
 fn run_source(tag: &str, src: &str) -> (String, i32) {
     let dir = workdir(tag);
     let path = write_program(&dir, src);
-    let out = lime().arg("run").arg(&path).output().unwrap();
+    let out = exotickik().arg("run").arg(&path).output().unwrap();
     (String::from_utf8_lossy(&out.stdout).into_owned(), out.status.code().unwrap_or(-1))
 }
 
 fn check_source(tag: &str, src: &str) -> (String, i32) {
     let dir = workdir(tag);
     let path = write_program(&dir, src);
-    let out = lime().arg("check").arg(&path).output().unwrap();
+    let out = exotickik().arg("check").arg(&path).output().unwrap();
     (String::from_utf8_lossy(&out.stderr).into_owned(), out.status.code().unwrap_or(-1))
 }
 

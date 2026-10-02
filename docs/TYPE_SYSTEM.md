@@ -1,6 +1,6 @@
-# Lime Type System
+# Exotickik Type System
 
-Lime is statically and (in the safe subset) strongly typed. Types are resolved
+Exotickik is statically and (in the safe subset) strongly typed. Types are resolved
 and checked entirely at compile time; there is no runtime type information in the
 bootstrap.
 
@@ -31,7 +31,7 @@ Type =
 `Ptr` (`pointer`) is an opaque native handle for FFI. It is Copy and may cross
 the FFI boundary, but it is not dereferenceable, not castable to or from an
 integer, and not printable; it is produced only by an `ekstern` return or
-`kosong()` (null) and compared with `==` / `!=`. Because Lime can never read or
+`kosong()` (null) and compared with `==` / `!=`. Because Exotickik can never read or
 write through it, it adds no unsafety. See `docs/LANGUAGE_SPEC.md` §7.
 
 ## Copy vs Owned (`salinan` / `milik`)
@@ -147,7 +147,7 @@ not numeric or `karakter` is `E02F0`.
 
 ## Control-flow checking
 
-After type checking, `lime_sema` runs a control-flow pass:
+After type checking, `exotickik_sema` runs a control-flow pass:
 - A function with return type `T ≠ hampa` must return on every path (`E0230`).
 - `berhenti`/`lanjut` outside a loop are errors (`E0240`).
 - Unreachable statements after `kembalikan`/`berhenti`/`lanjut` produce warning
@@ -156,7 +156,7 @@ After type checking, `lime_sema` runs a control-flow pass:
 ## Generics
 
 Generic **functions** are supported:
-```lime
+```exotickik
 fungsi maksimum<T>(a: T, b: T) -> T {
     jika a > b { kembalikan a }
     kembalikan b
@@ -195,7 +195,7 @@ A **trait** (`sifat`) is a named set of method signatures; an **implementation**
 **static** — every method call resolves at compile time to an ordinary function,
 so traits add no runtime representation and no vtables.
 
-```lime
+```exotickik
 sifat Luas {
     fungsi luas(diri: &Diri) -> angka
 }

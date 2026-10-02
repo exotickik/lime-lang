@@ -1,27 +1,27 @@
 use std::path::PathBuf;
 use std::process::Command;
 
-fn lime() -> Command {
-    Command::new(env!("CARGO_BIN_EXE_lime"))
+fn exotickik() -> Command {
+    Command::new(env!("CARGO_BIN_EXE_exotickik"))
 }
 
 fn dir(tag: &str) -> PathBuf {
-    let d = std::env::temp_dir().join(format!("lime_own_{}_{}", tag, std::process::id()));
+    let d = std::env::temp_dir().join(format!("exotickik_own_{}_{}", tag, std::process::id()));
     std::fs::create_dir_all(&d).unwrap();
     d
 }
 
 fn run_source(tag: &str, src: &str) -> (String, i32) {
-    let path = dir(tag).join("prog.lime");
+    let path = dir(tag).join("prog.exo");
     std::fs::write(&path, src).unwrap();
-    let out = lime().arg("run").arg(&path).output().unwrap();
+    let out = exotickik().arg("run").arg(&path).output().unwrap();
     (String::from_utf8_lossy(&out.stdout).into_owned(), out.status.code().unwrap_or(-1))
 }
 
 fn alloc_balance(tag: &str, src: &str) -> (usize, usize) {
-    let path = dir(tag).join("prog.lime");
+    let path = dir(tag).join("prog.exo");
     std::fs::write(&path, src).unwrap();
-    let out = lime().arg("emit-ir").arg(&path).output().unwrap();
+    let out = exotickik().arg("emit-ir").arg(&path).output().unwrap();
     let ir = String::from_utf8_lossy(&out.stdout);
     let mallocs = ir.matches("call ptr @malloc").count();
     let frees = ir.matches("call void @free").count();
@@ -95,13 +95,13 @@ fn generic_box_multiple_instances() {
 
 #[test]
 fn use_after_move_is_compile_error() {
-    let path = dir("uam").join("prog.lime");
+    let path = dir("uam").join("prog.exo");
     std::fs::write(
         &path,
         "program O\nfungsi k(b: kotak<i64>) -> i64 { kembalikan isi(b) }\nutama { nilai b = kotak(1) nilai c = b tampilkan(k(b)) }",
     )
     .unwrap();
-    let out = lime().arg("check").arg(&path).output().unwrap();
+    let out = exotickik().arg("check").arg(&path).output().unwrap();
     assert_eq!(out.status.code(), Some(1));
     assert!(String::from_utf8_lossy(&out.stderr).contains("E0280"));
 }

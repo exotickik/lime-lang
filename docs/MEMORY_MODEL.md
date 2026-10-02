@@ -1,6 +1,6 @@
-# Lime Memory Model
+# Exotickik Memory Model
 
-Lime targets performance-sensitive native software. It has **no garbage
+Exotickik targets performance-sensitive native software. It has **no garbage
 collector** and no hidden background runtime. Memory management is deterministic
 and, where possible, resolved at compile time.
 
@@ -65,7 +65,7 @@ exactly one binding.
 ## Deterministic drop
 
 Drops are inserted by the IR lowerer using the move information from
-`lime_sema`. At every scope exit and before every `kembalikan` / `berhenti` /
+`exotickik_sema`. At every scope exit and before every `kembalikan` / `berhenti` /
 `lanjut`, each still-owning Owned local in the relevant scopes is dropped in
 reverse declaration order. A moved-out binding is skipped, and dropping a binding
 marks it dropped, so no value is ever freed twice. A returned Owned value is
@@ -77,7 +77,7 @@ moved out first, so it is not dropped by the returning frame.
   parameter is concrete and its category is known; a generic body is checked for
   ownership once per instantiation.
 - **FFI.** Owned types may not appear in an `ekstern` signature or be passed to
-  an extern function (`E0283`): the C ABI has no knowledge of Lime ownership.
+  an extern function (`E0283`): the C ABI has no knowledge of Exotickik ownership.
 
 ## References and borrowing
 
@@ -139,7 +139,7 @@ Use `isi(b)` to read the Copy payload of a borrowed box instead.
   monomorphized instance, so `fungsi baca<T>(x: &T) -> T { kembalikan *x }` is
   accepted for a Copy `T` and rejected (`E0293`) when instantiated with an Owned
   `T`.
-- **FFI.** References are a Lime-internal aliasing concept the C ABI cannot
+- **FFI.** References are a Exotickik-internal aliasing concept the C ABI cannot
   honor, so they are rejected at the boundary rather than silently reinterpreted
   as pointers or ownership (`E0298`).
 
@@ -179,7 +179,7 @@ element before freeing the buffer, are a documented follow-up.
 argument `n`, and `tunggu(h)` joins it and returns the result. Safety is
 structural, not lock-based: the argument is **moved in by value** and the result
 comes back **through the join**, so a spawned thread shares no mutable state with
-its parent — and Lime has no shared mutable globals, while references are
+its parent — and Exotickik has no shared mutable globals, while references are
 non-escaping and so cannot be captured into a thread. There is therefore no
 data-race surface to guard. The current cut supports `angka -> angka` workers on
 POSIX hosts; passing richer (Copy) payloads, channels for message passing, and
@@ -214,7 +214,7 @@ affect the soundness of the numeric/control-flow core.
 
 Structs are value types with a real compile-time layout. Each `tipe` becomes an
 LLVM aggregate (`{ f0, f1, ... }`); field order is preserved and the target C ABI
-governs alignment and padding, so a Lime struct can cross the FFI boundary
+governs alignment and padding, so a Exotickik struct can cross the FFI boundary
 predictably.
 
 - **Binding / passing / returning** copies the aggregate value. There is no
@@ -264,5 +264,5 @@ drop point; there are no hidden allocations and no leaks. `tampilkan` calls libc
 ## Layout & ABI
 
 Struct layout follows the target C ABI (field order preserved, natural
-alignment, tail padding) so Lime structs can be passed across the FFI boundary
+alignment, tail padding) so Exotickik structs can be passed across the FFI boundary
 predictably. This is an ABI choice, not a semantic dependence on C.

@@ -1,0 +1,20 @@
+program Teks
+
+fungsi klasifikasi(kata: teks) -> teks {
+    jika kata == "exo" {
+        kembalikan "bahasa ini"
+    }
+    jika kata == "rust" {
+        kembalikan "bahasa implementasi"
+    }
+    kembalikan "kata lain"
+}
+
+utama {
+    nilai kata: [teks; 3] = ["exo", "rust", "halo"]
+    untuk k pada kata {
+        tampilkan(k)
+        tampilkan(klasifikasi(k))
+        tampilkan(panjang(k))
+    }
+}

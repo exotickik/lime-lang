@@ -3,115 +3,115 @@
 version = 4
 
 [[package]]
-name = "lime_ast"
+name = "exotickik_ast"
 version = "0.1.0"
 dependencies = [
- "lime_span",
+ "exotickik_span",
 ]
 
 [[package]]
-name = "lime_cli"
+name = "exotickik_cli"
 version = "0.1.0"
 dependencies = [
- "lime_codegen",
- "lime_driver",
- "lime_fmt",
+ "exotickik_codegen",
+ "exotickik_driver",
+ "exotickik_fmt",
 ]
 
 [[package]]
-name = "lime_codegen"
+name = "exotickik_codegen"
 version = "0.1.0"
 dependencies = [
- "lime_diagnostics",
- "lime_ir",
- "lime_lexer",
- "lime_parser",
- "lime_sema",
- "lime_span",
- "lime_types",
+ "exotickik_diagnostics",
+ "exotickik_ir",
+ "exotickik_lexer",
+ "exotickik_parser",
+ "exotickik_sema",
+ "exotickik_span",
+ "exotickik_types",
 ]
 
 [[package]]
-name = "lime_diagnostics"
+name = "exotickik_diagnostics"
 version = "0.1.0"
 dependencies = [
- "lime_span",
+ "exotickik_span",
 ]
 
 [[package]]
-name = "lime_driver"
+name = "exotickik_driver"
 version = "0.1.0"
 dependencies = [
- "lime_ast",
- "lime_codegen",
- "lime_diagnostics",
- "lime_fmt",
- "lime_ir",
- "lime_lexer",
- "lime_parser",
- "lime_sema",
- "lime_span",
- "lime_types",
+ "exotickik_ast",
+ "exotickik_codegen",
+ "exotickik_diagnostics",
+ "exotickik_fmt",
+ "exotickik_ir",
+ "exotickik_lexer",
+ "exotickik_parser",
+ "exotickik_sema",
+ "exotickik_span",
+ "exotickik_types",
 ]
 
 [[package]]
-name = "lime_fmt"
+name = "exotickik_fmt"
 version = "0.1.0"
 dependencies = [
- "lime_ast",
- "lime_diagnostics",
- "lime_lexer",
- "lime_parser",
- "lime_span",
+ "exotickik_ast",
+ "exotickik_diagnostics",
+ "exotickik_lexer",
+ "exotickik_parser",
+ "exotickik_span",
 ]
 
 [[package]]
-name = "lime_ir"
+name = "exotickik_ir"
 version = "0.1.0"
 dependencies = [
- "lime_ast",
- "lime_diagnostics",
- "lime_lexer",
- "lime_parser",
- "lime_sema",
- "lime_span",
- "lime_types",
+ "exotickik_ast",
+ "exotickik_diagnostics",
+ "exotickik_lexer",
+ "exotickik_parser",
+ "exotickik_sema",
+ "exotickik_span",
+ "exotickik_types",
 ]
 
 [[package]]
-name = "lime_lexer"
+name = "exotickik_lexer"
 version = "0.1.0"
 dependencies = [
- "lime_diagnostics",
- "lime_span",
+ "exotickik_diagnostics",
+ "exotickik_span",
 ]
 
 [[package]]
-name = "lime_parser"
+name = "exotickik_parser"
 version = "0.1.0"
 dependencies = [
- "lime_ast",
- "lime_diagnostics",
- "lime_lexer",
- "lime_span",
+ "exotickik_ast",
+ "exotickik_diagnostics",
+ "exotickik_lexer",
+ "exotickik_span",
 ]
 
 [[package]]
-name = "lime_sema"
+name = "exotickik_sema"
 version = "0.1.0"
 dependencies = [
- "lime_ast",
- "lime_diagnostics",
- "lime_lexer",
- "lime_parser",
- "lime_span",
- "lime_types",
+ "exotickik_ast",
+ "exotickik_diagnostics",
+ "exotickik_lexer",
+ "exotickik_parser",
+ "exotickik_span",
+ "exotickik_types",
 ]
 
 [[package]]
-name = "lime_span"
+name = "exotickik_span"
 version = "0.1.0"
 
 [[package]]
-name = "lime_types"
+name = "exotickik_types"
 version = "0.1.0"
