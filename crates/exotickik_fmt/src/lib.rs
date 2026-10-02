@@ -75,23 +75,7 @@ impl Printer {
 
     fn print_function(&mut self, f: &Function) {
         let vis = if f.public { "publik " } else { "" };
-        let generics = if f.type_params.is_empty() {
-            String::new()
-        } else {
-            let ps: Vec<String> = f
-                .type_params
-                .iter()
-                .map(|p| {
-                    if p.bounds.is_empty() {
-                        p.name.name.clone()
-                    } else {
-                        let bs: Vec<String> = p.bounds.iter().map(|b| b.name.clone()).collect();
-                        format!("{}: {}", p.name.name, bs.join(" + "))
-                    }
-                })
-                .collect();
-            format!("<{}>", ps.join(", "))
-        };
+        let generics = generics_str(&f.type_params);
         let params = self.params_str(&f.params);
         let ret = match &f.ret {
             Some(t) => format!(" -> {}", type_str(t)),
@@ -122,7 +106,8 @@ impl Printer {
 
     fn print_struct(&mut self, s: &StructDecl) {
         let vis = if s.public { "publik " } else { "" };
-        self.line(&format!("{}tipe {} {{", vis, s.name.name));
+        let generics = generics_str(&s.type_params);
+        self.line(&format!("{}tipe {}{} {{", vis, s.name.name, generics));
         self.indent += 1;
         for field in &s.fields {
             let fvis = if field.public { "publik " } else { "" };
@@ -288,6 +273,24 @@ impl Printer {
         }
         self.line("}");
     }
+}
+
+fn generics_str(type_params: &[TypeParam]) -> String {
+    if type_params.is_empty() {
+        return String::new();
+    }
+    let ps: Vec<String> = type_params
+        .iter()
+        .map(|p| {
+            if p.bounds.is_empty() {
+                p.name.name.clone()
+            } else {
+                let bs: Vec<String> = p.bounds.iter().map(|b| b.name.clone()).collect();
+                format!("{}: {}", p.name.name, bs.join(" + "))
+            }
+        })
+        .collect();
+    format!("<{}>", ps.join(", "))
 }
 
 fn type_str(t: &TypeExpr) -> String {

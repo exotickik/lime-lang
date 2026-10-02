@@ -168,8 +168,13 @@ Legend: ✅ done · 🟡 in progress · ⬜ planned
   (`daftar`, `peta`, `kotak`, owned buffers); the result moves and drops only its
   active payload (tag-conditional drop), `coba` moves the payload out or propagates
   the error by move. Inspection builtins stay Copy-only (use `coba`). Valgrind-clean
-- ⬜ Generic structs/enums (diagnostics still need owned-payload inspection via
-  pattern matching)
+- ✅ Generic structs (Phase 30): `tipe Nama<T, U> { … }` with monomorphization to
+  concrete structs (no runtime cost), type args from the expected type or inferred
+  from field values, nesting (`Pasangan<Titik<angka>, angka>`, `daftar<Titik<T>>`),
+  and ownership following the concrete fields (owned field ⇒ Owned struct). Reuses
+  all existing struct IR/codegen
+- ⬜ Generic enums, then enum associated data + `cocok` payload binding (also
+  unblocks owned-`Hasil` inspection)
 - ⬜ Port the bootstrap front end to Exotickik component by component, validated with
   `exotickik test` against the Rust bootstrap
 

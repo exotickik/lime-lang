@@ -1,0 +1,28 @@
+program Pasangan
+
+tipe Pasangan<T, U> {
+    pertama: T
+    kedua: U
+}
+
+tipe Titik<T> {
+    x: T
+    y: T
+}
+
+fungsi tukar(p: Pasangan<angka, angka>) -> Pasangan<angka, angka> {
+    kembalikan Pasangan { pertama: p.kedua, kedua: p.pertama }
+}
+
+utama {
+    nilai p: Pasangan<angka, teks> = Pasangan { pertama: 7, kedua: "tujuh" }
+    tampilkan(p.pertama)
+    tampilkan(p.kedua)
+    nilai q = tukar(Pasangan { pertama: 1, kedua: 2 })
+    tampilkan(q.pertama)
+    tampilkan(q.kedua)
+    nilai titik: Titik<angka> = Titik { x: 3, y: 4 }
+    tampilkan(titik.x * titik.x + titik.y * titik.y)
+    nilai bersarang: Pasangan<Titik<angka>, angka> = Pasangan { pertama: Titik { x: 10, y: 20 }, kedua: 30 }
+    tampilkan(bersarang.pertama.x + bersarang.pertama.y + bersarang.kedua)
+}

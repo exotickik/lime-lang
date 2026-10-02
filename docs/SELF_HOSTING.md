@@ -87,13 +87,9 @@ current compiler.
    would make pointer-based trees possible too, but the index-arena approach is a
    complete, idiomatic way to write the compiler's data structures now.
 
-3. **Generic structs and enums.** Reusable containers need type parameters on
-   data types, not just functions:
-   ```
-   tipe Pasangan<T> { a: T b: T }
-   // error[E0110]: diharapkan '{', ditemukan '<'
-   ```
-   Generic *functions* already work and monomorphize; generic *types* do not yet.
+3. **Generic data types.** ✅ Generic **structs** now work (`tipe Pasangan<T, U>
+   { … }`, monomorphized; see `examples/pasangan.exo`). Generic **enums** and
+   payload-carrying enum variants are the remaining data-type generics.
 
 4. **Maps/sets.** ✅ `peta<K, V>` (a real string-keyed hash table) now exists —
    symbol tables, string interning, and module tables are expressible (see

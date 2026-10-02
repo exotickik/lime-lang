@@ -1125,6 +1125,34 @@ mod tests {
     }
 
     #[test]
+    fn generic_struct_ok() {
+        let d = check(
+            "program P\ntipe Pasangan<T, U> { pertama: T kedua: U }\n\
+             utama { nilai p: Pasangan<angka, teks> = Pasangan { pertama: 1, kedua: \"x\" } tampilkan(p.pertama) }",
+        );
+        assert!(!d.has_errors(), "{:?}", d.diagnostics());
+    }
+
+    #[test]
+    fn generic_struct_wrong_arity() {
+        let d = check(
+            "program P\ntipe Pasangan<T, U> { pertama: T kedua: U }\n\
+             utama { nilai p: Pasangan<angka> = Pasangan { pertama: 1, kedua: 2 } }",
+        );
+        assert!(has_code(&d, codes::E_UNKNOWN_TYPE));
+    }
+
+    #[test]
+    fn generic_struct_owned_field_moves() {
+        let d = check(
+            "program P\ntipe Bungkus<T> { isi: T }\n\
+             fungsi pakai(b: Bungkus<daftar<angka>>) -> angka { kembalikan panjang(ambil(b.isi)) }\n\
+             utama { ubah d: daftar<angka> = daftar() nilai b: Bungkus<daftar<angka>> = Bungkus { isi: d } nilai x = pakai(b) nilai y = pakai(b) }",
+        );
+        assert!(has_code(&d, codes::E_USE_AFTER_MOVE));
+    }
+
+    #[test]
     fn peta_moves_like_owned() {
         let d = check(
             "program P\nfungsi konsumsi(m: peta<teks, angka>) -> angka { kembalikan panjang(ambil(m)) }\n\

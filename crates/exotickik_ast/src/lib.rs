@@ -121,6 +121,7 @@ pub struct Param {
 pub struct StructDecl {
     pub public: bool,
     pub name: Ident,
+    pub type_params: Vec<TypeParam>,
     pub fields: Vec<Field>,
     pub span: Span,
 }

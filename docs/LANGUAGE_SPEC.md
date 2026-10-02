@@ -302,8 +302,25 @@ argument types (`maksimum(3, 9)` infers `T = angka`; `maksimum(2.5, 1.5)` infers
 `T = f64`). Every distinct instantiation is compiled to a separate specialized
 function (monomorphization), so generics cost nothing at runtime. A generic body
 is checked per instantiation, so operations like `a > b` are validated for each
-concrete `T`. See `docs/TYPE_SYSTEM.md` for the full rules and current limits
-(generic structs/enums, explicit type arguments, and trait bounds are planned).
+concrete `T`. See `docs/TYPE_SYSTEM.md` for the full rules.
+
+### 3.8a Generic structs
+A struct may declare type parameters in `<...>` after its name:
+```exotickik
+tipe Pasangan<T, U> {
+    pertama: T
+    kedua: U
+}
+```
+A generic struct is used by applying type arguments: `Pasangan<angka, teks>`. Each
+distinct instantiation is monomorphized to its own concrete struct, so there is no
+runtime cost and field access (`p.pertama`) has a fully concrete type. Type
+arguments on a literal are taken from the expected type
+(`nilai p: Pasangan<angka, teks> = Pasangan { … }`, a return position, or a call
+argument) or inferred from the field values. Generic structs nest
+(`Pasangan<Titik<angka>, angka>`, `daftar<Titik<angka>>`). Ownership follows the
+concrete fields: a generic struct with an Owned field is itself Owned and moves.
+A wrong type-argument count or an unknown generic type is a diagnostic.
 
 ### 3.9 Ownership and `kotak<T>`
 Exotickik has no garbage collector. Every type is either **`salinan` (Copy)** — all

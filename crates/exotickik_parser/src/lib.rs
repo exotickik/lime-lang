@@ -438,6 +438,7 @@ impl<'a> Parser<'a> {
         let start = self.peek_span();
         self.expect(&TokenKind::Keyword(Keyword::Tipe))?;
         let name = self.expect_ident()?;
+        let type_params = self.parse_type_params()?;
         self.expect(&TokenKind::LBrace)?;
         let mut fields = Vec::new();
         while !matches!(self.peek(), TokenKind::RBrace | TokenKind::Eof) {
@@ -450,7 +451,7 @@ impl<'a> Parser<'a> {
             self.eat(&TokenKind::Comma);
         }
         let rb = self.expect(&TokenKind::RBrace)?;
-        Ok(StructDecl { public, name, fields, span: start.to(rb.span) })
+        Ok(StructDecl { public, name, type_params, fields, span: start.to(rb.span) })
     }
 
     fn parse_enum(&mut self, public: bool) -> PResult<EnumDecl> {

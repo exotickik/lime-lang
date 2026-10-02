@@ -12,6 +12,10 @@ pub struct Checker<'a> {
     globals: HashMap<String, Res>,
     struct_ids: HashMap<String, StructId>,
     enum_ids: HashMap<String, EnumId>,
+    generic_structs: Vec<StructDecl>,
+    generic_struct_ids: HashMap<String, usize>,
+    struct_instantiations: HashMap<(usize, Vec<Type>), StructId>,
+    struct_instance_of: HashMap<u32, usize>,
     generic_fns: Vec<Function>,
     instantiations: HashMap<(usize, Vec<Type>), usize>,
     mono_worklist: Vec<usize>,
@@ -36,6 +40,10 @@ impl<'a> Checker<'a> {
             globals: HashMap::new(),
             struct_ids: HashMap::new(),
             enum_ids: HashMap::new(),
+            generic_structs: Vec::new(),
+            generic_struct_ids: HashMap::new(),
+            struct_instantiations: HashMap::new(),
+            struct_instance_of: HashMap::new(),
             generic_fns: Vec::new(),
             instantiations: HashMap::new(),
             mono_worklist: Vec::new(),
@@ -123,6 +131,7 @@ impl<'a> Checker<'a> {
         self.collect_enums(program);
         self.collect_structs(program);
         self.resolve_struct_fields(program);
+        self.validate_generic_struct_templates();
         self.collect_functions(program);
         self.collect_traits(program);
         self.collect_impls(program);
@@ -189,7 +198,9 @@ impl<'a> Checker<'a> {
     fn collect_structs(&mut self, program: &Program) {
         for item in &program.items {
             if let Item::Struct(s) = item {
-                if self.struct_ids.contains_key(&s.name.name) {
+                if self.struct_ids.contains_key(&s.name.name)
+                    || self.generic_struct_ids.contains_key(&s.name.name)
+                {
                     self.diags.emit(
                         Diagnostic::error(
                             codes::E_REDEFINITION,
@@ -197,6 +208,12 @@ impl<'a> Checker<'a> {
                         )
                         .primary(s.name.span, "definisi ulang di sini"),
                     );
+                    continue;
+                }
+                if !s.type_params.is_empty() {
+                    let tidx = self.generic_structs.len();
+                    self.generic_structs.push(s.clone());
+                    self.generic_struct_ids.insert(s.name.name.clone(), tidx);
                     continue;
                 }
                 let id = StructId(self.results.structs.len() as u32);
@@ -1118,7 +1135,7 @@ impl<'a> Checker<'a> {
                 }
                 self.check_field(base, field)
             }
-            ExprKind::StructLit { name, fields } => self.check_struct_lit(name, fields),
+            ExprKind::StructLit { name, fields } => self.check_struct_lit(name, fields, expected),
             ExprKind::ArrayLit(elems) => self.check_array_lit(elems, expected),
             ExprKind::Index { base, index } => self.check_index(base, index),
             ExprKind::Deref(inner) => self.check_deref(inner),
@@ -1215,29 +1232,87 @@ impl<'a> Checker<'a> {
         }
     }
 
-    fn check_struct_lit(&mut self, name: &Ident, fields: &[StructLitField]) -> Type {
-        let id = match self.struct_ids.get(&name.name) {
-            Some(&id) => {
-                self.check_visibility(&name.name, name.span);
-                id
-            }
-            None => {
-                let msg = if Type::from_builtin_name(&name.name).is_some() {
-                    format!("tipe bawaan '{}' tidak bisa dibangun dengan '{{ }}'", name.name)
-                } else {
-                    format!("'{}' bukan tipe struct", name.name)
-                };
-                self.diags.emit(
-                    Diagnostic::error(codes::E_NOT_A_STRUCT, msg)
-                        .primary(name.span, "bukan struct yang dikenal"),
-                );
-                for f in fields {
-                    self.check_expr(&f.value, None);
+    fn check_struct_lit(
+        &mut self,
+        name: &Ident,
+        fields: &[StructLitField],
+        expected: Option<&Type>,
+    ) -> Type {
+        if let Some(&id) = self.struct_ids.get(&name.name) {
+            self.check_visibility(&name.name, name.span);
+            return self.check_struct_lit_body(id, name, fields, true);
+        }
+        if let Some(&tidx) = self.generic_struct_ids.get(&name.name) {
+            if let Some(Type::Struct(eid)) = expected {
+                if self.struct_instance_of.get(&eid.0) == Some(&tidx) {
+                    let eid = *eid;
+                    return self.check_struct_lit_body(eid, name, fields, true);
                 }
+            }
+            return self.infer_generic_struct_lit(tidx, name, fields);
+        }
+        let msg = if Type::from_builtin_name(&name.name).is_some() {
+            format!("tipe bawaan '{}' tidak bisa dibangun dengan '{{ }}'", name.name)
+        } else {
+            format!("'{}' bukan tipe struct", name.name)
+        };
+        self.diags.emit(
+            Diagnostic::error(codes::E_NOT_A_STRUCT, msg).primary(name.span, "bukan struct yang dikenal"),
+        );
+        for f in fields {
+            self.check_expr(&f.value, None);
+        }
+        Type::Error
+    }
+
+    fn infer_generic_struct_lit(
+        &mut self,
+        tidx: usize,
+        name: &Ident,
+        fields: &[StructLitField],
+    ) -> Type {
+        let template = self.generic_structs[tidx].clone();
+        let param_names: Vec<String> =
+            template.type_params.iter().map(|p| p.name.name.clone()).collect();
+        let mut subst: HashMap<String, Type> = HashMap::new();
+        for f in fields {
+            let vty = self.check_expr(&f.value, None);
+            if let Some(tf) = template.fields.iter().find(|tf| tf.name.name == f.name.name) {
+                let pat = self.resolve_type_generic(&tf.ty, &param_names);
+                if !vty.is_error() {
+                    unify(&pat, &vty, &mut subst);
+                }
+            }
+        }
+        let args: Vec<Type> = match param_names
+            .iter()
+            .map(|n| subst.get(n).cloned())
+            .collect::<Option<Vec<_>>>()
+        {
+            Some(v) => v,
+            None => {
+                self.diags.emit(
+                    Diagnostic::error(
+                        codes::E_CANNOT_INFER,
+                        format!("tidak bisa menyimpulkan parameter tipe untuk '{}'", name.name),
+                    )
+                    .primary(name.span, "beri anotasi tipe pada tujuan")
+                    .help("mis. 'nilai x: Nama<angka> = Nama { ... }'"),
+                );
                 return Type::Error;
             }
         };
+        let id = self.monomorphize_struct(tidx, args);
+        self.check_struct_lit_body(id, name, fields, false)
+    }
 
+    fn check_struct_lit_body(
+        &mut self,
+        id: StructId,
+        name: &Ident,
+        fields: &[StructLitField],
+        recheck: bool,
+    ) -> Type {
         let info = self.results.struct_info(id).clone();
         let mut seen: HashMap<String, Span> = HashMap::new();
 
@@ -1254,7 +1329,11 @@ impl<'a> Checker<'a> {
             }
             match info.field(&f.name.name) {
                 Some((_, field_info)) => {
-                    let vty = self.check_expr(&f.value, Some(&field_info.ty));
+                    let vty = if recheck {
+                        self.check_expr(&f.value, Some(&field_info.ty))
+                    } else {
+                        self.results.expr_type(f.value.id).clone()
+                    };
                     if !vty.assignable_to(&field_info.ty) {
                         self.diags.emit(
                             Diagnostic::error(
@@ -1271,7 +1350,9 @@ impl<'a> Checker<'a> {
                     }
                 }
                 None => {
-                    self.check_expr(&f.value, None);
+                    if recheck {
+                        self.check_expr(&f.value, None);
+                    }
                     self.diags.emit(
                         Diagnostic::error(
                             codes::E_UNKNOWN_FIELD,
@@ -2792,6 +2873,58 @@ impl<'a> Checker<'a> {
         }
     }
 
+    fn monomorphize_struct(&mut self, tidx: usize, args: Vec<Type>) -> StructId {
+        let key = (tidx, args.clone());
+        if let Some(&id) = self.struct_instantiations.get(&key) {
+            return id;
+        }
+        let template = self.generic_structs[tidx].clone();
+        let param_names: Vec<String> =
+            template.type_params.iter().map(|p| p.name.name.clone()).collect();
+        let subst: HashMap<String, Type> =
+            param_names.iter().cloned().zip(args.iter().cloned()).collect();
+        let mangled = mangle_name(&template.name.name, &args);
+        let id = StructId(self.results.structs.len() as u32);
+        self.results.structs.push(StructInfo {
+            name: mangled.clone(),
+            fields: Vec::new(),
+            def_span: template.name.span,
+        });
+        self.struct_instantiations.insert(key, id);
+        self.struct_instance_of.insert(id.0, tidx);
+        self.struct_ids.insert(mangled, id);
+        let mut fields = Vec::new();
+        for f in &template.fields {
+            let mut fte = f.ty.clone();
+            substitute_type_expr(&mut fte, &subst, &self.results);
+            let ty = self.resolve_type(&fte);
+            fields.push(FieldInfo { name: f.name.name.clone(), ty, public: f.public });
+        }
+        self.results.structs[id.0 as usize].fields = fields;
+        id
+    }
+
+    fn validate_generic_struct_templates(&mut self) {
+        let templates = self.generic_structs.clone();
+        for t in &templates {
+            let param_names: Vec<String> =
+                t.type_params.iter().map(|p| p.name.name.clone()).collect();
+            let mut seen: HashMap<String, ()> = HashMap::new();
+            for f in &t.fields {
+                if seen.insert(f.name.name.clone(), ()).is_some() {
+                    self.diags.emit(
+                        Diagnostic::error(
+                            codes::E_REDEFINITION,
+                            format!("field '{}' didefinisikan lebih dari sekali", f.name.name),
+                        )
+                        .primary(f.name.span, "field ganda"),
+                    );
+                }
+                let _ = self.resolve_type_generic(&f.ty, &param_names);
+            }
+        }
+    }
+
     fn resolve_type(&mut self, ty: &TypeExpr) -> Type {
         match &ty.kind {
             TypeExprKind::Named(name) => {
@@ -2820,6 +2953,17 @@ impl<'a> Checker<'a> {
                 if let Some(&id) = self.enum_ids.get(name) {
                     self.check_visibility(name, ty.span);
                     return Type::Enum(id);
+                }
+                if let Some(&tidx) = self.generic_struct_ids.get(name) {
+                    let arity = self.generic_structs[tidx].type_params.len();
+                    self.diags.emit(
+                        Diagnostic::error(
+                            codes::E_UNKNOWN_TYPE,
+                            format!("tipe generik '{}' butuh {} argumen tipe", name, arity),
+                        )
+                        .primary(ty.span, format!("tulis '{}<...>'", name)),
+                    );
+                    return Type::Error;
                 }
                 self.diags.emit(
                     Diagnostic::error(
@@ -2857,12 +3001,36 @@ impl<'a> Checker<'a> {
                     let v = self.resolve_type(&args[1]);
                     return Type::Peta { key: Box::new(k), val: Box::new(v) };
                 }
+                if let Some(&tidx) = self.generic_struct_ids.get(name) {
+                    let arity = self.generic_structs[tidx].type_params.len();
+                    if args.len() != arity {
+                        self.diags.emit(
+                            Diagnostic::error(
+                                codes::E_UNKNOWN_TYPE,
+                                format!(
+                                    "tipe generik '{}' butuh {} argumen tipe, diberi {}",
+                                    name,
+                                    arity,
+                                    args.len()
+                                ),
+                            )
+                            .primary(ty.span, "jumlah argumen tipe salah"),
+                        );
+                        return Type::Error;
+                    }
+                    let targs: Vec<Type> = args.iter().map(|a| self.resolve_type(a)).collect();
+                    if targs.iter().any(|t| t.is_error()) {
+                        return Type::Error;
+                    }
+                    let id = self.monomorphize_struct(tidx, targs);
+                    return Type::Struct(id);
+                }
                 self.diags.emit(
                     Diagnostic::error(
                         codes::E_UNKNOWN_TYPE,
                         format!("tipe generik '{}' dengan {} argumen tidak dikenal", name, args.len()),
                     )
-                    .primary(ty.span, "hanya 'kotak<T>' dan 'Hasil<T, R>' yang didukung saat ini"),
+                    .primary(ty.span, "tipe generik tidak dikenal"),
                 );
                 Type::Error
             }

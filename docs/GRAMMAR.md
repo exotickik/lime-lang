@@ -38,7 +38,7 @@ type_param     = Ident [ ":" Ident { "+" Ident } ] ;      (* optional trait boun
 param_list     = param { "," param } ;
 param          = Ident ":" type ;
 
-struct         = [ "publik" ] "tipe" Ident "{" { field } "}" ;
+struct         = [ "publik" ] "tipe" Ident [ type_params ] "{" { field } "}" ;
 field          = [ "publik" ] Ident ":" type ;
 
 type           = Ident [ "<" type { "," type } ">" ]   (* named or applied, e.g. kotak<i64> *)
