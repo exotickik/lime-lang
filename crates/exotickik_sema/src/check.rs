@@ -2424,7 +2424,7 @@ impl<'a> Checker<'a> {
         Type::Ref { inner: Box::new(ty), mutable }
     }
 
-    fn require_hasil_copy(&mut self, ok: &Type, err: &Type, span: Span) -> bool {
+    fn require_hasil_copy_inspect(&mut self, name: &str, ok: &Type, err: &Type, span: Span) -> bool {
         let bad = if !self.is_copy(ok) {
             Some(ok)
         } else if !self.is_copy(err) {
@@ -2436,10 +2436,14 @@ impl<'a> Checker<'a> {
             self.diags.emit(
                 Diagnostic::error(
                     codes::E_HASIL_NOT_COPY,
-                    format!("'Hasil' belum mendukung tipe milik '{}' sebagai muatan", t.display()),
+                    format!(
+                        "'{}' tidak bisa dipakai pada 'Hasil' bermuatan milik '{}'",
+                        name,
+                        t.display()
+                    ),
                 )
                 .primary(span, "muatan bertipe milik")
-                .help("gunakan tipe salinan (mis. angka, teks) untuk nilai dan error"),
+                .help("untuk 'Hasil' bermuatan milik, pakai 'coba' untuk meneruskan nilainya"),
             );
             false
         } else {
@@ -2507,13 +2511,15 @@ impl<'a> Checker<'a> {
                         .primary(args[0].span, format!("bertipe '{}'", at.display())),
                     );
                 }
-                self.require_hasil_copy(&ok, &err, call.span);
                 Type::Hasil { ok: Box::new(ok), err: Box::new(err) }
             }
             Builtin::Berhasil => {
                 let at = self.check_expr(&args[0], None);
                 match at {
-                    Type::Hasil { .. } => Type::Bool,
+                    Type::Hasil { ok, err } => {
+                        self.require_hasil_copy_inspect("berhasil", &ok, &err, args[0].span);
+                        Type::Bool
+                    }
                     Type::Error => Type::Error,
                     other => {
                         self.diags.emit(
@@ -2531,6 +2537,7 @@ impl<'a> Checker<'a> {
                 let at = self.check_expr(&args[0], None);
                 let picked = match &at {
                     Type::Hasil { ok, err } => {
+                        self.require_hasil_copy_inspect(name, ok, err, args[0].span);
                         Some(if matches!(b, Builtin::NilaiAtau) { (**ok).clone() } else { (**err).clone() })
                     }
                     _ => None,

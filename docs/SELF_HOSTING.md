@@ -104,9 +104,11 @@ current compiler.
    strings exist as `daftar<bita>` byte buffers, and the `Teks` module now covers
    building, comparison, search, prefix-match and slicing (`sama_teks`,
    `sama_bita`, `cari_bita`, `awalan`, `potong`) — the lexer string operations.
-   What remains is a first-class owned `teks` *value* type with a buffer→`teks`
-   conversion, and `Hasil<T, R>` with owned payloads (it still requires Copy
-   payloads, so error values cannot yet carry owned messages).
+   `Hasil<T, R>` now supports **owned payloads** (so a function can return owned
+   bytes/collections on success or an owned error, and `coba`-propagate them). What
+   remains is a first-class owned `teks` *value* type with a buffer→`teks`
+   conversion, and owned-payload inspection via pattern matching (the inspection
+   builtins stay Copy-only; owned results are consumed with `coba`).
 
 ## Suggested order to close the gaps
 

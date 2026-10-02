@@ -429,10 +429,16 @@ utama {
   the failure from the enclosing function (which must return `Hasil<_, R>` with
   the same error type `R`). Propagation is visible early-return, not an exception.
 - `berhasil(r)`, `nilai_atau(r, cadangan)`, and `gagal_atau(r, cadangan)` inspect
-  a result at a boundary without assuming a branch.
-- For now `T` and `R` must be Copy types (`teks`, numbers, Copy structs …); an
-  Owned payload is a diagnostic. `Hasil` is a value — it allocates nothing and
-  lowers to a tagged aggregate. See `docs/TYPE_SYSTEM.md`.
+  a result at a boundary without assuming a branch. These require Copy payloads;
+  for a `Hasil` with an Owned payload, use `coba` to move the value out.
+- **Owned payloads are supported.** `T` and `R` may be Owned types (`daftar<T>`,
+  `peta<K, V>`, `kotak<T>`, owned byte-buffer strings, …). `Hasil` is a value and
+  lowers to a tagged aggregate `{ i32 tag, T, R }`; a `Hasil` whose payloads are
+  Copy is itself Copy, otherwise it is Owned and moves. Only the **active** payload
+  (per the tag) is logically alive: moving a `Hasil` moves its active payload,
+  dropping it frees only the active payload (tag-conditional drop), and `coba`
+  moves the active payload out or propagates the error by move. See
+  `docs/TYPE_SYSTEM.md`.
 
 ---
 

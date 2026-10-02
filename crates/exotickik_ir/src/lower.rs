@@ -243,6 +243,69 @@ impl<'a> FnLowerer<'a> {
                     }
                 }
             }
+            Type::Hasil { ok, err } => {
+                let ok_owned = !self.is_copy_ty(ok);
+                let err_owned = !self.is_copy_ty(err);
+                if !ok_owned && !err_owned {
+                    return;
+                }
+                let tag = self.fresh_value();
+                self.emit(
+                    Some(tag),
+                    InstrKind::ExtractField {
+                        agg: value.clone(),
+                        agg_ty: ty.clone(),
+                        index: 0,
+                        field_ty: Type::I32,
+                    },
+                );
+                let is_ok = self.fresh_value();
+                self.emit(
+                    Some(is_ok),
+                    InstrKind::Cmp {
+                        pred: CmpPred::Eq,
+                        ty: Type::I32,
+                        signed: false,
+                        lhs: Operand::Val(tag),
+                        rhs: Operand::ConstInt(0, Type::I32),
+                    },
+                );
+                let ok_bb = self.new_block();
+                let err_bb = self.new_block();
+                let done = self.new_block();
+                self.set_term(Terminator::CondBr { cond: Operand::Val(is_ok), then_bb: ok_bb, else_bb: err_bb });
+                self.current = ok_bb;
+                if ok_owned {
+                    let okv = self.fresh_value();
+                    self.emit(
+                        Some(okv),
+                        InstrKind::ExtractField {
+                            agg: value.clone(),
+                            agg_ty: ty.clone(),
+                            index: 1,
+                            field_ty: (**ok).clone(),
+                        },
+                    );
+                    self.emit_drop_value(Operand::Val(okv), ok);
+                }
+                self.set_term(Terminator::Br(done));
+                self.current = err_bb;
+                if err_owned {
+                    let errv = self.fresh_value();
+                    self.emit(
+                        Some(errv),
+                        InstrKind::ExtractField {
+                            agg: value,
+                            agg_ty: ty.clone(),
+                            index: 2,
+                            field_ty: (**err).clone(),
+                        },
+                    );
+                    self.emit_drop_value(Operand::Val(errv), err);
+                }
+                self.set_term(Terminator::Br(done));
+                self.current = done;
+            }
             _ => {}
         }
     }
@@ -688,7 +751,12 @@ impl<'a> FnLowerer<'a> {
                 let id = self.module.intern_str(Vec::new());
                 Operand::Str(id)
             }
-            Type::Struct(_) | Type::Array { .. } | Type::Hasil { .. } => {
+            Type::Struct(_)
+            | Type::Array { .. }
+            | Type::Hasil { .. }
+            | Type::Daftar(_)
+            | Type::Peta { .. }
+            | Type::Kotak(_) => {
                 let slot = self.new_slot(ty.clone());
                 let dst = self.fresh_value();
                 self.emit(Some(dst), InstrKind::Load { slot });

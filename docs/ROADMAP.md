@@ -164,7 +164,12 @@ Legend: ✅ done · 🟡 in progress · ⬜ planned
   `Teks` module now adds comparison (`sama_teks`/`sama_bita`), search (`cari_bita`),
   prefix (`awalan`), and slicing (`potong`) — the lexer string ops. A first-class
   owned `teks` value type and a buffer→`teks` conversion remain
-- ⬜ Generic structs/enums, and `Hasil` with owned payloads (diagnostics)
+- ✅ `Hasil<T, R>` with owned payloads (Phase 29): `T`/`R` may be Owned
+  (`daftar`, `peta`, `kotak`, owned buffers); the result moves and drops only its
+  active payload (tag-conditional drop), `coba` moves the payload out or propagates
+  the error by move. Inspection builtins stay Copy-only (use `coba`). Valgrind-clean
+- ⬜ Generic structs/enums (diagnostics still need owned-payload inspection via
+  pattern matching)
 - ⬜ Port the bootstrap front end to Exotickik component by component, validated with
   `exotickik test` against the Rust bootstrap
 

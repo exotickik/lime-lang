@@ -130,11 +130,17 @@ resolved and checked at compile time; there is no exception machinery.
   into the returned failure — ordinary early-return control flow.
 - **Inspection.** `berhasil(r) -> boolean`, `nilai_atau(r, d) -> T`, and
   `gagal_atau(r, d) -> R` read a result without assuming a branch; misuse (a
-  non-`Hasil` argument or a mistyped fallback) is `E02B4`.
-- **Copy requirement.** `T` and `R` must be Copy (`salinan`) for now, so `Hasil`
-  is itself Copy and never dropped; an Owned payload is `E02B3`. Unification
-  recurses through `Hasil`, so `Hasil<T, R>` parameters infer in generic
-  functions.
+  non-`Hasil` argument or a mistyped fallback) is `E02B4`. They require Copy
+  payloads; applied to a `Hasil` with an Owned payload they report `E02B3` and
+  direct you to `coba` (an Owned payload must be moved out, not copied).
+- **Owned payloads.** `T` and `R` may be Owned. `Hasil<T, R>` is Copy iff both
+  payloads are Copy; otherwise it is Owned (`milik`): it moves, and drops only its
+  **active** payload based on the `i32` tag (tag-conditional drop), recursing into
+  nested owned values. The inactive payload field is `undef` and never touched, so
+  there is no double free. `coba` moves the active payload out (success) or moves
+  the error into the early-returned `Hasil` (failure); the source is consumed, so
+  it is not dropped afterward. Unification recurses through `Hasil`, so
+  `Hasil<T, R>` parameters infer in generic functions.
 
 ## Assignability
 

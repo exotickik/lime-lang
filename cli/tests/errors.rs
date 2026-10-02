@@ -107,9 +107,27 @@ fn coba_outside_hasil_is_error() {
 }
 
 #[test]
-fn owned_payload_is_error() {
-    let src = "program E\nfungsi f() -> Hasil<kotak<angka>, teks> { kembalikan gagal(\"x\") }\nutama { }";
-    let (code, err) = check_stderr("owned", src);
+fn owned_payload_construction_ok() {
+    let src = "program E\n\
+        fungsi f(b: boolean) -> Hasil<kotak<angka>, teks> {\n\
+          jika b { kembalikan sukses(kotak(5)) }\n\
+          kembalikan gagal(\"rusak\")\n\
+        }\n\
+        fungsi g(b: boolean) -> Hasil<kotak<angka>, teks> {\n\
+          nilai k = coba f(b)\n\
+          kembalikan sukses(k)\n\
+        }\n\
+        utama { nilai r = g(benar) }";
+    let (code, err) = check_stderr("owned_ok", src);
+    assert_eq!(code, 0, "got: {err}");
+}
+
+#[test]
+fn owned_payload_inspection_is_error() {
+    let src = "program E\n\
+        fungsi f() -> Hasil<daftar<angka>, teks> { kembalikan gagal(\"x\") }\n\
+        utama { nilai d: daftar<angka> = daftar() nilai r = nilai_atau(f(), d) }";
+    let (code, err) = check_stderr("owned_inspect", src);
     assert_eq!(code, 1);
     assert!(err.contains("E02B3"), "got: {err}");
 }

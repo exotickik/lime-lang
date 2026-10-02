@@ -812,11 +812,11 @@ mod tests {
     }
 
     #[test]
-    fn hasil_owned_payload_rejected() {
+    fn hasil_owned_payload_construction_allowed() {
         let d = check(
-            "program P\nfungsi f() -> Hasil<kotak<angka>, teks> { kembalikan gagal(\"x\") }\nutama { }",
+            "program P\nfungsi f() -> Hasil<kotak<angka>, teks> { kembalikan sukses(kotak(1)) }\nutama { nilai r = f() }",
         );
-        assert!(has_code(&d, codes::E_HASIL_NOT_COPY));
+        assert!(!d.has_errors(), "{:?}", d.diagnostics());
     }
 
     #[test]
@@ -1086,6 +1086,42 @@ mod tests {
     fn peta_owned_value_errors() {
         let d = check("program P\nutama { ubah m: peta<teks, daftar<angka>> = peta() tampilkan(1) }");
         assert!(has_code(&d, codes::E_COLLECTION_MISUSE));
+    }
+
+    #[test]
+    fn owned_hasil_construction_ok() {
+        let d = check(
+            "program P\n\
+             fungsi f(b: boolean) -> Hasil<daftar<angka>, teks> {\n\
+               jika bukan b { kembalikan gagal(\"e\") }\n\
+               ubah x: daftar<angka> = daftar()\n\
+               kembalikan sukses(x)\n\
+             }\n\
+             fungsi g() -> Hasil<angka, teks> { nilai d = coba f(benar) kembalikan sukses(panjang(ambil(d))) }\n\
+             utama { nilai r = g() }",
+        );
+        assert!(!d.has_errors(), "{:?}", d.diagnostics());
+    }
+
+    #[test]
+    fn owned_hasil_inspection_rejected() {
+        let d = check(
+            "program P\n\
+             fungsi f() -> Hasil<daftar<angka>, teks> { kembalikan gagal(\"e\") }\n\
+             utama { ubah c: daftar<angka> = daftar() nilai r = nilai_atau(f(), c) }",
+        );
+        assert!(has_code(&d, codes::E_HASIL_NOT_COPY));
+    }
+
+    #[test]
+    fn owned_hasil_use_after_move() {
+        let d = check(
+            "program P\n\
+             fungsi f() -> Hasil<daftar<angka>, teks> { ubah x: daftar<angka> = daftar() kembalikan sukses(x) }\n\
+             fungsi g() -> Hasil<angka, teks> { nilai r = f() nilai a = coba r nilai b = coba r kembalikan sukses(1) }\n\
+             utama { nilai x = g() }",
+        );
+        assert!(has_code(&d, codes::E_USE_AFTER_MOVE));
     }
 
     #[test]

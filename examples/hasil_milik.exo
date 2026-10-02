@@ -1,0 +1,26 @@
+program HasilMilik
+
+fungsi muat_sumber(nama: teks) -> Hasil<daftar<bita>, teks> {
+    ubah isi: daftar<bita> = daftar()
+    nilai ok = baca_file(nama, ambil_ubah(isi))
+    jika !ok {
+        kembalikan gagal("tidak bisa membuka file")
+    }
+    kembalikan sukses(isi)
+}
+
+fungsi ukuran_sumber(nama: teks) -> Hasil<angka, teks> {
+    nilai isi = coba muat_sumber(nama)
+    kembalikan sukses(panjang(ambil(isi)))
+}
+
+utama {
+    nilai ada = ukuran_sumber("Cargo.toml")
+    jika berhasil(ada) {
+        tampilkan("terbaca, ukuran:")
+        tampilkan(nilai_atau(ada, 0))
+    }
+    nilai hilang = ukuran_sumber("tidak_ada_1234.exo")
+    tampilkan(gagal_atau(hilang, "ok"))
+    nilai buang = muat_sumber("Cargo.toml")
+}

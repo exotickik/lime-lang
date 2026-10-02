@@ -80,8 +80,11 @@ not shipped until they can be implemented honestly.
 - `nilai_atau(r, cadangan) -> T` — the success value, or `cadangan` on failure.
 - `gagal_atau(r, cadangan) -> R` — the error value, or `cadangan` on success.
 
-  `Hasil<T, R>` is a value type (a tagged aggregate, no allocation); `T` and `R`
-  must be Copy types. See `docs/TYPE_SYSTEM.md` for the full model.
+  `Hasil<T, R>` is a tagged aggregate. `T` and `R` may be **Owned** (`daftar<T>`,
+  `peta<K, V>`, `kotak<T>`, owned byte buffers, …): the `Hasil` then moves and
+  drops only its active payload. `coba` moves the payload out; the inspection
+  builtins (`berhasil`/`nilai_atau`/`gagal_atau`) require Copy payloads. See
+  `docs/TYPE_SYSTEM.md` for the full model.
 
 The heap runtime for owned values is libc `malloc`/`free`, reached through Exotickik's
 own C-ABI FFI path — no separate allocator library. Growable containers

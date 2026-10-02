@@ -1,62 +1,83 @@
-# Phase 28 (Dynamic string operations) — Design Assessment
+# Phase 29 (Owned `Hasil<T, R>` payloads) — Design Assessment
 
-Baseline: `main` after `peta<K, V>` (Phase 27). The next self-hosting prerequisite
-is owned/dynamic strings. This phase delivers the string-processing operations a
-self-hosted lexer needs, on the string type Exotickik already has.
+Baseline: `main` after dynamic string operations (Phase 28). The next blocker was
+`Hasil<T, R>` rejecting owned payloads (`E02B3` at construction). This phase makes
+`Hasil` a real ownership-safe result type.
 
-## What already existed
+## Goal
 
-Exotickik's owned, growable, mutable string is the `daftar<bita>` byte buffer:
-owned heap storage, `panjang` for length, `elemen` for indexing, `dorong` to
-append, and deterministic cleanup on drop (Phase 16/17). The `Teks` module —
-written in Exotickik — already built text into a buffer (`tambah_teks`,
-`tambah_angka`, `tambah_bita`, `baris_baru`). So "owned storage, length,
-indexing, concatenation, deterministic cleanup" were present.
+`Hasil<T, R>` may carry Owned payloads — `daftar<T>`, `peta<K, V>`, `kotak<T>`,
+owned byte buffers, and owned combinations — with correct moves, tag-conditional
+destruction, and `coba` propagation, and no leaks or double-frees.
 
-The genuine gaps for writing a lexer were **comparison, search, prefix-match and
-slicing** of these buffers.
+## Representation (reused, not duplicated)
 
-## What was added
+`Hasil` keeps its existing tagged aggregate `{ i32 tag, T, R }` (tag 0 = `sukses`,
+1 = `gagal`). Both payload fields exist in the layout, but only the one named by
+the tag is logically alive; the other is `undef` and never read. No second
+tagged-union system was introduced.
 
-Five real functions in the `Teks` stdlib module, written in Exotickik on the
-existing primitives (no compiler change):
+## Ownership model
 
-- `sama_teks(&buf, s) -> boolean` — buffer equals a `teks`.
-- `sama_bita(&a, &b) -> boolean` — buffer equals buffer.
-- `awalan(&buf, s) -> boolean` — buffer starts with a `teks` (prefix match).
-- `cari_bita(&buf, c) -> angka` — index of the first byte `c`, or `-1`.
-- `potong(&buf, mulai, akhir) -> daftar<bita>` — a new **owned** buffer holding
-  bytes `[mulai, akhir)` (slicing that copies).
+- `Hasil<T, R>` is Copy iff both `T` and `R` are Copy (unchanged `is_copy`), so a
+  `Hasil` with any owned payload is automatically **Owned**: it moves, is tracked
+  for use-after-move, and is dropped at scope end / early return like any owned
+  value. No new classification code was needed — the restriction was the only
+  thing standing in the way.
+- **Construction** (`sukses`/`gagal`): the Copy-only check was removed from
+  construction, so owned payloads are accepted. The payload argument is moved in
+  (the ownership checker already treats non-borrow call args as consuming). The
+  inactive field is filled with a typed `undef` (`undef_of` extended to
+  `daftar`/`peta`/`kotak`), which is never dropped.
+- **Tag-conditional drop**: `emit_drop_value` gained a `Hasil` arm. If both
+  payloads are Copy it is a no-op (unchanged). Otherwise it loads the tag and
+  branches: on tag 0 it extracts and drops the `ok` payload (if owned), on tag 1
+  the `err` payload (if owned), recursing into nested owned values. The inactive
+  (`undef`) field is never freed, so there is no double free.
+- **`coba`**: now **consumes** its operand in the ownership checker
+  (`Try => visit(inner, true)`). The success path extracts and moves out the `ok`
+  payload; the failure path extracts `err` and moves it into the early-returned
+  `Hasil`. Because the source is consumed (and its inactive field is `undef`), it
+  is not dropped afterward — no leak, no double free, no use-after-move.
 
-These are exactly the operations a lexer uses: `awalan`/`sama_teks` for keyword
-matching, `potong` for identifier/number extraction, `cari_bita` for scanning to
-a delimiter or comment end. `potong` returning an owned `daftar<bita>` composes
-with the ownership model (it is moved out and freed at its owner's drop).
+## Inspection builtins
 
-## Why stdlib Exotickik, not a new primitive
+`berhasil`/`nilai_atau`/`gagal_atau` take the `Hasil` by value and would have to
+consume-and-conditionally-drop an owned payload, which is exactly what `coba` (and
+future `cocok` on `Hasil`) express cleanly. Rather than silently copy or leak,
+these builtins now **require Copy payloads** (`E02B3`, with help pointing to
+`coba`). Owned results are consumed with `coba`, moved, or dropped. This keeps the
+ownership model honest and the API small; owned-payload destructuring arrives with
+pattern matching on sum types.
 
-Writing these in Exotickik (rather than as compiler builtins) is itself a
-self-hosting datapoint: the language is expressive enough to implement its own
-string library. It also keeps the compiler surface small and the implementations
-auditable. The one operation that genuinely needs a compiler primitive — a
-buffer→owned-`teks` *value* conversion — is deferred with the first-class owned
-`teks` type, because returning a `teks` that borrows into a buffer would dangle
-without the owned-string type to hold it.
+## Verification
 
-## Tests
+- `cli/tests/hasil_owned.rs`: `coba` success extraction, `coba` error propagation,
+  dropping unused owned success/error results, owned error payload drop, nested
+  owned payload (`peta` in `Hasil`), use-after-move rejection, and Copy-payload
+  inspection still working.
+- `exotickik_sema`: owned construction allowed, owned inspection rejected,
+  owned use-after-move; the old "owned rejected at construction" test was updated
+  to assert construction now succeeds.
+- `cli/tests/errors.rs`: owned construction ok, owned inspection error.
+- `examples/hasil_milik.exo`: load a source file into owned bytes, return
+  `Hasil<daftar<bita>, teks>`, and size it via `coba` — a compiler-relevant case.
+- **Valgrind**: the owned-`Hasil` example and the runtime scratch programs report
+  `0 bytes in use at exit` and `0 errors` (no leaks, no double/invalid frees),
+  including the owned-error-variant drop path.
 
-- `cli/tests/stdlib.rs`: `teks_sama_and_awalan`, `teks_cari_and_potong`,
-  `teks_sama_bita`.
-- `examples/kata.exo`: a lexer-flavored demo — slice the first word out of a
-  line, match it against a keyword, and prefix-check the line.
-
-All 326 prior tests still pass (now 329); 0 warnings; repo passes
-`exotickik fmt --check`.
+All prior tests pass; 0 warnings; repo passes `exotickik fmt --check`.
 
 ## Honest limitations
 
-- These operate on `daftar<bita>` buffers. A first-class owned `teks` value type
-  and a buffer→`teks` conversion are still open (see `docs/SELF_HOSTING.md`).
-- No Unicode-aware iteration (byte-level only), no case folding, no regex.
-- `potong` copies; there is no borrowed slice view (that needs lifetimes).
-- Next: `Hasil<T, R>` with owned payloads so diagnostics can carry owned strings.
+- Inspection builtins are Copy-only; owned-payload inspection awaits `cocok` on
+  sum types (enum associated data).
+- `coba` requires the enclosing function's error type to match (unchanged); there
+  is no error-type conversion.
+- A first-class owned `teks` value type is still separate from `daftar<bita>`.
+
+## Next
+
+Generic structs, then generic enums, then enum associated data + `cocok` payload
+binding (which also unblocks owned-`Hasil` inspection), then porting compiler
+front-end components into Exotickik.
