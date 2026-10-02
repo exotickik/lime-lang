@@ -72,10 +72,11 @@ Legend: ✅ done · 🟡 in progress · ⬜ planned
 ## Phase 5 — Advanced language
 - ✅ Enums (C-style tagged variants: construction, equality, print, params,
   returns, struct fields; native i32-tag codegen)
-- 🟡 Pattern matching `cocok` (Phase 25): statement matching on enum variants
-  with compile-time exhaustiveness checking (`E0268`) and an optional `lain`
-  default; arms are blocks, lowered to tag-dispatch branches. Enum **associated
-  data** and binding patterns are the remaining step
+- ✅ Pattern matching `cocok` (Phase 25, extended Phase 31): statement matching
+  on enum variants with compile-time exhaustiveness checking (`E0268`) and an
+  optional `lain` default; arms are blocks, lowered to tag-dispatch branches.
+  Variants now carry **associated data** and arms **bind** that payload
+  (`Angka(n) => { … }`)
 - ✅ Generic functions with type inference and monomorphization (native
   specialization, instantiation-time checking, nested generic calls)
 - ✅ Traits (`sifat`/`implementasi`, Phase 11): trait & inherent methods, method
@@ -149,9 +150,14 @@ Legend: ✅ done · 🟡 in progress · ⬜ planned
   **arena AST** (`daftar<Node>`, children by index), and a tree-walking evaluator
   dispatching on node kind with `cocok`. Proves Exotickik can build and traverse a real
   AST today; each is a `modul` with a demo and a `exotickik test` suite
-- 🟡 `cocok` pattern matching over enum variants with exhaustiveness is done
-  (Phase 25); enum **associated data** + binding patterns remain (an ergonomic
-  alternative to the arena `Node` struct, not a hard blocker)
+- ✅ Enum associated data (sum types, Phase 31): variants carry positional
+  payloads (`Token { Angka(angka) Operator(char) Akhir }`), constructed with
+  `Token.Angka(10)` and destructured in `cocok` by binding (`Angka(n) => …`).
+  Represented as a tagged aggregate (`{ i32 tag, flattened payload fields }`),
+  reusing the struct/`Hasil` aggregate codegen with no runtime indirection. An
+  AST node can now carry its data inline instead of via the arena `Node` struct.
+  Copy payloads for now; owned payloads (`daftar`, `kotak`, `peta`) and generic
+  enums are the next step
 - ⬜ Heap-recursive data types (nullable box / optional variant). Not required for
   an AST — the arena approach works today — but would enable pointer-based trees
 - ✅ `peta<K, V>` hash map (Phase 27): real open-addressing table (polynomial
@@ -173,8 +179,10 @@ Legend: ✅ done · 🟡 in progress · ⬜ planned
   from field values, nesting (`Pasangan<Titik<angka>, angka>`, `daftar<Titik<T>>`),
   and ownership following the concrete fields (owned field ⇒ Owned struct). Reuses
   all existing struct IR/codegen
-- ⬜ Generic enums, then enum associated data + `cocok` payload binding (also
-  unblocks owned-`Hasil` inspection)
+- ✅ Enum associated data + `cocok` payload binding (Phase 31): Copy payloads,
+  tagged-aggregate representation. Owned payloads (which also unblock
+  owned-`Hasil` inspection) and generic enums (`Pilihan<T>`) are the next step
+- ⬜ Owned enum payloads + generic enums
 - ⬜ Port the bootstrap front end to Exotickik component by component, validated with
   `exotickik test` against the Rust bootstrap
 

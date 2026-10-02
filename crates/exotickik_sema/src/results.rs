@@ -127,15 +127,45 @@ impl StructInfo {
 }
 
 #[derive(Clone, Debug)]
+pub struct VariantInfo {
+    pub name: String,
+    pub payload: Vec<Type>,
+}
+
+#[derive(Clone, Debug)]
 pub struct EnumInfo {
     pub name: String,
-    pub variants: Vec<String>,
+    pub variants: Vec<VariantInfo>,
     pub def_span: Span,
 }
 
 impl EnumInfo {
     pub fn variant_tag(&self, name: &str) -> Option<u32> {
-        self.variants.iter().position(|v| v == name).map(|i| i as u32)
+        self.variants.iter().position(|v| v.name == name).map(|i| i as u32)
+    }
+
+    pub fn variant_names(&self) -> Vec<String> {
+        self.variants.iter().map(|v| v.name.clone()).collect()
+    }
+
+    pub fn has_payload(&self) -> bool {
+        self.variants.iter().any(|v| !v.payload.is_empty())
+    }
+
+    pub fn layout(&self) -> Vec<Type> {
+        let mut fields = vec![Type::I32];
+        for v in &self.variants {
+            fields.extend(v.payload.iter().cloned());
+        }
+        fields
+    }
+
+    pub fn variant_slot_offset(&self, tag: u32) -> usize {
+        let mut off = 1usize;
+        for v in self.variants.iter().take(tag as usize) {
+            off += v.payload.len();
+        }
+        off
     }
 }
 

@@ -79,7 +79,15 @@ pub struct ImplBlock {
 pub struct EnumDecl {
     pub public: bool,
     pub name: Ident,
-    pub variants: Vec<Ident>,
+    pub type_params: Vec<TypeParam>,
+    pub variants: Vec<EnumVariant>,
+    pub span: Span,
+}
+
+#[derive(Clone, Debug)]
+pub struct EnumVariant {
+    pub name: Ident,
+    pub payload: Vec<TypeExpr>,
     pub span: Span,
 }
 
@@ -177,6 +185,8 @@ pub struct MatchStmt {
 #[derive(Clone, Debug)]
 pub struct MatchArm {
     pub variant: Ident,
+    pub bindings: Vec<Ident>,
+    pub binding_ids: Vec<NodeId>,
     pub body: Block,
     pub span: Span,
 }

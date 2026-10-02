@@ -1,0 +1,43 @@
+program Ekspresi
+
+enum Instruksi {
+    Muat(angka),
+    Tambah(angka),
+    Kurang(angka),
+    Kali(angka),
+    Negasi,
+}
+
+fungsi jalankan(kode: &daftar<Instruksi>) -> angka {
+    ubah akumulator = 0
+    untuk i dari 0 sampai panjang(kode) {
+        cocok elemen(kode, i) {
+            Muat(n) => {
+                akumulator = n
+            }
+            Tambah(n) => {
+                akumulator = akumulator + n
+            }
+            Kurang(n) => {
+                akumulator = akumulator - n
+            }
+            Kali(n) => {
+                akumulator = akumulator * n
+            }
+            Negasi => {
+                akumulator = 0 - akumulator
+            }
+        }
+    }
+    kembalikan akumulator
+}
+
+utama {
+    ubah kode: daftar<Instruksi> = daftar()
+    dorong(ambil_ubah(kode), Instruksi.Muat(12))
+    dorong(ambil_ubah(kode), Instruksi.Tambah(34))
+    dorong(ambil_ubah(kode), Instruksi.Kali(5))
+    dorong(ambil_ubah(kode), Instruksi.Kurang(30))
+    dorong(ambil_ubah(kode), Instruksi.Negasi)
+    tampilkan(jalankan(ambil(kode)))
+}

@@ -10,6 +10,18 @@ pub fn emit_module(module: &Module, target: &Target) -> String {
     writeln!(out, "target triple = \"{}\"", target.triple).ok();
     out.push('\n');
 
+    for (i, e) in module.enums.iter().enumerate() {
+        if e.payload {
+            let ftys: Vec<String> = e.layout.iter().map(ty_str).collect();
+            writeln!(out, "%enum.{} = type {{ {} }}", i, ftys.join(", ")).ok();
+        } else {
+            writeln!(out, "%enum.{} = type i32", i).ok();
+        }
+    }
+    if !module.enums.is_empty() {
+        out.push('\n');
+    }
+
     for (i, s) in module.structs.iter().enumerate() {
         let ftys: Vec<String> = s.fields.iter().map(ty_str).collect();
         writeln!(out, "%struct.{} = type {{ {} }}", i, ftys.join(", ")).ok();
@@ -77,7 +89,7 @@ pub fn emit_module(module: &Module, target: &Target) -> String {
     }
 
     for func in &module.funcs {
-        emit_func(&mut out, func, &module.structs);
+        emit_func(&mut out, func, &module.structs, &module.enums);
         out.push('\n');
     }
 
@@ -112,7 +124,7 @@ fn emit_extern_decl(out: &mut String, e: &ExternSig) {
     writeln!(out, "declare {} @{}({})", ret, e.name, params.join(", ")).ok();
 }
 
-fn emit_func(out: &mut String, func: &Func, structs: &[IrStruct]) {
+fn emit_func(out: &mut String, func: &Func, structs: &[IrStruct], enums: &[IrEnum]) {
     let value_types = collect_value_types(func);
     let ret = ty_str(&func.ret);
     let params: Vec<String> =
@@ -127,7 +139,7 @@ fn emit_func(out: &mut String, func: &Func, structs: &[IrStruct]) {
             }
         }
         for instr in &block.instrs {
-            emit_instr(out, instr, func, &value_types, structs);
+            emit_instr(out, instr, func, &value_types, structs, enums);
         }
         match &block.term {
             Some(t) => emit_term(out, t, &value_types),
@@ -150,6 +162,7 @@ fn emit_instr(
     func: &Func,
     vt: &HashMap<u32, Type>,
     structs: &[IrStruct],
+    enums: &[IrEnum],
 ) {
     let dst = instr.dst.map(|d| format!("%v{}", d.0));
     match &instr.kind {
@@ -268,6 +281,7 @@ fn emit_instr(
             let struct_ty = ty_str(ty);
             let field_types: Vec<Type> = match ty {
                 Type::Struct(id) => structs[id.0 as usize].fields.clone(),
+                Type::Enum(id) => enums[id.0 as usize].layout.clone(),
                 Type::Hasil { ok, err } => vec![Type::I32, (**ok).clone(), (**err).clone()],
                 Type::Daftar(t) => vec![
                     Type::Ref { inner: t.clone(), mutable: true },
@@ -529,7 +543,7 @@ fn ty_str(ty: &Type) -> String {
         Type::Str => "ptr".to_string(),
         Type::Unit => "void".to_string(),
         Type::Struct(id) => format!("%struct.{}", id.0),
-        Type::Enum(_) => "i32".to_string(),
+        Type::Enum(id) => format!("%enum.{}", id.0),
         Type::Array { elem, size } => format!("[{} x {}]", size, ty_str(elem)),
         Type::Kotak(_) => "ptr".to_string(),
         Type::Ref { .. } => "ptr".to_string(),

@@ -152,6 +152,8 @@ pub struct IrStruct {
 pub struct IrEnum {
     pub name: String,
     pub variants: Vec<String>,
+    pub payload: bool,
+    pub layout: Vec<Type>,
 }
 
 #[derive(Clone, Debug, Default)]

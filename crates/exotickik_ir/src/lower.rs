@@ -19,7 +19,12 @@ pub fn lower(program: &Program, results: &TypeckResults, diags: &mut DiagnosticE
     }
 
     for info in &results.enums {
-        module.enums.push(IrEnum { name: info.name.clone(), variants: info.variants.clone() });
+        module.enums.push(IrEnum {
+            name: info.name.clone(),
+            variants: info.variant_names(),
+            payload: info.has_payload(),
+            layout: info.layout(),
+        });
     }
 
     for sig in &results.functions {
@@ -467,6 +472,22 @@ impl<'a> FnLowerer<'a> {
             Type::Enum(id) => *id,
             _ => return,
         };
+        let has_payload = self.results.enum_info(eid).has_payload();
+        let tag_val = if has_payload {
+            let dst = self.fresh_value();
+            self.emit(
+                Some(dst),
+                InstrKind::ExtractField {
+                    agg: scrut.clone(),
+                    agg_ty: Type::Enum(eid),
+                    index: 0,
+                    field_ty: Type::I32,
+                },
+            );
+            Operand::Val(dst)
+        } else {
+            scrut.clone()
+        };
         let end_bb = self.new_block();
         for arm in &m.arms {
             let Some(tag) = self.results.enum_info(eid).variant_tag(&arm.variant.name) else {
@@ -475,18 +496,20 @@ impl<'a> FnLowerer<'a> {
             let arm_bb = self.new_block();
             let next_bb = self.new_block();
             let cmp = self.fresh_value();
+            let cmp_ty = if has_payload { Type::I32 } else { Type::Enum(eid) };
             self.emit(
                 Some(cmp),
                 InstrKind::Cmp {
                     pred: CmpPred::Eq,
-                    ty: Type::Enum(eid),
+                    ty: cmp_ty,
                     signed: false,
-                    lhs: scrut.clone(),
+                    lhs: tag_val.clone(),
                     rhs: Operand::ConstInt(tag as u128, Type::I32),
                 },
             );
             self.set_term(Terminator::CondBr { cond: Operand::Val(cmp), then_bb: arm_bb, else_bb: next_bb });
             self.current = arm_bb;
+            self.bind_match_payload(arm, eid, tag, &scrut);
             self.lower_block(&arm.body);
             if self.block(self.current).term.is_none() {
                 self.set_term(Terminator::Br(end_bb));
@@ -500,6 +523,41 @@ impl<'a> FnLowerer<'a> {
             self.set_term(Terminator::Br(end_bb));
         }
         self.current = end_bb;
+    }
+
+    fn bind_match_payload(
+        &mut self,
+        arm: &exotickik_ast::MatchArm,
+        eid: exotickik_types::EnumId,
+        tag: u32,
+        scrut: &Operand,
+    ) {
+        if arm.bindings.is_empty() {
+            return;
+        }
+        let payload = self.results.enum_info(eid).variants[tag as usize].payload.clone();
+        let offset = self.results.enum_info(eid).variant_slot_offset(tag);
+        for (i, field_ty) in payload.iter().enumerate() {
+            let Some(bid) = arm.binding_ids.get(i) else {
+                break;
+            };
+            let Some(&local) = self.results.local_of_binding.get(bid) else {
+                continue;
+            };
+            let val = self.fresh_value();
+            self.emit(
+                Some(val),
+                InstrKind::ExtractField {
+                    agg: scrut.clone(),
+                    agg_ty: Type::Enum(eid),
+                    index: (offset + i) as u32,
+                    field_ty: field_ty.clone(),
+                },
+            );
+            let slot = self.new_slot(field_ty.clone());
+            self.slot_of_local.insert(local.0, slot);
+            self.emit(None, InstrKind::Store { slot, value: Operand::Val(val) });
+        }
     }
 
     fn lower_if(&mut self, if_stmt: &IfStmt) {
@@ -663,7 +721,11 @@ impl<'a> FnLowerer<'a> {
             ExprKind::Call { callee, args } => self.lower_call(callee, args, expr),
             ExprKind::Field { base, field } => {
                 if let Some(&(eid, tag)) = self.results.enum_variant.get(&expr.id) {
-                    Operand::ConstInt(tag as u128, Type::Enum(eid))
+                    if self.results.enum_info(eid).has_payload() {
+                        self.make_enum_aggregate(eid, tag, Vec::new())
+                    } else {
+                        Operand::ConstInt(tag as u128, Type::Enum(eid))
+                    }
                 } else {
                     self.lower_field_read(base, field, expr)
                 }
@@ -694,6 +756,24 @@ impl<'a> FnLowerer<'a> {
             Some(dst),
             InstrKind::ExtractField { agg: hasil, agg_ty: hasil_ty.clone(), index, field_ty },
         );
+        Operand::Val(dst)
+    }
+
+    fn make_enum_aggregate(&mut self, eid: exotickik_types::EnumId, tag: u32, args: Vec<Operand>) -> Operand {
+        let layout = self.results.enum_info(eid).layout();
+        let offset = self.results.enum_info(eid).variant_slot_offset(tag);
+        let mut fields: Vec<Operand> = Vec::with_capacity(layout.len());
+        fields.push(Operand::ConstInt(tag as u128, Type::I32));
+        for (i, slot_ty) in layout.iter().enumerate().skip(1) {
+            if i >= offset && i < offset + args.len() {
+                fields.push(args[i - offset].clone());
+            } else {
+                let undef = self.undef_of(slot_ty);
+                fields.push(undef);
+            }
+        }
+        let dst = self.fresh_value();
+        self.emit(Some(dst), InstrKind::MakeStruct { ty: Type::Enum(eid), fields });
         Operand::Val(dst)
     }
 
@@ -1344,6 +1424,13 @@ impl<'a> FnLowerer<'a> {
     }
 
     fn lower_call(&mut self, callee: &Expr, args: &[Expr], expr: &Expr) -> Operand {
+        if let Some(&(eid, tag)) = self.results.enum_variant.get(&expr.id) {
+            let arg_ops: Vec<Operand> = args.iter().map(|a| self.lower_expr(a)).collect();
+            if self.results.enum_info(eid).has_payload() {
+                return self.make_enum_aggregate(eid, tag, arg_ops);
+            }
+            return Operand::ConstInt(tag as u128, Type::Enum(eid));
+        }
         if let Some(m) = self.results.method_calls.get(&expr.id).cloned() {
             return self.lower_method_call(callee, args, &m);
         }
@@ -2624,8 +2711,24 @@ impl<'a> FnLowerer<'a> {
                 self.call_printf(fmt, vec![val]);
             }
             Type::Enum(eid) => {
-                let tag = self.lower_expr(arg);
-                let name_op = self.enum_name_operand(eid, tag);
+                let val = self.lower_expr(arg);
+                let has_payload = self.results.enum_info(eid).has_payload();
+                let tag = if has_payload {
+                    let d = self.fresh_value();
+                    self.emit(
+                        Some(d),
+                        InstrKind::ExtractField {
+                            agg: val,
+                            agg_ty: Type::Enum(eid),
+                            index: 0,
+                            field_ty: Type::I32,
+                        },
+                    );
+                    Operand::Val(d)
+                } else {
+                    val
+                };
+                let name_op = self.enum_name_operand(eid, tag, has_payload);
                 let fmt = self.fmt_global("%s\n");
                 self.call_printf(fmt, vec![name_op]);
             }
@@ -2633,11 +2736,17 @@ impl<'a> FnLowerer<'a> {
         }
     }
 
-    fn enum_name_operand(&mut self, eid: exotickik_types::EnumId, tag: Operand) -> Operand {
+    fn enum_name_operand(
+        &mut self,
+        eid: exotickik_types::EnumId,
+        tag: Operand,
+        has_payload: bool,
+    ) -> Operand {
         let variants = self.module.enums[eid.0 as usize].variants.clone();
         let globals: Vec<GlobalId> =
             variants.iter().map(|v| self.module.intern_str(v.clone().into_bytes())).collect();
         let n = globals.len();
+        let cmp_ty = if has_payload { Type::I32 } else { Type::Enum(eid) };
         let mut acc = Operand::Str(globals[n - 1]);
         for i in (0..n - 1).rev() {
             let cmp = self.fresh_value();
@@ -2645,10 +2754,10 @@ impl<'a> FnLowerer<'a> {
                 Some(cmp),
                 InstrKind::Cmp {
                     pred: CmpPred::Eq,
-                    ty: Type::Enum(eid),
+                    ty: cmp_ty.clone(),
                     signed: false,
                     lhs: tag.clone(),
-                    rhs: Operand::ConstInt(i as u128, Type::Enum(eid)),
+                    rhs: Operand::ConstInt(i as u128, cmp_ty.clone()),
                 },
             );
             let sel = self.fresh_value();

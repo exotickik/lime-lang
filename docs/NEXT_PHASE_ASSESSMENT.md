@@ -1,79 +1,112 @@
-# Phase 30 (Generic structs) — Design Assessment
+# Phase 31 (Enum associated data / sum types) — Design Assessment
 
-Baseline: `main` after owned `Hasil` payloads (Phase 29). Next in the self-hosting
-order: real generic user-defined aggregate types. This phase delivers generic
-structs.
+Baseline: `main` after generic structs (Phase 30). Next in the self-hosting
+order: generic enums, then enum associated data. A payload-less generic enum has
+a phantom type parameter (its `T` is unused until a variant carries it), so the
+two are naturally one feature and associated data is the valuable half. This
+phase delivers **enum variants with associated data** (non-generic sum types)
+plus `cocok` payload binding; generic enums follow once there is a payload for
+`T` to parameterize.
 
 ## Goal
 
-`tipe Nama<T, U> { … }` — real generic structs that integrate with type checking,
-monomorphization, field access, ownership, references, nesting, and native
-codegen, with no runtime cost.
+```exotickik
+enum Token { Angka(angka) Operator(char) Akhir }
 
-## Approach — monomorphize to concrete structs
+cocok t {
+    Angka(n) => { ... }        // bind the payload
+    Operator(c) => { ... }
+    Akhir => { ... }
+}
+```
 
-A generic struct is stored as a **template** (its `StructDecl` with `type_params`),
-not as a `StructId`. Each distinct application `Nama<A, B>` is **monomorphized** on
-demand into an ordinary concrete `StructInfo`/`StructId` with the type parameters
-substituted in the field types. Because the result is a normal concrete struct,
-**all existing struct IR and codegen are reused unchanged** — the feature is
-entirely front-end.
+A variant may carry positional payload values; it is constructed by calling it
+(`Token.Angka(10)`) and destructured by binding in a `cocok` arm — integrated
+with type checking, exhaustiveness, ownership, native construction and matching,
+with no runtime indirection.
 
-- `resolve_type` on `Applied { name, args }` where `name` is a generic struct
-  template checks arity, resolves the args, and calls `monomorphize_struct`,
-  returning `Type::Struct(id)`.
-- `monomorphize_struct(tidx, args)` caches by `(template, args)`, reserves the
-  `StructId` with a mangled name **before** resolving fields (so self-referential
-  and mutually-referential instantiations terminate), substitutes the args into
-  each field `TypeExpr`, and resolves them. The mangled instance name is also
-  registered in `struct_ids`, so a substituted field type that refers to another
-  monomorphized struct round-trips cleanly through name resolution — which is what
-  makes nesting (`Pasangan<Titik<angka>, angka>`) work.
+## Representation — tagged aggregate, reusing struct codegen
 
-## Type arguments at a struct literal
+A payload-carrying enum lowers to a flattened tagged aggregate:
+`{ i32 tag, <every variant's payload fields, in declaration order> }`. Only the
+active variant's slots are live; the rest are `undef`. This is exactly the scheme
+`Hasil<T, R>` already uses (`{ i32, T, R }`), generalized to N variants with
+positional payload lists.
 
-A struct literal carries no explicit type arguments in the grammar, so the
-concrete instantiation is found by:
-1. the **expected type** — if it is a `Struct` that is an instantiation of this
-   template (tracked in `struct_instance_of`), it is used directly; else
-2. **inference** — each field value is checked and unified against the template's
-   declared field type to solve the type parameters, then monomorphized.
+- In LLVM each enum becomes a named type `%enum.N` — `%enum.N = type i32` for a
+  tag-only enum (identical lowering to before), or `%enum.N = type { i32, … }`
+  for a payload-carrying one. `ty_str(Enum)` emits `%enum.N` with no context
+  table; the layout is needed only where the aggregate is built (`MakeStruct`),
+  which is handed the enum table alongside the struct table. Named enum types are
+  emitted before struct types so struct fields can reference them.
+- Construction fills the tag and the active variant's fields (`MakeStruct`),
+  leaving the rest `undef` (via `undef_of`, as `Hasil` does). A tag-only enum
+  still lowers to a scalar `i32` constant.
+- A `cocok` arm reads the tag field (`ExtractField` 0), compares it, and for each
+  binding extracts the active variant's payload field (`ExtractField` at the
+  variant's flattened offset) into a fresh slot bound to the arm-scoped local —
+  mirroring how `untuk … pada` binds its loop variable.
 
-Expected-type resolution covers the common cases (`nilai p: Nama<…> = Nama { … }`,
-return position, call arguments); inference covers the rest.
+Because a payload enum is an ordinary LLVM aggregate, construction, matching,
+storage in `daftar`/structs, pass/return by value, and variant-name printing all
+reuse the existing aggregate machinery. A `daftar<Token>` (a real token stream)
+works and is valgrind-clean.
+
+## Front end
+
+- **AST/parser**: `EnumDecl` gains `type_params` (parsed now for the generic-enum
+  step) and variants become `EnumVariant { name, payload: Vec<TypeExpr> }`;
+  `MatchArm` gains `bindings` + `binding_ids`. The parser reads `Var(T1, T2)` in
+  a declaration and `Var(a, b)` in a `cocok` arm.
+- **Sema**: enum names are collected first, then payloads are resolved in a
+  second pass (after structs, so a payload may name a struct). A variant call is
+  recognized as construction (arity + per-field type checks). `cocok` validates
+  binder arity, scopes binding locals with their payload types, and keeps
+  exhaustiveness. `is_copy(Enum)` follows the payloads.
 
 ## Ownership
 
-No new ownership code: a monomorphized struct has concrete field types, so the
-existing `is_copy`/drop/`move` machinery classifies it correctly — a generic
-struct with an Owned field is Owned and moves (use-after-move enforced), and its
-fields drop recursively. Verified valgrind-clean.
+Payloads are restricted to **Copy** types this phase (integers, `char`,
+`boolean`, `teks`, another enum, a Copy struct/array) — which covers token kinds,
+literals, and arena indices, i.e. the self-hosting AST use. An owned payload
+type (`daftar`, `kotak`, `peta`) is rejected at the declaration (`E0902`). Copy
+payloads need no drop or move machinery, so matching copies the payload out and
+leaves the scrutinee intact. A payload-carrying enum also drops `==`/`!=`
+(comparing aggregates with `undef` padding is meaningless — use `cocok`); a
+tag-only enum keeps equality.
 
 ## Tests
 
-- `cli/tests/generic_structs.rs`: two type params, inference from return position,
-  multiple instantiations, nesting, generic struct inside `daftar`, owned-field
-  struct (move) at runtime, use-after-move rejection, wrong arity, unknown generic
-  type, field type mismatch.
-- `exotickik_sema`: generic struct ok, wrong arity, owned-field move.
-- `examples/pasangan.exo`: `Pasangan<T, U>`, `Titik<T>`, a swap function, and a
-  nested `Pasangan<Titik<angka>, angka>`.
+- `cli/tests/enum_payload.rs`: single/multiple payloads, mixed payload/plain
+  variants, payload enum in `daftar` (token stream), `teks` payload, nested enum
+  payload, enum as struct field, variant-name printing, round-trip through
+  functions, payload-ignoring match, and the error cases (construction arity,
+  binder-count mismatch, binding a plain variant, bare payload variant, owned
+  payload, equality on a payload enum, argument type mismatch).
+- `exotickik_sema`: construct+match ok, wrong arity, owned payload rejected,
+  equality rejected.
+- `examples/ekspresi.exo`: a register-machine interpreter whose instruction type
+  is a payload-carrying `enum` held in a `daftar`.
 
-All prior tests pass; 0 warnings; repo passes `exotickik fmt --check`.
+All prior tests pass (374 total); 0 warnings; repo passes `exotickik fmt --check`;
+valgrind-clean including the `daftar<Token>` program.
 
 ## Honest limitations
 
-- No explicit type arguments on a struct literal (`Nama<…> { … }`); args come from
-  the expected type or field-value inference. A field value that itself needs a
-  type hint to infer (e.g. a bare `daftar()`) requires the expected type.
-- A generic struct whose field is **another generic struct parameterized by this
-  struct's own type parameter** is uncommon and resolved only when that nested
-  type becomes concrete via substitution; a template-level validation of such a
-  field is limited.
-- No trait bounds enforced on struct type parameters yet (bounds parse).
+- **Copy payloads only.** Owned payload types are rejected. Owned payloads need
+  tag-conditional drop (the `Hasil` machinery generalizes) plus move-out binding
+  that consumes the scrutinee; deferred to keep this phase sound and complete.
+- **No generic enums yet.** `type_params` parse and are carried on `EnumDecl`,
+  but a generic enum is not monomorphized; `Pilihan<T> { Ada(T) Kosong }` is the
+  next step and builds directly on this representation (the layout already
+  flattens payload fields, so substituting `T` and monomorphizing mirrors generic
+  structs).
+- A payload enum is not comparable with `==`/`!=`.
 
 ## Next
 
-Generic enums, then enum associated data (payload-carrying variants) with `cocok`
-binding — which also unblocks owned-`Hasil` inspection — then porting compiler
-front-end components into Exotickik.
+Owned enum payloads (construction + tag-conditional drop + move-binding), then
+generic enums (`Pilihan<T>`) by monomorphizing payload layouts the way generic
+structs monomorphize fields — which also unblocks owned-`Hasil` inspection via
+`cocok`. Then begin porting the bootstrap front end's data structures to Exotickik
+sum types.

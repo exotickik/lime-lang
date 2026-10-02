@@ -458,15 +458,30 @@ impl<'a> Parser<'a> {
         let start = self.peek_span();
         self.expect(&TokenKind::Keyword(Keyword::Enum))?;
         let name = self.expect_ident()?;
+        let type_params = self.parse_type_params()?;
         self.expect(&TokenKind::LBrace)?;
         let mut variants = Vec::new();
         while !matches!(self.peek(), TokenKind::RBrace | TokenKind::Eof) {
-            let variant = self.expect_ident()?;
-            variants.push(variant);
+            let vname = self.expect_ident()?;
+            let mut payload = Vec::new();
+            if self.eat(&TokenKind::LParen) {
+                while !matches!(self.peek(), TokenKind::RParen | TokenKind::Eof) {
+                    payload.push(self.expect_type()?);
+                    if !self.eat(&TokenKind::Comma) {
+                        break;
+                    }
+                }
+                self.expect(&TokenKind::RParen)?;
+            }
+            let vspan = match payload.last() {
+                Some(t) => vname.span.to(t.span),
+                None => vname.span,
+            };
+            variants.push(EnumVariant { name: vname, payload, span: vspan });
             self.eat(&TokenKind::Comma);
         }
         let rb = self.expect(&TokenKind::RBrace)?;
-        Ok(EnumDecl { public, name, variants, span: start.to(rb.span) })
+        Ok(EnumDecl { public, name, type_params, variants, span: start.to(rb.span) })
     }
 
     fn parse_main(&mut self) -> PResult<MainBlock> {
@@ -605,10 +620,22 @@ impl<'a> Parser<'a> {
             } else {
                 let arm_start = self.peek_span();
                 let variant = self.expect_ident()?;
+                let mut bindings = Vec::new();
+                let mut binding_ids = Vec::new();
+                if self.eat(&TokenKind::LParen) {
+                    while !matches!(self.peek(), TokenKind::RParen | TokenKind::Eof) {
+                        bindings.push(self.expect_ident()?);
+                        binding_ids.push(self.node_id());
+                        if !self.eat(&TokenKind::Comma) {
+                            break;
+                        }
+                    }
+                    self.expect(&TokenKind::RParen)?;
+                }
                 self.expect(&TokenKind::FatArrow)?;
                 let body = self.parse_block()?;
                 let span = arm_start.to(body.span);
-                arms.push(MatchArm { variant, body, span });
+                arms.push(MatchArm { variant, bindings, binding_ids, body, span });
             }
             self.eat(&TokenKind::Comma);
         }

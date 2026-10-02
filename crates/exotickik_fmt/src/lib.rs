@@ -119,10 +119,15 @@ impl Printer {
 
     fn print_enum(&mut self, e: &EnumDecl) {
         let vis = if e.public { "publik " } else { "" };
-        self.line(&format!("{}enum {} {{", vis, e.name.name));
+        self.line(&format!("{}enum {}{} {{", vis, e.name.name, generics_str(&e.type_params)));
         self.indent += 1;
         for variant in &e.variants {
-            self.line(&format!("{},", variant.name));
+            if variant.payload.is_empty() {
+                self.line(&format!("{},", variant.name.name));
+            } else {
+                let tys: Vec<String> = variant.payload.iter().map(type_str).collect();
+                self.line(&format!("{}({}),", variant.name.name, tys.join(", ")));
+            }
         }
         self.indent -= 1;
         self.line("}");
@@ -235,7 +240,14 @@ impl Printer {
                 self.line(&format!("cocok {} {{", expr_str(&m.scrutinee, 0)));
                 self.indent += 1;
                 for arm in &m.arms {
-                    self.line(&format!("{} => {{", arm.variant.name));
+                    let head = if arm.bindings.is_empty() {
+                        arm.variant.name.clone()
+                    } else {
+                        let names: Vec<String> =
+                            arm.bindings.iter().map(|b| b.name.clone()).collect();
+                        format!("{}({})", arm.variant.name, names.join(", "))
+                    };
+                    self.line(&format!("{} => {{", head));
                     self.indent += 1;
                     self.print_stmts(&arm.body.stmts);
                     self.indent -= 1;

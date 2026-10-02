@@ -132,6 +132,7 @@ impl<'a> Checker<'a> {
         self.collect_structs(program);
         self.resolve_struct_fields(program);
         self.validate_generic_struct_templates();
+        self.resolve_enum_payloads(program);
         self.collect_functions(program);
         self.collect_traits(program);
         self.collect_impls(program);
@@ -172,17 +173,17 @@ impl<'a> Checker<'a> {
                 let mut seen: HashMap<String, ()> = HashMap::new();
                 let mut variants = Vec::new();
                 for v in &e.variants {
-                    if seen.insert(v.name.clone(), ()).is_some() {
+                    if seen.insert(v.name.name.clone(), ()).is_some() {
                         self.diags.emit(
                             Diagnostic::error(
                                 codes::E_REDEFINITION,
-                                format!("varian '{}' didefinisikan lebih dari sekali", v.name),
+                                format!("varian '{}' didefinisikan lebih dari sekali", v.name.name),
                             )
-                            .primary(v.span, "varian ganda"),
+                            .primary(v.name.span, "varian ganda"),
                         );
                         continue;
                     }
-                    variants.push(v.name.clone());
+                    variants.push(VariantInfo { name: v.name.name.clone(), payload: Vec::new() });
                 }
                 let id = EnumId(self.results.enums.len() as u32);
                 self.enum_ids.insert(e.name.name.clone(), id);
@@ -192,6 +193,43 @@ impl<'a> Checker<'a> {
                     def_span: e.name.span,
                 });
             }
+        }
+    }
+
+    fn resolve_enum_payloads(&mut self, program: &Program) {
+        for item in &program.items {
+            let Item::Enum(e) = item else { continue };
+            let Some(&eid) = self.enum_ids.get(&e.name.name) else { continue };
+            if self.results.enums[eid.0 as usize].def_span != e.name.span {
+                continue;
+            }
+            let mut seen: HashMap<String, ()> = HashMap::new();
+            let mut resolved: Vec<VariantInfo> = Vec::new();
+            for v in &e.variants {
+                if seen.insert(v.name.name.clone(), ()).is_some() {
+                    continue;
+                }
+                let mut payload = Vec::new();
+                for te in &v.payload {
+                    let t = self.resolve_type(te);
+                    if !t.is_error() && !self.is_copy(&t) {
+                        self.diags.emit(
+                            Diagnostic::error(
+                                codes::E_UNSUPPORTED,
+                                format!(
+                                    "varian '{}' membawa payload bertipe milik '{}' yang belum didukung",
+                                    v.name.name,
+                                    t.display()
+                                ),
+                            )
+                            .primary(te.span, "payload enum harus bertipe salinan untuk saat ini"),
+                        );
+                    }
+                    payload.push(t);
+                }
+                resolved.push(VariantInfo { name: v.name.name.clone(), payload });
+            }
+            self.results.enums[eid.0 as usize].variants = resolved;
         }
     }
 
@@ -932,11 +970,12 @@ impl<'a> Checker<'a> {
             }
         };
 
-        let all_variants: Vec<String> = self.results.enum_info(eid).variants.clone();
+        let all_variants: Vec<String> = self.results.enum_info(eid).variant_names();
         let ename = self.results.enum_info(eid).name.clone();
         let mut covered: Vec<String> = Vec::new();
         for arm in &m.arms {
-            if self.results.enum_info(eid).variant_tag(&arm.variant.name).is_none() {
+            let tag = self.results.enum_info(eid).variant_tag(&arm.variant.name);
+            if tag.is_none() {
                 self.diags.emit(
                     Diagnostic::error(
                         codes::E_UNKNOWN_VARIANT,
@@ -955,7 +994,11 @@ impl<'a> Checker<'a> {
             } else {
                 covered.push(arm.variant.name.clone());
             }
-            self.check_block(&arm.body);
+            let payload: Vec<Type> = match tag {
+                Some(t) => self.results.enum_info(eid).variants[t as usize].payload.clone(),
+                None => Vec::new(),
+            };
+            self.check_match_arm(arm, &payload);
         }
         if let Some(d) = &m.default {
             self.check_block(d);
@@ -976,6 +1019,49 @@ impl<'a> Checker<'a> {
                 );
             }
         }
+    }
+
+    fn check_match_arm(&mut self, arm: &MatchArm, payload: &[Type]) {
+        if arm.bindings.is_empty() {
+            self.check_block(&arm.body);
+            return;
+        }
+        if payload.is_empty() {
+            self.diags.emit(
+                Diagnostic::error(
+                    codes::E_UNKNOWN_VARIANT,
+                    format!("varian '{}' tidak membawa data untuk diikat", arm.variant.name),
+                )
+                .primary(arm.variant.span, "varian tanpa payload"),
+            );
+            self.check_block(&arm.body);
+            return;
+        }
+        if arm.bindings.len() != payload.len() {
+            self.diags.emit(
+                Diagnostic::error(
+                    codes::E_ARITY_MISMATCH,
+                    format!(
+                        "varian '{}' membawa {} nilai, tetapi {} pengikat diberikan",
+                        arm.variant.name,
+                        payload.len(),
+                        arm.bindings.len()
+                    ),
+                )
+                .primary(arm.span, "jumlah pengikat tidak cocok"),
+            );
+        }
+        self.enter_scope();
+        for (i, b) in arm.bindings.iter().enumerate() {
+            let ty = payload.get(i).cloned().unwrap_or(Type::Error);
+            let local = self.alloc_local(b.name.clone(), ty, false);
+            self.declare(&b.name, Res::Local(local), b.span);
+            if let Some(bid) = arm.binding_ids.get(i) {
+                self.results.local_of_binding.insert(*bid, local);
+            }
+        }
+        self.check_block(&arm.body);
+        self.exit_scope();
     }
 
     fn check_if(&mut self, if_stmt: &IfStmt) {
@@ -1432,6 +1518,22 @@ impl<'a> Checker<'a> {
                     self.invalid_operand(op, lhs.span.to(rhs.span), &lt);
                     return Type::Bool;
                 }
+                if let Type::Enum(id) = &lt {
+                    if self.results.enum_info(*id).has_payload() {
+                        self.diags.emit(
+                            Diagnostic::error(
+                                codes::E_INVALID_OPERAND,
+                                format!(
+                                    "enum '{}' membawa data sehingga tidak bisa dibandingkan dengan '{}'",
+                                    self.results.enum_info(*id).name,
+                                    op.symbol()
+                                ),
+                            )
+                            .primary(lhs.span.to(rhs.span), "gunakan 'cocok' untuk memeriksa varian"),
+                        );
+                        return Type::Bool;
+                    }
+                }
             } else if !lt.is_numeric() {
                 self.invalid_operand(op, lhs.span.to(rhs.span), &lt);
             }
@@ -1474,10 +1576,12 @@ impl<'a> Checker<'a> {
 
     fn check_call(&mut self, call: &Expr, callee: &Expr, args: &[Expr], expected: Option<&Type>) -> Type {
         if let ExprKind::Field { base, field } = &callee.kind {
-            let enum_path = matches!(&base.kind, ExprKind::Name(n) if self.enum_ids.contains_key(n));
-            if !enum_path {
-                return self.check_method_call(call, base, field, args);
+            if let ExprKind::Name(n) = &base.kind {
+                if let Some(&eid) = self.enum_ids.get(n) {
+                    return self.check_enum_variant_ctor(call, eid, field, args);
+                }
             }
+            return self.check_method_call(call, base, field, args);
         }
         if let ExprKind::Name(name) = &callee.kind {
             if let Some(Res::Builtin(b)) = self.lookup(name) {
@@ -2757,6 +2861,21 @@ impl<'a> Checker<'a> {
         let info = self.results.enum_info(eid);
         match info.variant_tag(&variant.name) {
             Some(tag) => {
+                if !info.variants[tag as usize].payload.is_empty() {
+                    let ename = info.name.clone();
+                    let arity = info.variants[tag as usize].payload.len();
+                    self.diags.emit(
+                        Diagnostic::error(
+                            codes::E_ARITY_MISMATCH,
+                            format!(
+                                "varian '{}' dari enum '{}' membawa {} nilai dan harus dibentuk dengan '{}.{}(...)'",
+                                variant.name, ename, arity, ename, variant.name
+                            ),
+                        )
+                        .primary(variant.span, "varian ini butuh data"),
+                    );
+                    return Type::Error;
+                }
                 self.results.enum_variant.insert(node, (eid, tag));
                 Type::Enum(eid)
             }
@@ -2772,6 +2891,68 @@ impl<'a> Checker<'a> {
                 Type::Error
             }
         }
+    }
+
+    fn check_enum_variant_ctor(
+        &mut self,
+        call: &Expr,
+        eid: EnumId,
+        variant: &Ident,
+        args: &[Expr],
+    ) -> Type {
+        let info = self.results.enum_info(eid);
+        let ename = info.name.clone();
+        let Some(tag) = info.variant_tag(&variant.name) else {
+            self.diags.emit(
+                Diagnostic::error(
+                    codes::E_UNKNOWN_VARIANT,
+                    format!("enum '{}' tidak memiliki varian '{}'", ename, variant.name),
+                )
+                .primary(variant.span, "varian tidak dikenal"),
+            );
+            for a in args {
+                self.check_expr(a, None);
+            }
+            return Type::Error;
+        };
+        let payload = info.variants[tag as usize].payload.clone();
+        self.results.enum_variant.insert(call.id, (eid, tag));
+        if args.len() != payload.len() {
+            self.diags.emit(
+                Diagnostic::error(
+                    codes::E_ARITY_MISMATCH,
+                    format!(
+                        "varian '{}' membawa {} nilai, diberi {}",
+                        variant.name,
+                        payload.len(),
+                        args.len()
+                    ),
+                )
+                .primary(call.span, "jumlah data varian salah"),
+            );
+            for a in args {
+                self.check_expr(a, None);
+            }
+            return Type::Enum(eid);
+        }
+        for (a, pty) in args.iter().zip(payload.iter()) {
+            let at = self.check_expr(a, Some(pty));
+            if !at.is_error() && at != *pty {
+                self.diags.emit(
+                    Diagnostic::error(
+                        codes::E_TYPE_MISMATCH_ASSIGN,
+                        format!(
+                            "data varian '{}' diharapkan '{}', ditemukan '{}'",
+                            variant.name,
+                            pty.display(),
+                            at.display()
+                        ),
+                    )
+                    .primary(a.span, "tipe data varian tidak cocok"),
+                );
+            }
+        }
+        Type::Enum(eid)
     }
 
     fn check_field(&mut self, base: &Expr, field: &Ident) -> Type {
@@ -3054,6 +3235,10 @@ impl<'a> Checker<'a> {
             }
             Type::Array { elem, .. } => self.is_copy(elem),
             Type::Hasil { ok, err } => self.is_copy(ok) && self.is_copy(err),
+            Type::Enum(id) => self.results.enums[id.0 as usize]
+                .variants
+                .iter()
+                .all(|v| v.payload.iter().all(|t| self.is_copy(t))),
             Type::Utas(_) => true,
             Type::Daftar(_) => false,
             Type::Peta { .. } => false,
@@ -3447,6 +3632,10 @@ fn renumber_stmt(stmt: &mut Stmt, counter: &mut u32) {
         Stmt::Match(m) => {
             renumber_expr(&mut m.scrutinee, counter);
             for arm in &mut m.arms {
+                for bid in &mut arm.binding_ids {
+                    *bid = NodeId(*counter);
+                    *counter += 1;
+                }
                 renumber_block(&mut arm.body, counter);
             }
             if let Some(d) = &mut m.default {

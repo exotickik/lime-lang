@@ -55,27 +55,25 @@ A real compiler needs an AST and an IR — recursive, tagged tree types — plus
 reusable containers and string handling. The following were verified against the
 current compiler.
 
-1. **Sum types: enum variants with associated data.** `cocok` pattern matching
-   over enum variants now exists (statement form, with exhaustiveness checking
-   and an optional `lain` default — see `docs/LANGUAGE_SPEC.md`), so dispatch on a
-   node's kind is already expressible:
+1. **Sum types: enum variants with associated data.** ✅ Done (Phase 31). `cocok`
+   pattern matching over enum variants (statement form, exhaustiveness checking,
+   optional `lain` default) now combines with **associated data**: a variant
+   carries positional payloads and a `cocok` arm binds them:
    ```exotickik
-   cocok simpul {
-       Angka => { ... }
-       Biner => { ... }
+   enum Token { Angka(angka) Operator(char) Akhir }
+
+   cocok t {
+       Angka(n) => { ... }        // n bound from the payload
+       Operator(c) => { ... }
+       Akhir => { ... }
    }
    ```
-   What remains is **associated data**: an AST node is a tagged union that carries
-   payloads (`Number(i64)`, `Binary(op, lhs, rhs)`), and today `enum` variants are
-   payload-less:
-   ```
-   enum Pohon { Daun(angka) Cabang }
-   // error[E0110]: diharapkan pengenal, ditemukan '('
-   ```
-   Payload-carrying variants plus binding patterns in `cocok` would let an AST node
-   carry its data *inline* and be matched idiomatically. This is a convenience, not
-   a hard blocker: `examples/pohon/` already builds a real AST using a fixed `Node`
-   struct plus an arena (see gap 2).
+   An AST node can now carry its data *inline* (`Angka(angka)`,
+   `Biner(Operator, kiri, kanan)`) instead of through the arena `Node` struct of
+   gap 2 — though the arena approach remains valid. Payloads are currently Copy
+   (integers, `char`, `boolean`, `teks`, enums, Copy structs — which covers token
+   kinds, literals and arena indices); owned payloads (`daftar`, `kotak`, `peta`)
+   and generic enums are the remaining enum work.
 
 2. **Heap-recursive data types — a convenience, not a blocker.** A recursive
    struct *type-checks* through an owned box — `tipe Simpul { data: angka, berikut:
@@ -117,8 +115,9 @@ and scale, in roughly this order:
 2. Owned `teks` strings + `Hasil` with owned payloads — identifiers and
    diagnostic messages (next priority).
 3. Generic structs/enums — reusable typed containers instead of per-type structs.
-4. Enum associated data + binding patterns in `cocok` — inline node payloads, an
-   ergonomic alternative to the arena `Node` struct (tag matching already works).
+4. ✅ Enum associated data + binding patterns in `cocok` (Phase 31) — inline node
+   payloads, an ergonomic alternative to the arena `Node` struct. Owned payloads
+   and generic enums remain.
 5. Port the bootstrap front end to Exotickik, component by component (lexer and an AST
    parser/evaluator are demonstrated; next: a full parser → AST, then sema, then
    IR), each validated with `exotickik test` against the Rust bootstrap's behavior.

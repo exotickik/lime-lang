@@ -92,9 +92,10 @@ generator selects signed vs unsigned instructions (`sdiv`/`udiv`,
 - **Struct** (`tipe`): named product type with named fields. Fully implemented
   through native code generation (see §3.5). Structs are compiled to real LLVM
   aggregate types, passed and returned by value, and support nested fields.
-- **Enum** (`enum`): a fixed set of named variants (see §3.6). Implemented as a
-  C-style tagged type; associated data and pattern matching (`cocok`) are the
-  next step and the representation is designed to accommodate them.
+- **Enum** (`enum`): a fixed set of named variants (see §3.6), either tag-only
+  (a C-style `i32` tag) or a sum type whose variants carry associated data
+  (a tagged aggregate). Variants are matched and their payloads bound with
+  `cocok` (see §3.6a).
 - **Array** `[T; N]`: fixed-size inline array (see §3.7). Slices (`[T]`) planned.
 - **`kotak<T>`**: an owned, heap-allocated cell holding one `T` (see §3.9). This
   is Exotickik's first **owned (`milik`)** type; it moves rather than copies.
@@ -238,7 +239,7 @@ A variant is referred to as `Enum.Variant`:
 ```exotickik
 nilai s = Hasil.Berhasil
 ```
-Enums are value types. Supported operations:
+Tag-only enums are value types. Supported operations:
 - construction of a variant (`Hasil.Gagal`),
 - equality and inequality (`==`, `!=`) between values of the same enum,
 - use as a binding, function parameter, return value, and struct field,
@@ -248,11 +249,51 @@ Ordering comparisons (`<`, `>`) and arithmetic are not defined on enums, and an
 enum value is not interchangeable with an integer — comparing an enum to an
 integer is a type error.
 
-Representation: each enum is a distinct type carried as an `i32` tag whose value
-is the variant's declaration index (the first variant is `0`). Variant-name
-printing lowers to a `select` chain over the tag. Associated data per variant and
-`cocok` pattern matching are planned; the tagged representation is chosen so a
-payload union can be added later without changing the surface for tag-only enums.
+**Associated data (sum types).** A variant may carry positional payload values,
+making the enum a tagged union:
+```exotickik
+enum Token {
+    Angka(angka),
+    Operator(char),
+    Akhir
+}
+```
+Such a variant is constructed by calling it with its payload
+(`Token.Angka(10)`), and the payload is read by **binding** it in a `cocok` arm
+(§3.6a). A variant with a payload must be constructed with arguments
+(`Token.Angka(10)`, never a bare `Token.Angka`); the argument count and types
+must match the declaration. Payload fields are currently restricted to Copy
+types (integers, `char`, `boolean`, `teks`, another enum, a Copy struct/array);
+owned payload types (`daftar`, `kotak`, `peta`) are a documented follow-up.
+A payload-carrying enum cannot be compared with `==`/`!=` (use `cocok`); a
+tag-only enum still can.
+
+Representation: a tag-only enum is a distinct type carried as an `i32` tag whose
+value is the variant's declaration index (the first variant is `0`). A
+payload-carrying enum lowers to a tagged aggregate — `{ i32 tag, <all variants'
+payload fields, flattened in declaration order> }` — where only the active
+variant's fields are live (the same scheme as `Hasil<T, R>`). Construction fills
+the tag and the active variant's fields, leaving the rest `undef`; a `cocok`
+arm reads the tag field, compares it, and extracts the active variant's payload
+fields into the arm's bindings. There is no pointer indirection and no heap
+allocation for the enum itself.
+
+### 3.6a Pattern matching (`cocok`)
+`cocok` dispatches on an enum value's variant. Each arm names a variant and runs
+a block; the match must be **exhaustive** (cover every variant) or end with a
+`lain => { … }` default. A variant that carries a payload may **bind** that
+payload by naming one identifier per field:
+```exotickik
+cocok t {
+    Angka(n) => { kembalikan n }          // n: angka, bound from the payload
+    Operator(c) => { kembalikan c sebagai angka }
+    Akhir => { kembalikan 0 }
+}
+```
+The bindings are immutable locals scoped to that arm, with the payload field
+types. Binding is optional — an arm may omit the `( … )` and match the variant
+without reading its data. The binder count, when present, must equal the
+variant's payload arity, and binding on a payload-less variant is an error.
 
 ### 3.7 Arrays
 A fixed-size array type is written `[T; N]` where `T` is the element type and `N`

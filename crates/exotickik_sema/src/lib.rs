@@ -224,6 +224,46 @@ mod tests {
     }
 
     #[test]
+    fn payload_enum_construct_and_match_ok() {
+        let d = check(
+            "program P\nenum Bentuk { Lingkaran(angka), Titik }\n\
+             fungsi luas(b: Bentuk) -> angka {\n\
+               cocok b { Lingkaran(r) => { kembalikan r * r } Titik => { kembalikan 0 } }\n\
+               kembalikan -1\n\
+             }\n\
+             utama { tampilkan(luas(Bentuk.Lingkaran(3))) }",
+        );
+        assert!(!d.has_errors(), "{:?}", d.diagnostics());
+    }
+
+    #[test]
+    fn payload_enum_wrong_arity_rejected() {
+        let d = check(
+            "program P\nenum Bentuk { Lingkaran(angka), Titik }\n\
+             utama { nilai x: Bentuk = Bentuk.Lingkaran(1, 2) }",
+        );
+        assert!(has_code(&d, codes::E_ARITY_MISMATCH));
+    }
+
+    #[test]
+    fn payload_enum_owned_payload_rejected() {
+        let d = check(
+            "program P\nenum Simpan { Buf(daftar<bita>), Kosong }\n\
+             utama { nilai x: Simpan = Simpan.Kosong }",
+        );
+        assert!(has_code(&d, codes::E_UNSUPPORTED));
+    }
+
+    #[test]
+    fn payload_enum_equality_rejected() {
+        let d = check(
+            "program P\nenum Bentuk { Lingkaran(angka), Titik }\n\
+             utama { nilai a: Bentuk = Bentuk.Titik jika a == Bentuk.Titik { } }",
+        );
+        assert!(has_code(&d, codes::E_INVALID_OPERAND));
+    }
+
+    #[test]
     fn unknown_enum_variant() {
         let d = check(
             "program P\nenum Warna { Merah }\nutama { nilai w = Warna.Ungu }",

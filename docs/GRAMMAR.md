@@ -41,6 +41,9 @@ param          = Ident ":" type ;
 struct         = [ "publik" ] "tipe" Ident [ type_params ] "{" { field } "}" ;
 field          = [ "publik" ] Ident ":" type ;
 
+enum           = [ "publik" ] "enum" Ident [ type_params ] "{" { variant } "}" ;
+variant        = Ident [ "(" type { "," type } ")" ] [ "," ] ;   (* optional associated data *)
+
 type           = Ident [ "<" type { "," type } ">" ]   (* named or applied, e.g. kotak<i64> *)
                | "[" type ";" IntLit "]"                (* fixed array [T; N] *)
                | "&" [ "ubah" ] type                    (* reference: &T shared, &ubah T mutable *)
@@ -71,9 +74,10 @@ while_stmt     = "selama" expr block ;
 for_stmt       = "untuk" Ident "dari" expr ( "sampai" | "hingga" ) expr block ;
 
 match_stmt     = "cocok" expr "{"
-                 { Ident "=>" block [ "," ] }
+                 { Ident [ "(" Ident { "," Ident } ")" ] "=>" block [ "," ] }
                  [ "lain" "=>" block [ "," ] ]
-                 "}" ;                           (* arms: enum variants; must be exhaustive *)
+                 "}" ;                           (* arms: enum variants; must be exhaustive;
+                                                    bindings destructure a variant's payload *)
 
 assign_or_expr_stmt
                = expr [ "=" expr ] ;            (* lhs must be assignable *)

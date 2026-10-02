@@ -15,7 +15,7 @@ Type =
   | Str                                           // teks
   | Unit                                          // hampa
   | Struct(StructId)                              // named product type
-  | Enum(EnumId)                                  // named tagged type (i32 tag)
+  | Enum(EnumId)                                  // named tagged type: i32 tag, or a tagged aggregate when a variant carries data
   | Array { elem: Type, size: u64 }               // fixed-size array [T; N]
   | Kotak(Type)                                   // owned heap cell kotak<T>
   | Ref { inner: Type, mutable: bool }            // reference &T / &ubah T (native pointer)
@@ -79,9 +79,19 @@ are suppressed to avoid cascading diagnostics.
   The result type is that struct. Missing fields → `E0262`, unknown fields →
   `E0260`, duplicates → `E0263`, a non-struct name → `E0261`.
 - **Enum variant** `Enum.Var`: `Enum` must name an enum type and `Var` one of its
-  variants; the result type is that enum. Unknown variant → `E0265`. Enum values
-  support only `==`/`!=` against the same enum type, and print as the variant
-  name; there is no implicit enum↔integer conversion.
+  variants; the result type is that enum. Unknown variant → `E0265`. A variant
+  with associated data is constructed by calling it (`Enum.Var(a, b)`); the
+  argument count and types must match the variant's payload (arity → `E0220`,
+  type → `E0212`), and a payload variant used bare (without `( … )`) is an error
+  (`E0220`). Tag-only enum values support `==`/`!=` against the same enum type; a
+  payload-carrying enum does not (use `cocok`). Both print as the variant name;
+  there is no implicit enum↔integer conversion. Enum payload fields must be Copy
+  for now — an owned payload type is rejected (`E0902`).
+- **Match** `cocok e { Var(a) => … }`: `e` must be an enum; arms name variants and
+  must be exhaustive or supply `lain`. An arm may bind a variant's payload fields
+  to immutable locals (one identifier per field) typed as the payload; the binder
+  count must equal the variant's arity (`E0220`) and a payload-less variant admits
+  no binders (`E0265`).
 - **Array literal** `[e1, ..., ek]`: all elements must share one element type `T`
   (element mismatch → `E0212`); result type `[T; k]`.
 - **Index** `e[i]`: `typeof(e)` must be an array (else `E0266`) and `typeof(i)` an
@@ -191,7 +201,8 @@ fungsi maksimum<T>(a: T, b: T) -> T {
   AST — not textual substitution.
 
 Trait bounds on type parameters (`<T: Sifat>`) are supported — see **Traits**
-below. **Not yet:** generic structs/enums, explicit type arguments at the call
+below. Generic **structs** are supported (monomorphized); generic **enums** are
+not yet. **Not yet:** generic enums, explicit type arguments at the call
 site (turbofish). Nested generic calls (a generic calling another generic) are
 supported.
 
