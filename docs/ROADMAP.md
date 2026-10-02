@@ -159,8 +159,12 @@ Legend: ✅ done · 🟡 in progress · ⬜ planned
   `ambil_peta`/`ada`/`panjang`, Owned with deterministic buffer cleanup, usable by
   reference. `teks` keys (symbol tables, interning, module tables); integer keys a
   follow-up
-- ⬜ Generic structs/enums, owned `teks`, and `Hasil` with owned payloads
-  (identifiers and diagnostics)
+- 🟡 Owned/dynamic strings (Phase 28): `daftar<bita>` is the owned, growable,
+  mutable string (owned storage, length, indexing, deterministic cleanup); the
+  `Teks` module now adds comparison (`sama_teks`/`sama_bita`), search (`cari_bita`),
+  prefix (`awalan`), and slicing (`potong`) — the lexer string ops. A first-class
+  owned `teks` value type and a buffer→`teks` conversion remain
+- ⬜ Generic structs/enums, and `Hasil` with owned payloads (diagnostics)
 - ⬜ Port the bootstrap front end to Exotickik component by component, validated with
   `exotickik test` against the Rust bootstrap
 

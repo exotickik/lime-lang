@@ -100,11 +100,13 @@ current compiler.
    `examples/peta.exo`). A `himpunan<T>` set and integer-keyed maps remain
    follow-ups.
 
-5. **First-class owned strings and richer results.** The compiler builds many
-   strings (identifiers, messages). Today text is byte buffers (`daftar<bita>`)
-   plus the `Teks` module; there is no owned `teks` value type, slicing, or
-   string-keyed map. `Hasil<T, R>` also requires Copy payloads, so error values
-   cannot yet carry owned messages.
+5. **First-class owned strings and richer results.** Owned, growable, mutable
+   strings exist as `daftar<bita>` byte buffers, and the `Teks` module now covers
+   building, comparison, search, prefix-match and slicing (`sama_teks`,
+   `sama_bita`, `cari_bita`, `awalan`, `potong`) — the lexer string operations.
+   What remains is a first-class owned `teks` *value* type with a buffer→`teks`
+   conversion, and `Hasil<T, R>` with owned payloads (it still requires Copy
+   payloads, so error values cannot yet carry owned messages).
 
 ## Suggested order to close the gaps
 

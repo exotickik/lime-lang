@@ -1,0 +1,25 @@
+program Kata
+
+gunakan Teks
+
+utama {
+    ubah baris: daftar<bita> = daftar()
+    tambah_teks(ambil_ubah(baris), "fungsi utama")
+    nilai spasi = cari_bita(ambil(baris), 32 sebagai bita)
+    ubah kata: daftar<bita> = potong(ambil(baris), 0, spasi)
+    cetak_bita(ambil(kata))
+    baris_baru_cetak()
+    jika sama_teks(ambil(kata), "fungsi") {
+        tampilkan(benar)
+    }
+    jika awalan(ambil(baris), "fungsi ") {
+        tampilkan(benar)
+    }
+    tampilkan(panjang(ambil(kata)))
+}
+
+fungsi baris_baru_cetak() {
+    ubah nl: daftar<bita> = daftar()
+    baris_baru(ambil_ubah(nl))
+    cetak_bita(ambil(nl))
+}

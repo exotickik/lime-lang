@@ -16,6 +16,69 @@ publik fungsi baris_baru(buf: &ubah daftar<bita>) {
     dorong(buf, 10 sebagai bita)
 }
 
+publik fungsi sama_teks(buf: &daftar<bita>, s: teks) -> boolean {
+    jika panjang(buf) != panjang(s) {
+        kembalikan salah
+    }
+    ubah i = 0
+    selama i < panjang(s) {
+        jika elemen(buf, i) != bita_pada(s, i) {
+            kembalikan salah
+        }
+        i = i + 1
+    }
+    kembalikan benar
+}
+
+publik fungsi sama_bita(a: &daftar<bita>, b: &daftar<bita>) -> boolean {
+    jika panjang(a) != panjang(b) {
+        kembalikan salah
+    }
+    ubah i = 0
+    selama i < panjang(a) {
+        jika elemen(a, i) != elemen(b, i) {
+            kembalikan salah
+        }
+        i = i + 1
+    }
+    kembalikan benar
+}
+
+publik fungsi awalan(buf: &daftar<bita>, s: teks) -> boolean {
+    jika panjang(buf) < panjang(s) {
+        kembalikan salah
+    }
+    ubah i = 0
+    selama i < panjang(s) {
+        jika elemen(buf, i) != bita_pada(s, i) {
+            kembalikan salah
+        }
+        i = i + 1
+    }
+    kembalikan benar
+}
+
+publik fungsi cari_bita(buf: &daftar<bita>, c: bita) -> angka {
+    ubah i = 0
+    selama i < panjang(buf) {
+        jika elemen(buf, i) == c {
+            kembalikan i
+        }
+        i = i + 1
+    }
+    kembalikan 0 - 1
+}
+
+publik fungsi potong(buf: &daftar<bita>, mulai: angka, akhir: angka) -> daftar<bita> {
+    ubah keluar: daftar<bita> = daftar()
+    ubah i = mulai
+    selama i < akhir {
+        dorong(ambil_ubah(keluar), elemen(buf, i))
+        i = i + 1
+    }
+    kembalikan keluar
+}
+
 publik fungsi tambah_angka(buf: &ubah daftar<bita>, n: angka) {
     jika n == 0 {
         dorong(buf, 48 sebagai bita)

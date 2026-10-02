@@ -75,3 +75,56 @@ fn std_function_needs_gunakan() {
     let (code, _) = check_stderr("noguna", src);
     assert_eq!(code, 1);
 }
+
+#[test]
+fn teks_sama_and_awalan() {
+    let src = "program T\n\
+        gunakan Teks\n\
+        utama {\n\
+          ubah a: daftar<bita> = daftar()\n\
+          tambah_teks(ambil_ubah(a), \"fungsi\")\n\
+          jika sama_teks(ambil(a), \"fungsi\") { tampilkan(1) } lain { tampilkan(0) }\n\
+          jika sama_teks(ambil(a), \"beda\") { tampilkan(1) } lain { tampilkan(0) }\n\
+          jika awalan(ambil(a), \"fun\") { tampilkan(1) } lain { tampilkan(0) }\n\
+          jika awalan(ambil(a), \"xyz\") { tampilkan(1) } lain { tampilkan(0) }\n\
+        }";
+    let (out, code) = run_source("teks_sama", src);
+    assert_eq!(out, "1\n0\n1\n0\n");
+    assert_eq!(code, 0);
+}
+
+#[test]
+fn teks_cari_and_potong() {
+    let src = "program T\n\
+        gunakan Teks\n\
+        utama {\n\
+          ubah a: daftar<bita> = daftar()\n\
+          tambah_teks(ambil_ubah(a), \"fungsi\")\n\
+          tampilkan(cari_bita(ambil(a), 110 sebagai bita))\n\
+          tampilkan(cari_bita(ambil(a), 122 sebagai bita))\n\
+          ubah sub: daftar<bita> = potong(ambil(a), 0, 3)\n\
+          jika sama_teks(ambil(sub), \"fun\") { tampilkan(1) } lain { tampilkan(0) }\n\
+          tampilkan(panjang(ambil(sub)))\n\
+        }";
+    let (out, code) = run_source("teks_cari", src);
+    assert_eq!(out, "2\n-1\n1\n3\n");
+    assert_eq!(code, 0);
+}
+
+#[test]
+fn teks_sama_bita() {
+    let src = "program T\n\
+        gunakan Teks\n\
+        utama {\n\
+          ubah a: daftar<bita> = daftar()\n\
+          tambah_teks(ambil_ubah(a), \"abc\")\n\
+          ubah b: daftar<bita> = daftar()\n\
+          tambah_teks(ambil_ubah(b), \"abc\")\n\
+          ubah c: daftar<bita> = daftar()\n\
+          tambah_teks(ambil_ubah(c), \"abd\")\n\
+          jika sama_bita(ambil(a), ambil(b)) { tampilkan(1) } lain { tampilkan(0) }\n\
+          jika sama_bita(ambil(a), ambil(c)) { tampilkan(1) } lain { tampilkan(0) }\n\
+        }";
+    let (out, _) = run_source("teks_samabita", src);
+    assert_eq!(out, "1\n0\n");
+}

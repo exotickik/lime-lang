@@ -101,9 +101,22 @@ own C-ABI FFI path — no separate allocator library. Growable containers
 ### Text (byte buffers)
 - `bita_pada(s, i) -> bita` — byte `i` of a `teks` (bounds-checked). For scanning.
 - `cetak_bita(ambil(buf))` — write a `daftar<bita>` byte buffer to output.
-- Module `Teks` (`gunakan Teks`), written in Exotickik: `tambah_teks(buf, s)`,
-  `tambah_angka(buf, n)`, `tambah_bita(buf, b)`, `baris_baru(buf)` — build text
-  into a `&ubah daftar<bita>`.
+- Module `Teks` (`gunakan Teks`), written in Exotickik. A `daftar<bita>` byte
+  buffer is Exotickik's owned, growable, mutable string (owned storage, `panjang`
+  length, `elemen` indexing, deterministic cleanup on drop); `Teks` adds the
+  building and processing operations:
+  - Build: `tambah_teks(buf, s)`, `tambah_angka(buf, n)`, `tambah_bita(buf, b)`,
+    `baris_baru(buf)` — append into a `&ubah daftar<bita>`.
+  - Compare: `sama_teks(&buf, s) -> boolean` (buffer vs `teks`),
+    `sama_bita(&a, &b) -> boolean` (buffer vs buffer).
+  - Search / match: `cari_bita(&buf, c) -> angka` (index of byte `c`, or `-1`),
+    `awalan(&buf, s) -> boolean` (does the buffer start with `s`?).
+  - Slice: `potong(&buf, mulai, akhir) -> daftar<bita>` — a new owned buffer with
+    bytes `[mulai, akhir)`.
+
+  These cover the string handling a lexer needs (keyword matching, identifier
+  extraction, comment scanning). A first-class owned `teks` *value* type and a
+  buffer→`teks` conversion remain follow-ups.
 
 ### Collections
 - `daftar()` — a new empty growable list `daftar<T>` (element type from context).
