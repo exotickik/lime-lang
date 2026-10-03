@@ -6,6 +6,7 @@ publik enum JenisSimpul {
     Bulat(angka),
     Uner(angka),
     Biner(angka),
+    Pengenal(angka),
     Galat,
 }
 
@@ -56,6 +57,18 @@ publik fungsi nilai_bulat_dari(s: Simpul) -> angka {
     kembalikan 0 - 1
 }
 
+publik fungsi sym_dari(s: Simpul) -> angka {
+    cocok s.jenis {
+        Pengenal(id) => {
+            kembalikan id
+        }
+        lain => {
+            kembalikan 0 - 1
+        }
+    }
+    kembalikan 0 - 1
+}
+
 publik fungsi kode_simpul(s: Simpul) -> angka {
     cocok s.jenis {
         Bulat(v) => {
@@ -66,6 +79,9 @@ publik fungsi kode_simpul(s: Simpul) -> angka {
         }
         Biner(op) => {
             kembalikan 2
+        }
+        Pengenal(id) => {
+            kembalikan 4
         }
         Galat => {
             kembalikan 3

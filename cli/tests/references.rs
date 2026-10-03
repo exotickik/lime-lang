@@ -162,3 +162,18 @@ fn write_through_shared_reference_is_error() {
     assert_eq!(code, 1);
     assert!(err.contains("E0294"), "got: {err}");
 }
+
+#[test]
+fn mut_ref_usable_where_shared_expected() {
+    let src = "program R\n\
+        fungsi baca(xs: &daftar<angka>, i: angka) -> angka { kembalikan elemen(xs, i) }\n\
+        fungsi kerja(xs: &ubah daftar<angka>) -> angka {\n\
+          dorong(xs, 10)\n\
+          dorong(xs, 20)\n\
+          kembalikan baca(xs, 1)\n\
+        }\n\
+        utama { ubah a: daftar<angka> = daftar() tampilkan(kerja(ambil_ubah(a))) }";
+    let (out, code) = run_source("mutshared", src);
+    assert_eq!(out, "20\n");
+    assert_eq!(code, 0);
+}

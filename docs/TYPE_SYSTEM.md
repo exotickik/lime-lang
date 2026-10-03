@@ -107,7 +107,10 @@ are suppressed to avoid cascading diagnostics.
 A reference is a native, non-owning pointer to an existing value. `&T` is a
 shared (read-only) reference; `&ubah T` is a mutable reference. A reference is
 always Copy — it is a machine pointer — and it never owns the value it points
-at, so borrowing never allocates and never drops.
+at, so borrowing never allocates and never drops. A `&ubah T` is accepted
+wherever a `&T` is expected (a safe reborrow to shared access) — e.g. passing a
+`&ubah daftar<T>` to a function taking `&daftar<T>` — so code holding a mutable
+reference can still call read-only helpers.
 
 - **Creation.** `ambil(x)` yields `&typeof(x)`; `ambil_ubah(x)` yields
   `&ubah typeof(x)`. The argument must be a *place* (a variable, field, or index

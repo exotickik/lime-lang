@@ -98,7 +98,17 @@ impl Type {
         if self.is_error() || target.is_error() {
             return true;
         }
-        self == target
+        if self == target {
+            return true;
+        }
+        if let (
+            Type::Ref { inner: src_inner, mutable: true },
+            Type::Ref { inner: dst_inner, mutable: false },
+        ) = (self, target)
+        {
+            return src_inner == dst_inner;
+        }
+        false
     }
 
     pub fn from_builtin_name(name: &str) -> Option<Type> {
