@@ -1,0 +1,166 @@
+{
+  "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+  "name": "Exotickik",
+  "scopeName": "source.exotickik",
+  "fileTypes": ["exo"],
+  "patterns": [
+    { "include": "#comments" },
+    { "include": "#strings" },
+    { "include": "#chars" },
+    { "include": "#numbers" },
+    { "include": "#declarations" },
+    { "include": "#keywords" },
+    { "include": "#types" },
+    { "include": "#constants" },
+    { "include": "#builtins" },
+    { "include": "#operators" },
+    { "include": "#punctuation" },
+    { "include": "#identifiers" }
+  ],
+  "repository": {
+    "comments": {
+      "patterns": [
+        {
+          "name": "comment.line.double-slash.exotickik",
+          "begin": "//",
+          "end": "$"
+        },
+        {
+          "name": "comment.block.exotickik",
+          "begin": "/\\*",
+          "end": "\\*/",
+          "patterns": [{ "include": "#comments" }]
+        }
+      ]
+    },
+    "strings": {
+      "name": "string.quoted.double.exotickik",
+      "begin": "\"",
+      "end": "\"",
+      "patterns": [
+        {
+          "name": "constant.character.escape.exotickik",
+          "match": "\\\\(n|r|t|0|\\\\|\"|'|u\\{[0-9A-Fa-f]+\\})"
+        }
+      ]
+    },
+    "chars": {
+      "name": "string.quoted.single.exotickik",
+      "match": "'(\\\\(n|r|t|0|\\\\|\"|'|u\\{[0-9A-Fa-f]+\\})|[^'\\\\])'"
+    },
+    "numbers": {
+      "patterns": [
+        {
+          "name": "constant.numeric.hex.exotickik",
+          "match": "\\b0[xX][0-9A-Fa-f_]+([iu](8|16|32|64))?\\b"
+        },
+        {
+          "name": "constant.numeric.binary.exotickik",
+          "match": "\\b0[bB][01_]+([iu](8|16|32|64))?\\b"
+        },
+        {
+          "name": "constant.numeric.octal.exotickik",
+          "match": "\\b0[oO][0-7_]+([iu](8|16|32|64))?\\b"
+        },
+        {
+          "name": "constant.numeric.float.exotickik",
+          "match": "\\b[0-9][0-9_]*(\\.[0-9][0-9_]*)([eE][+-]?[0-9_]+)?(f(32|64))?\\b"
+        },
+        {
+          "name": "constant.numeric.float.exotickik",
+          "match": "\\b[0-9][0-9_]*[eE][+-]?[0-9_]+(f(32|64))?\\b"
+        },
+        {
+          "name": "constant.numeric.decimal.exotickik",
+          "match": "\\b[0-9][0-9_]*([iu](8|16|32|64)|f(32|64))?\\b"
+        }
+      ]
+    },
+    "declarations": {
+      "patterns": [
+        {
+          "match": "\\b(fungsi)\\s+([A-Za-z_][A-Za-z0-9_]*)",
+          "captures": {
+            "1": { "name": "keyword.other.exotickik" },
+            "2": { "name": "entity.name.function.exotickik" }
+          }
+        },
+        {
+          "match": "\\b(tipe|enum|sifat)\\s+([A-Za-z_][A-Za-z0-9_]*)",
+          "captures": {
+            "1": { "name": "keyword.other.exotickik" },
+            "2": { "name": "entity.name.type.exotickik" }
+          }
+        },
+        {
+          "match": "\\b(implementasi)\\b(?:\\s+([A-Za-z_][A-Za-z0-9_]*)\\s+(untuk))?\\s+([A-Za-z_][A-Za-z0-9_]*)?",
+          "captures": {
+            "1": { "name": "keyword.other.exotickik" },
+            "2": { "name": "entity.name.type.exotickik" },
+            "3": { "name": "keyword.other.exotickik" },
+            "4": { "name": "entity.name.type.exotickik" }
+          }
+        },
+        {
+          "match": "\\b(program|modul|impor|gunakan)\\s+([A-Za-z_][A-Za-z0-9_]*)",
+          "captures": {
+            "1": { "name": "keyword.other.exotickik" },
+            "2": { "name": "entity.name.namespace.exotickik" }
+          }
+        }
+      ]
+    },
+    "keywords": {
+      "patterns": [
+        {
+          "name": "keyword.control.exotickik",
+          "match": "\\b(jika|lain|selama|untuk|dari|sampai|hingga|pada|cocok|kembalikan|berhenti|lanjut|coba)\\b"
+        },
+        {
+          "name": "keyword.other.exotickik",
+          "match": "\\b(program|modul|utama|fungsi|tipe|enum|sifat|implementasi|untuk|gunakan|impor|ekstern|publik)\\b"
+        },
+        {
+          "name": "storage.modifier.exotickik",
+          "match": "\\b(nilai|ubah|publik|ekstern)\\b"
+        },
+        {
+          "name": "keyword.operator.word.exotickik",
+          "match": "\\b(dan|atau|bukan|sebagai)\\b"
+        }
+      ]
+    },
+    "types": {
+      "patterns": [
+        {
+          "name": "storage.type.exotickik",
+          "match": "\\b(angka|bita|boolean|karakter|teks|hampa|pointer|i8|i16|i32|i64|u8|u16|u32|u64|f32|f64|kotak|daftar|peta|Hasil|Utas)\\b"
+        },
+        {
+          "name": "variable.language.self.exotickik",
+          "match": "\\bDiri\\b"
+        }
+      ]
+    },
+    "constants": {
+      "name": "constant.language.exotickik",
+      "match": "\\b(benar|salah)\\b"
+    },
+    "builtins": {
+      "name": "support.function.builtin.exotickik",
+      "match": "\\b(tampilkan|daftar|dorong|elemen|atur|panjang|ambil|ambil_ubah|isi|kosong|sukses|gagal|berhasil|nilai_atau|gagal_atau|peta|taruh|ambil_peta|ada|bita_pada|cetak_bita|baca_file|tulis_file|mulai|tunggu)\\b"
+    },
+    "operators": {
+      "name": "keyword.operator.exotickik",
+      "match": "->|=>|==|!=|<=|>=|&&|\\|\\||[+\\-*/%<>=!&]"
+    },
+    "punctuation": {
+      "name": "punctuation.exotickik",
+      "match": "[(){}\\[\\],:;.]"
+    },
+    "identifiers": {
+      "name": "variable.other.exotickik",
+      "match": "\\b[A-Za-z_][A-Za-z0-9_]*\\b"
+    }
+  }
+}

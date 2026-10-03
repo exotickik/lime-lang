@@ -1,0 +1,27 @@
+{
+  "name": "exotickik",
+  "displayName": "Exotickik",
+  "description": "Syntax highlighting for the Exotickik programming language (.exo)",
+  "version": "0.1.0",
+  "publisher": "exotickik",
+  "license": "MIT",
+  "engines": { "vscode": "^1.60.0" },
+  "categories": ["Programming Languages"],
+  "contributes": {
+    "languages": [
+      {
+        "id": "exotickik",
+        "aliases": ["Exotickik", "exotickik"],
+        "extensions": [".exo"],
+        "configuration": "./language-configuration.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "exotickik",
+        "scopeName": "source.exotickik",
+        "path": "../grammar/exotickik.tmLanguage.json"
+      }
+    ]
+  }
+}

@@ -1,0 +1,12 @@
+# Proposed entry for github-linguist/linguist lib/linguist/languages.yml
+# Insert in the correct alphabetical position (between "Excel Formula" and "FIGlet Font",
+# i.e. after the "E" block, before "F"). Keep keys in the order used by the file.
+# Do NOT hand-write language_id: run `script/update-ids` to assign it.
+Exotickik:
+  type: programming
+  color: "#8acb1c"
+  extensions:
+    - ".exo"
+  tm_scope: source.exotickik
+  ace_mode: text
+  # language_id: <assigned by script/update-ids>
