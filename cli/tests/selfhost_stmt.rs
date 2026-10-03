@@ -31,7 +31,7 @@ fn self_hosted_statement_parser_passes_its_own_suite() {
     let out = exotickik().arg("test").arg(compiler("uji_stmt.exo")).output().unwrap();
     assert_eq!(out.status.code().unwrap_or(-1), 0, "stderr: {}", String::from_utf8_lossy(&out.stderr));
     assert!(
-        String::from_utf8_lossy(&out.stdout).contains("6 lulus, 0 gagal"),
+        String::from_utf8_lossy(&out.stdout).contains("12 lulus, 0 gagal"),
         "stdout: {}",
         String::from_utf8_lossy(&out.stdout)
     );
@@ -50,6 +50,11 @@ fn bootstrap_agrees_on_statement_programs() {
         ("ubah x = 10 nilai y = x * 2 x = 1 kembalikan x + y", 21),
         ("nilai sama = 5 nilai jumlah = sama + sama kembalikan jumlah", 10),
         ("nilai a = 2 nilai b = 3 nilai c = 4 kembalikan a + b * c", 14),
+        ("ubah x = 0 jika 3 > 2 { x = 10 } lain { x = 20 } kembalikan x", 10),
+        ("nilai n = 2 ubah x = 0 jika n == 1 { x = 10 } lain jika n == 2 { x = 20 } lain { x = 30 } kembalikan x", 20),
+        ("ubah i = 0 ubah jumlah = 0 selama i < 5 { jumlah = jumlah + i i = i + 1 } kembalikan jumlah", 10),
+        ("ubah i = 0 selama i < 100 { jika i == 7 { kembalikan i } i = i + 1 } kembalikan 0 - 1", 7),
+        ("ubah total = 0 ubah i = 1 selama i <= 3 { ubah j = 1 selama j <= 3 { total = total + i * j j = j + 1 } i = i + 1 } kembalikan total", 36),
     ];
     for (body, expected) in cases {
         assert_eq!(bootstrap_run(body), *expected, "body: {body}");

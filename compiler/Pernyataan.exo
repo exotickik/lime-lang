@@ -6,15 +6,24 @@ publik enum JenisPernyataan {
     Tetapkan(angka),
     Kembali,
     Ekspr,
+    Jika,
+    Selama,
 }
 
 publik tipe Pernyataan {
     jenis: JenisPernyataan
     ekspr: angka
+    blok1: angka
+    blok2: angka
+    next: angka
 }
 
 publik fungsi pernyataan(jenis: JenisPernyataan, ekspr: angka) -> Pernyataan {
-    kembalikan Pernyataan { jenis: jenis, ekspr: ekspr }
+    kembalikan Pernyataan { jenis: jenis, ekspr: ekspr, blok1: 0 - 1, blok2: 0 - 1, next: 0 - 1 }
+}
+
+publik fungsi kendali(jenis: JenisPernyataan, ekspr: angka, blok1: angka, blok2: angka) -> Pernyataan {
+    kembalikan Pernyataan { jenis: jenis, ekspr: ekspr, blok1: blok1, blok2: blok2, next: 0 - 1 }
 }
 
 publik fungsi kode_pernyataan(p: Pernyataan) -> angka {
@@ -33,6 +42,12 @@ publik fungsi kode_pernyataan(p: Pernyataan) -> angka {
         }
         Ekspr => {
             kembalikan 4
+        }
+        Jika => {
+            kembalikan 5
+        }
+        Selama => {
+            kembalikan 6
         }
     }
     kembalikan 0 - 1
