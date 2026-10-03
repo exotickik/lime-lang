@@ -74,13 +74,29 @@ bootstrap (`tampilkan(E)`), asserting both agree.
   and **statements** into a statement arena, threading the interner and source
   bytes through the expression parser.
 
-Validated by `compiler/uji_stmt.exo` (6 tests that parse a statement program and
-evaluate it with a `SymbolId`-indexed environment) and `cli/tests/selfhost_stmt.rs`,
-which runs that suite **and** runs the same statement bodies as a bootstrap
-function, asserting both agree on `nilai`/`ubah`/assignment, identifier
-resolution, and evaluation order. The lexer, expression/statement parser and
-interner are the first real compiler components; control-flow and item parsing,
-name resolution, and semantic analysis are next.
+Validated by `compiler/uji_stmt.exo` (12 tests) and `cli/tests/selfhost_stmt.rs`,
+which runs the suite **and** runs the same bodies as a bootstrap function. The
+statement parser now also covers **control flow** — `jika`/`lain`/`lain jika` and
+`selama` — over a linked-tree statement arena (each statement has a `next` link
+and control-flow nodes carry child block heads).
+
+- `Item.exo` + `Parser.urai_item_program` — **function declarations**: a
+  `[publik] fungsi NAME [<…>] (params) [-> type] { body }` item, interning the
+  name and parameters into a `Fungsi` record; type annotations are parsed and
+  skipped by a balanced type-skipper.
+- Call expressions — `NAME(args…)` parse to a `Panggil` node over an `Arg` chain
+  (`Parser.urai_postfix`).
+
+Validated by `compiler/uji_fungsi.exo` (6 tests) and `cli/tests/selfhost_fungsi.rs`:
+a self-hosted tree-walking evaluator resolves calls by `SymbolId`, binds
+parameters in a fresh per-call frame, and runs recursion (`fib(10)=55`), loops
+(`fak(5)=120`) and nested calls — with the same programs run through the bootstrap
+to confirm agreement. (Supporting this surfaced one genuine language gap, now
+fixed: a `&ubah T` is accepted where `&T` is expected.)
+
+The lexer, interner, expression/statement/control-flow parser and function/call
+parser with an evaluator are the real compiler front end so far. Name resolution
+and semantic analysis, then lowering to the Exotickik IR, are next.
 
 ### What this proves Exotickik can already express
 

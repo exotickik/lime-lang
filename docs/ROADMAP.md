@@ -205,9 +205,13 @@ Legend: ✅ done · 🟡 in progress · ⬜ planned
   arithmetic/comparison/logical expressions (`cli/tests/selfhost_parser.rs`);
   **identifier interning** (`Intern`) and a **statement parser** (`Pernyataan`)
   for `nilai`/`ubah`/assignment/`kembalikan` with identifier resolution via
-  interned ids, differential-tested against the bootstrap
-  (`cli/tests/selfhost_stmt.rs`). Next: control-flow statements, item/declaration
-  parsing, then name resolution and sema
+  interned ids; **control-flow statements** (`jika`/`lain`/`lain jika`, `selama`
+  over a linked-tree arena); and **function declarations + calls** (`Item`,
+  `urai_item_program`, call expressions with an Arg chain) — all differential-tested
+  against the bootstrap (`cli/tests/selfhost_{stmt,fungsi}.rs`), including a
+  recursive `fib`, loop factorial, and nested calls evaluated by a self-hosted
+  tree-walker. A small `&ubah T`→`&T` reborrow was added to the language to support
+  this. Next: name resolution and semantic analysis, then the Exotickik IR
 
   See `docs/SELF_HOSTING.md` for the evidence-based gap analysis.
 
