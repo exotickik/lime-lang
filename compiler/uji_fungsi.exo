@@ -1,0 +1,236 @@
+program UjiFungsi
+
+impor Lekser
+
+impor Token
+
+impor Ast
+
+impor Pernyataan
+
+impor Item
+
+impor Parser
+
+impor Intern
+
+impor Sumber
+
+tipe Jalan {
+    selesai: boolean
+    hasil: angka
+}
+
+fungsi cari_fungsi(funcs: &daftar<Fungsi>, nama: angka) -> angka {
+    untuk i dari 0 sampai panjang(funcs) {
+        jika elemen(funcs, i).nama == nama {
+            kembalikan i
+        }
+    }
+    kembalikan 0 - 1
+}
+
+fungsi hitung(earena: &daftar<Simpul>, sarena: &daftar<Pernyataan>, funcs: &daftar<Fungsi>, parms: &daftar<angka>, nsym: angka, env: &daftar<angka>, idx: angka) -> angka {
+    nilai s = elemen(earena, idx)
+    nilai k = kode_simpul(s)
+    jika k == 0 {
+        kembalikan nilai_bulat_dari(s)
+    }
+    jika k == 4 {
+        kembalikan elemen(env, sym_dari(s))
+    }
+    jika k == 5 {
+        nilai callee = callee_dari(s)
+        nilai fidx = cari_fungsi(funcs, callee)
+        ubah argvals: daftar<angka> = daftar()
+        ubah a = s.kiri
+        selama a >= 0 {
+            nilai an = elemen(earena, a)
+            dorong(ambil_ubah(argvals), hitung(earena, sarena, funcs, parms, nsym, env, an.kiri))
+            a = an.kanan
+        }
+        jika fidx < 0 {
+            kembalikan 0
+        }
+        kembalikan panggil(earena, sarena, funcs, parms, nsym, fidx, ambil(argvals))
+    }
+    jika k == 1 {
+        nilai op = op_uner_dari(s)
+        nilai v = hitung(earena, sarena, funcs, parms, nsym, env, s.kiri)
+        jika op == 0 {
+            kembalikan 0 - v
+        }
+        jika v == 0 {
+            kembalikan 1
+        }
+        kembalikan 0
+    }
+    jika k == 2 {
+        nilai op = op_biner_dari(s)
+        nilai a = hitung(earena, sarena, funcs, parms, nsym, env, s.kiri)
+        nilai b = hitung(earena, sarena, funcs, parms, nsym, env, s.kanan)
+        jika op == 0 {
+            kembalikan a + b
+        }
+        jika op == 1 {
+            kembalikan a - b
+        }
+        jika op == 2 {
+            kembalikan a * b
+        }
+        jika op == 3 {
+            kembalikan a / b
+        }
+        jika op == 4 {
+            kembalikan a % b
+        }
+        jika op == 5 {
+            jika a == b {
+                kembalikan 1
+            }
+            kembalikan 0
+        }
+        jika op == 6 {
+            jika a != b {
+                kembalikan 1
+            }
+            kembalikan 0
+        }
+        jika op == 7 {
+            jika a < b {
+                kembalikan 1
+            }
+            kembalikan 0
+        }
+        jika op == 8 {
+            jika a <= b {
+                kembalikan 1
+            }
+            kembalikan 0
+        }
+        jika op == 9 {
+            jika a > b {
+                kembalikan 1
+            }
+            kembalikan 0
+        }
+        jika op == 10 {
+            jika a >= b {
+                kembalikan 1
+            }
+            kembalikan 0
+        }
+        jika op == 11 {
+            jika a != 0 && b != 0 {
+                kembalikan 1
+            }
+            kembalikan 0
+        }
+        jika op == 12 {
+            jika a != 0 || b != 0 {
+                kembalikan 1
+            }
+            kembalikan 0
+        }
+    }
+    kembalikan 0
+}
+
+fungsi jalankan(earena: &daftar<Simpul>, sarena: &daftar<Pernyataan>, funcs: &daftar<Fungsi>, parms: &daftar<angka>, nsym: angka, env: &ubah daftar<angka>, first: angka) -> Jalan {
+    ubah cur = first
+    selama cur >= 0 {
+        nilai p = elemen(sarena, cur)
+        nilai k = kode_pernyataan(p)
+        jika k == 3 {
+            kembalikan Jalan { selesai: benar, hasil: hitung(earena, sarena, funcs, parms, nsym, env, p.ekspr) }
+        }
+        jika k == 0 || k == 1 || k == 2 {
+            nilai v = hitung(earena, sarena, funcs, parms, nsym, env, p.ekspr)
+            atur(env, sym_pernyataan(p), v)
+        }
+        jika k == 4 {
+            hitung(earena, sarena, funcs, parms, nsym, env, p.ekspr)
+        }
+        jika k == 5 {
+            nilai c = hitung(earena, sarena, funcs, parms, nsym, env, p.ekspr)
+            ubah cabang = p.blok2
+            jika c != 0 {
+                cabang = p.blok1
+            }
+            jika cabang >= 0 {
+                nilai r = jalankan(earena, sarena, funcs, parms, nsym, env, cabang)
+                jika r.selesai {
+                    kembalikan r
+                }
+            }
+        }
+        jika k == 6 {
+            selama hitung(earena, sarena, funcs, parms, nsym, env, p.ekspr) != 0 {
+                nilai r = jalankan(earena, sarena, funcs, parms, nsym, env, p.blok1)
+                jika r.selesai {
+                    kembalikan r
+                }
+            }
+        }
+        cur = p.next
+    }
+    kembalikan Jalan { selesai: salah, hasil: 0 }
+}
+
+fungsi panggil(earena: &daftar<Simpul>, sarena: &daftar<Pernyataan>, funcs: &daftar<Fungsi>, parms: &daftar<angka>, nsym: angka, fidx: angka, argvals: &daftar<angka>) -> angka {
+    nilai f = elemen(funcs, fidx)
+    ubah env: daftar<angka> = daftar()
+    untuk i dari 0 sampai nsym {
+        dorong(ambil_ubah(env), 0)
+    }
+    untuk i dari 0 sampai f.param_jumlah {
+        nilai psym = elemen(parms, f.param_mulai + i)
+        atur(ambil_ubah(env), psym, elemen(argvals, i))
+    }
+    nilai r = jalankan(earena, sarena, funcs, parms, nsym, ambil_ubah(env), f.body)
+    kembalikan r.hasil
+}
+
+fungsi eval(defs: teks, entry: teks) -> angka {
+    nilai src = dari_teks(defs)
+    nilai toks = lekser(ambil(src))
+    ubah tabel: Tabel = tabel_baru()
+    ubah earena: daftar<Simpul> = daftar()
+    ubah sarena: daftar<Pernyataan> = daftar()
+    ubah parms: daftar<angka> = daftar()
+    ubah funcs: daftar<Fungsi> = daftar()
+    urai_item_program(ambil(toks), ambil(src), ambil_ubah(tabel), ambil_ubah(earena), ambil_ubah(sarena), ambil_ubah(parms), ambil_ubah(funcs))
+    nilai esrc = dari_teks(entry)
+    nilai esym = intern(ambil_ubah(tabel), ambil(esrc), 0, panjang(entry))
+    nilai nsym = jumlah_simbol(ambil(tabel))
+    nilai fidx = cari_fungsi(ambil(funcs), esym)
+    jika fidx < 0 {
+        kembalikan 0 - 999
+    }
+    ubah kosong: daftar<angka> = daftar()
+    kembalikan panggil(ambil(earena), ambil(sarena), ambil(funcs), ambil(parms), nsym, fidx, ambil(kosong))
+}
+
+fungsi uji_panggil_sederhana() -> boolean {
+    kembalikan eval("fungsi tambah(a: angka, b: angka) -> angka { kembalikan a + b } fungsi mula() -> angka { kembalikan tambah(2, 3) }", "mula") == 5
+}
+
+fungsi uji_panggil_bersarang() -> boolean {
+    kembalikan eval("fungsi tambah(a: angka, b: angka) -> angka { kembalikan a + b } fungsi mula() -> angka { kembalikan tambah(tambah(1, 2), tambah(3, 4)) }", "mula") == 10
+}
+
+fungsi uji_rekursi_fib() -> boolean {
+    kembalikan eval("fungsi fib(n: angka) -> angka { jika n < 2 { kembalikan n } kembalikan fib(n - 1) + fib(n - 2) } fungsi mula() -> angka { kembalikan fib(10) }", "mula") == 55
+}
+
+fungsi uji_faktorial_loop() -> boolean {
+    kembalikan eval("fungsi fak(n: angka) -> angka { ubah hasil = 1 ubah i = 1 selama i <= n { hasil = hasil * i i = i + 1 } kembalikan hasil } fungsi mula() -> angka { kembalikan fak(5) }", "mula") == 120
+}
+
+fungsi uji_beberapa_fungsi() -> boolean {
+    kembalikan eval("fungsi kuadrat(x: angka) -> angka { kembalikan x * x } fungsi jumlah_kuadrat(a: angka, b: angka) -> angka { kembalikan kuadrat(a) + kuadrat(b) } fungsi mula() -> angka { kembalikan jumlah_kuadrat(3, 4) }", "mula") == 25
+}
+
+fungsi uji_publik_fungsi() -> boolean {
+    kembalikan eval("publik fungsi dua_kali(x: angka) -> angka { kembalikan x + x } fungsi mula() -> angka { kembalikan dua_kali(21) }", "mula") == 42
+}

@@ -1,0 +1,12 @@
+modul Item
+
+publik tipe Fungsi {
+    nama: angka
+    param_mulai: angka
+    param_jumlah: angka
+    body: angka
+}
+
+publik fungsi fungsi_baru(nama: angka, param_mulai: angka, param_jumlah: angka, body: angka) -> Fungsi {
+    kembalikan Fungsi { nama: nama, param_mulai: param_mulai, param_jumlah: param_jumlah, body: body }
+}

@@ -7,6 +7,8 @@ publik enum JenisSimpul {
     Uner(angka),
     Biner(angka),
     Pengenal(angka),
+    Panggil(angka),
+    Arg,
     Galat,
 }
 
@@ -69,6 +71,18 @@ publik fungsi sym_dari(s: Simpul) -> angka {
     kembalikan 0 - 1
 }
 
+publik fungsi callee_dari(s: Simpul) -> angka {
+    cocok s.jenis {
+        Panggil(id) => {
+            kembalikan id
+        }
+        lain => {
+            kembalikan 0 - 1
+        }
+    }
+    kembalikan 0 - 1
+}
+
 publik fungsi kode_simpul(s: Simpul) -> angka {
     cocok s.jenis {
         Bulat(v) => {
@@ -82,6 +96,12 @@ publik fungsi kode_simpul(s: Simpul) -> angka {
         }
         Pengenal(id) => {
             kembalikan 4
+        }
+        Panggil(id) => {
+            kembalikan 5
+        }
+        Arg => {
+            kembalikan 6
         }
         Galat => {
             kembalikan 3

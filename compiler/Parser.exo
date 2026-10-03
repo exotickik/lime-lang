@@ -8,6 +8,8 @@ impor Intern
 
 impor Pernyataan
 
+impor Item
+
 publik tipe Langkah {
     idx: angka
     pos: angka
@@ -95,6 +97,44 @@ fungsi tambah(arena: &ubah daftar<Simpul>, s: Simpul) -> angka {
     kembalikan idx
 }
 
+fungsi set_kanan(arena: &ubah daftar<Simpul>, idx: angka, kanan: angka) {
+    nilai s = elemen(arena, idx)
+    atur(arena, idx, Simpul { jenis: s.jenis, kiri: s.kiri, kanan: kanan, rentang: s.rentang })
+}
+
+fungsi urai_postfix(toks: &daftar<Token>, src: &daftar<bita>, tabel: &ubah Tabel, arena: &ubah daftar<Simpul>, pos: angka) -> Langkah {
+    nilai atom = urai_primary(toks, src, tabel, arena, pos)
+    ubah idx = atom.idx
+    ubah p = atom.pos
+    selama kode_jenis(jenis_di(toks, p)) == 6 {
+        ubah first_arg = 0 - 1
+        ubah prev_arg = 0 - 1
+        p = p + 1
+        selama kode_jenis(jenis_di(toks, p)) != 7 && kode_jenis(jenis_di(toks, p)) != 34 {
+            nilai a = urai_biner(toks, src, tabel, arena, p, 1)
+            nilai r = elemen(toks, p).rentang
+            nilai argnode = tambah(arena, simpul(JenisSimpul.Arg, a.idx, 0 - 1, r.mulai, r.akhir))
+            jika first_arg < 0 {
+                first_arg = argnode
+            } lain {
+                set_kanan(arena, prev_arg, argnode)
+            }
+            prev_arg = argnode
+            p = a.pos
+            jika kode_jenis(jenis_di(toks, p)) == 12 {
+                p = p + 1
+            }
+        }
+        jika kode_jenis(jenis_di(toks, p)) == 7 {
+            p = p + 1
+        }
+        nilai callee = sym_dari(elemen(arena, idx))
+        nilai cr = elemen(arena, idx).rentang
+        idx = tambah(arena, simpul(JenisSimpul.Panggil(callee), first_arg, 0 - 1, cr.mulai, cr.akhir))
+    }
+    kembalikan Langkah { idx: idx, pos: p }
+}
+
 fungsi urai_primary(toks: &daftar<Token>, src: &daftar<bita>, tabel: &ubah Tabel, arena: &ubah daftar<Simpul>, pos: angka) -> Langkah {
     nilai j = jenis_di(toks, pos)
     nilai k = kode_jenis(j)
@@ -144,7 +184,7 @@ fungsi urai_uner(toks: &daftar<Token>, src: &daftar<bita>, tabel: &ubah Tabel, a
         nilai idx = tambah(arena, simpul(JenisSimpul.Uner(1), operan.idx, 0 - 1, r.mulai, r.akhir))
         kembalikan Langkah { idx: idx, pos: operan.pos }
     }
-    kembalikan urai_primary(toks, src, tabel, arena, pos)
+    kembalikan urai_postfix(toks, src, tabel, arena, pos)
 }
 
 fungsi urai_biner(toks: &daftar<Token>, src: &daftar<bita>, tabel: &ubah Tabel, arena: &ubah daftar<Simpul>, pos: angka, min_prec: angka) -> Langkah {
@@ -281,4 +321,105 @@ fungsi urai_pernyataan(toks: &daftar<Token>, src: &daftar<bita>, tabel: &ubah Ta
 publik fungsi urai_program(toks: &daftar<Token>, src: &daftar<bita>, tabel: &ubah Tabel, earena: &ubah daftar<Simpul>, sarena: &ubah daftar<Pernyataan>) -> angka {
     nilai seq = urai_seq(toks, src, tabel, earena, sarena, 0, 34)
     kembalikan seq.idx
+}
+
+fungsi lewati_seimbang(toks: &daftar<Token>, pos: angka, buka: angka, tutup: angka) -> angka {
+    ubah p = pos
+    ubah dalam = 0
+    selama kode_jenis(jenis_di(toks, p)) != 34 {
+        nilai kk = kode_jenis(jenis_di(toks, p))
+        jika kk == buka {
+            dalam = dalam + 1
+        }
+        jika kk == tutup {
+            dalam = dalam - 1
+        }
+        p = p + 1
+        jika dalam == 0 {
+            berhenti
+        }
+    }
+    kembalikan p
+}
+
+fungsi urai_tipe(toks: &daftar<Token>, pos: angka) -> angka {
+    ubah p = pos
+    jika kode_jenis(jenis_di(toks, p)) == 31 {
+        p = p + 1
+    }
+    jika kode_jenis(jenis_di(toks, p)) == 1 && kata_kunci_dari(jenis_di(toks, p)) == 6 {
+        p = p + 1
+    }
+    jika kode_jenis(jenis_di(toks, p)) == 10 {
+        kembalikan lewati_seimbang(toks, p, 10, 11)
+    }
+    jika kode_jenis(jenis_di(toks, p)) == 0 {
+        p = p + 1
+    }
+    jika kode_jenis(jenis_di(toks, p)) == 21 {
+        p = lewati_seimbang(toks, p, 21, 23)
+    }
+    kembalikan p
+}
+
+fungsi urai_fungsi(toks: &daftar<Token>, src: &daftar<bita>, tabel: &ubah Tabel, earena: &ubah daftar<Simpul>, sarena: &ubah daftar<Pernyataan>, parms: &ubah daftar<angka>, funcs: &ubah daftar<Fungsi>, pos: angka) -> angka {
+    ubah p = pos
+    jika kode_jenis(jenis_di(toks, p)) == 1 && kata_kunci_dari(jenis_di(toks, p)) == 28 {
+        p = p + 1
+    }
+    p = p + 1
+    nilai nr = elemen(toks, p).rentang
+    nilai nama = intern(tabel, src, nr.mulai, nr.akhir)
+    p = p + 1
+    jika kode_jenis(jenis_di(toks, p)) == 21 {
+        p = lewati_seimbang(toks, p, 21, 23)
+    }
+    jika kode_jenis(jenis_di(toks, p)) == 6 {
+        p = p + 1
+    }
+    nilai param_mulai = panjang(parms)
+    ubah param_jumlah = 0
+    selama kode_jenis(jenis_di(toks, p)) != 7 && kode_jenis(jenis_di(toks, p)) != 34 {
+        nilai pr = elemen(toks, p).rentang
+        nilai psym = intern(tabel, src, pr.mulai, pr.akhir)
+        dorong(parms, psym)
+        param_jumlah = param_jumlah + 1
+        p = p + 1
+        jika kode_jenis(jenis_di(toks, p)) == 13 {
+            p = p + 1
+            p = urai_tipe(toks, p)
+        }
+        jika kode_jenis(jenis_di(toks, p)) == 12 {
+            p = p + 1
+        }
+    }
+    jika kode_jenis(jenis_di(toks, p)) == 7 {
+        p = p + 1
+    }
+    jika kode_jenis(jenis_di(toks, p)) == 16 {
+        p = p + 1
+        p = urai_tipe(toks, p)
+    }
+    nilai b = urai_blok(toks, src, tabel, earena, sarena, p)
+    dorong(funcs, fungsi_baru(nama, param_mulai, param_jumlah, b.idx))
+    kembalikan b.pos
+}
+
+publik fungsi urai_item_program(toks: &daftar<Token>, src: &daftar<bita>, tabel: &ubah Tabel, earena: &ubah daftar<Simpul>, sarena: &ubah daftar<Pernyataan>, parms: &ubah daftar<angka>, funcs: &ubah daftar<Fungsi>) {
+    ubah pos = 0
+    selama kode_jenis(jenis_di(toks, pos)) != 34 {
+        nilai j = jenis_di(toks, pos)
+        jika kode_jenis(j) != 1 {
+            berhenti
+        }
+        nilai kw = kata_kunci_dari(j)
+        jika kw != 3 && kw != 28 {
+            berhenti
+        }
+        nilai maju = urai_fungsi(toks, src, tabel, earena, sarena, parms, funcs, pos)
+        jika maju <= pos {
+            berhenti
+        }
+        pos = maju
+    }
 }
