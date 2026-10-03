@@ -4,6 +4,10 @@ impor Token
 
 impor Ast
 
+impor Intern
+
+impor Pernyataan
+
 publik tipe Langkah {
     idx: angka
     pos: angka
@@ -91,7 +95,7 @@ fungsi tambah(arena: &ubah daftar<Simpul>, s: Simpul) -> angka {
     kembalikan idx
 }
 
-fungsi urai_primary(toks: &daftar<Token>, arena: &ubah daftar<Simpul>, pos: angka) -> Langkah {
+fungsi urai_primary(toks: &daftar<Token>, src: &daftar<bita>, tabel: &ubah Tabel, arena: &ubah daftar<Simpul>, pos: angka) -> Langkah {
     nilai j = jenis_di(toks, pos)
     nilai k = kode_jenis(j)
     jika k == 2 {
@@ -100,8 +104,14 @@ fungsi urai_primary(toks: &daftar<Token>, arena: &ubah daftar<Simpul>, pos: angk
         nilai idx = tambah(arena, simpul(JenisSimpul.Bulat(v), 0 - 1, 0 - 1, r.mulai, r.akhir))
         kembalikan Langkah { idx: idx, pos: pos + 1 }
     }
+    jika k == 0 {
+        nilai r = elemen(toks, pos).rentang
+        nilai sym = intern(tabel, src, r.mulai, r.akhir)
+        nilai idx = tambah(arena, simpul(JenisSimpul.Pengenal(sym), 0 - 1, 0 - 1, r.mulai, r.akhir))
+        kembalikan Langkah { idx: idx, pos: pos + 1 }
+    }
     jika k == 6 {
-        nilai dalam = urai_biner(toks, arena, pos + 1, 1)
+        nilai dalam = urai_biner(toks, src, tabel, arena, pos + 1, 1)
         ubah p = dalam.pos
         jika kode_jenis(jenis_di(toks, p)) == 7 {
             p = p + 1
@@ -113,32 +123,32 @@ fungsi urai_primary(toks: &daftar<Token>, arena: &ubah daftar<Simpul>, pos: angk
     kembalikan Langkah { idx: idx, pos: pos + 1 }
 }
 
-fungsi urai_uner(toks: &daftar<Token>, arena: &ubah daftar<Simpul>, pos: angka) -> Langkah {
+fungsi urai_uner(toks: &daftar<Token>, src: &daftar<bita>, tabel: &ubah Tabel, arena: &ubah daftar<Simpul>, pos: angka) -> Langkah {
     nilai j = jenis_di(toks, pos)
     nilai k = kode_jenis(j)
     jika k == 26 {
-        nilai operan = urai_uner(toks, arena, pos + 1)
+        nilai operan = urai_uner(toks, src, tabel, arena, pos + 1)
         nilai r = elemen(toks, pos).rentang
         nilai idx = tambah(arena, simpul(JenisSimpul.Uner(0), operan.idx, 0 - 1, r.mulai, r.akhir))
         kembalikan Langkah { idx: idx, pos: operan.pos }
     }
     jika k == 33 {
-        nilai operan = urai_uner(toks, arena, pos + 1)
+        nilai operan = urai_uner(toks, src, tabel, arena, pos + 1)
         nilai r = elemen(toks, pos).rentang
         nilai idx = tambah(arena, simpul(JenisSimpul.Uner(1), operan.idx, 0 - 1, r.mulai, r.akhir))
         kembalikan Langkah { idx: idx, pos: operan.pos }
     }
     jika k == 1 && kata_kunci_dari(j) == 31 {
-        nilai operan = urai_uner(toks, arena, pos + 1)
+        nilai operan = urai_uner(toks, src, tabel, arena, pos + 1)
         nilai r = elemen(toks, pos).rentang
         nilai idx = tambah(arena, simpul(JenisSimpul.Uner(1), operan.idx, 0 - 1, r.mulai, r.akhir))
         kembalikan Langkah { idx: idx, pos: operan.pos }
     }
-    kembalikan urai_primary(toks, arena, pos)
+    kembalikan urai_primary(toks, src, tabel, arena, pos)
 }
 
-fungsi urai_biner(toks: &daftar<Token>, arena: &ubah daftar<Simpul>, pos: angka, min_prec: angka) -> Langkah {
-    nilai kiri = urai_uner(toks, arena, pos)
+fungsi urai_biner(toks: &daftar<Token>, src: &daftar<bita>, tabel: &ubah Tabel, arena: &ubah daftar<Simpul>, pos: angka, min_prec: angka) -> Langkah {
+    nilai kiri = urai_uner(toks, src, tabel, arena, pos)
     ubah idx = kiri.idx
     ubah p = kiri.pos
     selama benar {
@@ -150,7 +160,7 @@ fungsi urai_biner(toks: &daftar<Token>, arena: &ubah daftar<Simpul>, pos: angka,
         jika pr < min_prec {
             berhenti
         }
-        nilai kanan = urai_biner(toks, arena, p + 1, pr + 1)
+        nilai kanan = urai_biner(toks, src, tabel, arena, p + 1, pr + 1)
         nilai r = elemen(toks, p).rentang
         idx = tambah(arena, simpul(JenisSimpul.Biner(op), idx, kanan.idx, r.mulai, r.akhir))
         p = kanan.pos
@@ -158,7 +168,52 @@ fungsi urai_biner(toks: &daftar<Token>, arena: &ubah daftar<Simpul>, pos: angka,
     kembalikan Langkah { idx: idx, pos: p }
 }
 
-publik fungsi urai_ekspresi(toks: &daftar<Token>, arena: &ubah daftar<Simpul>) -> angka {
-    nilai hasil = urai_biner(toks, arena, 0, 1)
+publik fungsi urai_ekspresi(toks: &daftar<Token>, src: &daftar<bita>, tabel: &ubah Tabel, arena: &ubah daftar<Simpul>) -> angka {
+    nilai hasil = urai_biner(toks, src, tabel, arena, 0, 1)
     kembalikan hasil.idx
+}
+
+fungsi urai_pernyataan(toks: &daftar<Token>, src: &daftar<bita>, tabel: &ubah Tabel, earena: &ubah daftar<Simpul>, sarena: &ubah daftar<Pernyataan>, pos: angka) -> angka {
+    nilai j = jenis_di(toks, pos)
+    nilai k = kode_jenis(j)
+    jika k == 1 {
+        nilai kw = kata_kunci_dari(j)
+        jika kw == 5 || kw == 6 {
+            nilai r = elemen(toks, pos + 1).rentang
+            nilai sym = intern(tabel, src, r.mulai, r.akhir)
+            nilai e = urai_biner(toks, src, tabel, earena, pos + 3, 1)
+            jika kw == 5 {
+                dorong(sarena, pernyataan(JenisPernyataan.Nilai(sym), e.idx))
+            } lain {
+                dorong(sarena, pernyataan(JenisPernyataan.Ubah(sym), e.idx))
+            }
+            kembalikan e.pos
+        }
+        jika kw == 4 {
+            nilai e = urai_biner(toks, src, tabel, earena, pos + 1, 1)
+            dorong(sarena, pernyataan(JenisPernyataan.Kembali, e.idx))
+            kembalikan e.pos
+        }
+    }
+    jika k == 0 && kode_jenis(jenis_di(toks, pos + 1)) == 18 {
+        nilai r = elemen(toks, pos).rentang
+        nilai sym = intern(tabel, src, r.mulai, r.akhir)
+        nilai e = urai_biner(toks, src, tabel, earena, pos + 2, 1)
+        dorong(sarena, pernyataan(JenisPernyataan.Tetapkan(sym), e.idx))
+        kembalikan e.pos
+    }
+    nilai e = urai_biner(toks, src, tabel, earena, pos, 1)
+    dorong(sarena, pernyataan(JenisPernyataan.Ekspr, e.idx))
+    kembalikan e.pos
+}
+
+publik fungsi urai_program(toks: &daftar<Token>, src: &daftar<bita>, tabel: &ubah Tabel, earena: &ubah daftar<Simpul>, sarena: &ubah daftar<Pernyataan>) {
+    ubah pos = 0
+    selama kode_jenis(jenis_di(toks, pos)) != 34 {
+        nilai maju = urai_pernyataan(toks, src, tabel, earena, sarena, pos)
+        jika maju <= pos {
+            berhenti
+        }
+        pos = maju
+    }
 }

@@ -1,0 +1,136 @@
+program UjiStmt
+
+impor Lekser
+
+impor Token
+
+impor Ast
+
+impor Pernyataan
+
+impor Parser
+
+impor Intern
+
+impor Sumber
+
+fungsi hitung(earena: &daftar<Simpul>, env: &daftar<angka>, idx: angka) -> angka {
+    nilai s = elemen(earena, idx)
+    nilai k = kode_simpul(s)
+    jika k == 0 {
+        kembalikan nilai_bulat_dari(s)
+    }
+    jika k == 4 {
+        kembalikan elemen(env, sym_dari(s))
+    }
+    jika k == 1 {
+        nilai op = op_uner_dari(s)
+        nilai v = hitung(earena, env, s.kiri)
+        jika op == 0 {
+            kembalikan 0 - v
+        }
+        jika v == 0 {
+            kembalikan 1
+        }
+        kembalikan 0
+    }
+    jika k == 2 {
+        nilai op = op_biner_dari(s)
+        nilai a = hitung(earena, env, s.kiri)
+        nilai b = hitung(earena, env, s.kanan)
+        jika op == 0 {
+            kembalikan a + b
+        }
+        jika op == 1 {
+            kembalikan a - b
+        }
+        jika op == 2 {
+            kembalikan a * b
+        }
+        jika op == 3 {
+            kembalikan a / b
+        }
+        jika op == 4 {
+            kembalikan a % b
+        }
+        jika op == 5 {
+            jika a == b {
+                kembalikan 1
+            }
+            kembalikan 0
+        }
+        jika op == 6 {
+            jika a != b {
+                kembalikan 1
+            }
+            kembalikan 0
+        }
+        jika op == 7 {
+            jika a < b {
+                kembalikan 1
+            }
+            kembalikan 0
+        }
+        jika op == 9 {
+            jika a > b {
+                kembalikan 1
+            }
+            kembalikan 0
+        }
+    }
+    kembalikan 0
+}
+
+fungsi jalankan(earena: &daftar<Simpul>, sarena: &daftar<Pernyataan>, env: &ubah daftar<angka>) -> angka {
+    untuk i dari 0 sampai panjang(sarena) {
+        nilai p = elemen(sarena, i)
+        nilai k = kode_pernyataan(p)
+        jika k == 3 {
+            kembalikan hitung(earena, env, p.ekspr)
+        }
+        jika k == 0 || k == 1 || k == 2 {
+            nilai v = hitung(earena, env, p.ekspr)
+            atur(env, sym_pernyataan(p), v)
+        }
+    }
+    kembalikan 0
+}
+
+fungsi eval(s: teks) -> angka {
+    nilai src = dari_teks(s)
+    nilai toks = lekser(ambil(src))
+    ubah tabel: Tabel = tabel_baru()
+    ubah earena: daftar<Simpul> = daftar()
+    ubah sarena: daftar<Pernyataan> = daftar()
+    urai_program(ambil(toks), ambil(src), ambil_ubah(tabel), ambil_ubah(earena), ambil_ubah(sarena))
+    ubah env: daftar<angka> = daftar()
+    nilai n = jumlah_simbol(ambil(tabel))
+    untuk i dari 0 sampai n {
+        dorong(ambil_ubah(env), 0)
+    }
+    kembalikan jalankan(ambil(earena), ambil(sarena), ambil_ubah(env))
+}
+
+fungsi uji_let_dan_pakai() -> boolean {
+    kembalikan eval("nilai x = 10 kembalikan x + 5") == 15
+}
+
+fungsi uji_dua_variabel() -> boolean {
+    kembalikan eval("nilai x = 2 nilai y = 3 kembalikan x * y + 1") == 7
+}
+
+fungsi uji_tetapkan_ulang() -> boolean {
+    kembalikan eval("ubah a = 1 a = a + 4 kembalikan a") == 5
+}
+
+fungsi uji_urutan_evaluasi() -> boolean {
+    kembalikan eval("ubah x = 10 nilai y = x * 2 x = 1 kembalikan x + y") == 21
+}
+
+fungsi uji_pengenal_sama_interned() -> boolean {
+    kembalikan eval("nilai sama = 5 nilai jumlah = sama + sama kembalikan jumlah") == 10
+}
+
+fungsi uji_presedensi_dengan_variabel() -> boolean {
+    kembalikan eval("nilai a = 2 nilai b = 3 nilai c = 4 kembalikan a + b * c") == 14
+}

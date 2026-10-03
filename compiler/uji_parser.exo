@@ -8,6 +8,8 @@ impor Ast
 
 impor Parser
 
+impor Intern
+
 impor Sumber
 
 fungsi hitung(arena: &daftar<Simpul>, idx: angka) -> angka {
@@ -101,8 +103,9 @@ fungsi hitung(arena: &daftar<Simpul>, idx: angka) -> angka {
 fungsi eval(s: teks) -> angka {
     nilai src = dari_teks(s)
     nilai toks = lekser(ambil(src))
+    ubah tabel: Tabel = tabel_baru()
     ubah arena: daftar<Simpul> = daftar()
-    nilai akar = urai_ekspresi(ambil(toks), ambil_ubah(arena))
+    nilai akar = urai_ekspresi(ambil(toks), ambil(src), ambil_ubah(tabel), ambil_ubah(arena))
     kembalikan hitung(ambil(arena), akar)
 }
 

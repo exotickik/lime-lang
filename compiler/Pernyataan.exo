@@ -1,0 +1,57 @@
+modul Pernyataan
+
+publik enum JenisPernyataan {
+    Nilai(angka),
+    Ubah(angka),
+    Tetapkan(angka),
+    Kembali,
+    Ekspr,
+}
+
+publik tipe Pernyataan {
+    jenis: JenisPernyataan
+    ekspr: angka
+}
+
+publik fungsi pernyataan(jenis: JenisPernyataan, ekspr: angka) -> Pernyataan {
+    kembalikan Pernyataan { jenis: jenis, ekspr: ekspr }
+}
+
+publik fungsi kode_pernyataan(p: Pernyataan) -> angka {
+    cocok p.jenis {
+        Nilai(s) => {
+            kembalikan 0
+        }
+        Ubah(s) => {
+            kembalikan 1
+        }
+        Tetapkan(s) => {
+            kembalikan 2
+        }
+        Kembali => {
+            kembalikan 3
+        }
+        Ekspr => {
+            kembalikan 4
+        }
+    }
+    kembalikan 0 - 1
+}
+
+publik fungsi sym_pernyataan(p: Pernyataan) -> angka {
+    cocok p.jenis {
+        Nilai(s) => {
+            kembalikan s
+        }
+        Ubah(s) => {
+            kembalikan s
+        }
+        Tetapkan(s) => {
+            kembalikan s
+        }
+        lain => {
+            kembalikan 0 - 1
+        }
+    }
+    kembalikan 0 - 1
+}

@@ -202,8 +202,12 @@ Legend: ✅ done · 🟡 in progress · ⬜ planned
   against the bootstrap lexer (`cli/tests/selfhost_lexer.rs`), and a **self-hosted
   expression parser** (`Ast`, `Parser`) — precedence-climbing over the real token
   stream into an arena AST, differential-tested against the bootstrap on
-  arithmetic/comparison/logical expressions (`cli/tests/selfhost_parser.rs`).
-  Next: statement and item parsing, then sema
+  arithmetic/comparison/logical expressions (`cli/tests/selfhost_parser.rs`);
+  **identifier interning** (`Intern`) and a **statement parser** (`Pernyataan`)
+  for `nilai`/`ubah`/assignment/`kembalikan` with identifier resolution via
+  interned ids, differential-tested against the bootstrap
+  (`cli/tests/selfhost_stmt.rs`). Next: control-flow statements, item/declaration
+  parsing, then name resolution and sema
 
   See `docs/SELF_HOSTING.md` for the evidence-based gap analysis.
 

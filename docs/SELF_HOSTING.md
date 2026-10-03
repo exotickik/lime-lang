@@ -63,9 +63,24 @@ identical token-kind streams (a head-to-head differential).
 Validated by `compiler/uji_parser.exo` (8 tests that parse and evaluate
 expressions, checking precedence/associativity) and `cli/tests/selfhost_parser.rs`,
 which runs that suite **and** evaluates the same expressions through the Rust
-bootstrap (`tampilkan(E)`), asserting both agree. The lexer and expression parser
-are the first real compiler components; statement/item parsing and semantic
-analysis are next.
+bootstrap (`tampilkan(E)`), asserting both agree.
+
+- `Intern.exo` — a real identifier interner: identical identifier bytes map to
+  one integer `SymbolId`, stored in a flat `daftar<bita>` with parallel
+  offset/len arrays (no owned-string-per-identifier), keyed by source byte range.
+- `Pernyataan.exo` — the statement AST (`nilai`/`ubah`/assignment/`kembalikan`/
+  expression), each carrying an expression-arena index and a `SymbolId`.
+- `Parser.exo` now also parses **identifiers** (interned into `SymbolId` nodes)
+  and **statements** into a statement arena, threading the interner and source
+  bytes through the expression parser.
+
+Validated by `compiler/uji_stmt.exo` (6 tests that parse a statement program and
+evaluate it with a `SymbolId`-indexed environment) and `cli/tests/selfhost_stmt.rs`,
+which runs that suite **and** runs the same statement bodies as a bootstrap
+function, asserting both agree on `nilai`/`ubah`/assignment, identifier
+resolution, and evaluation order. The lexer, expression/statement parser and
+interner are the first real compiler components; control-flow and item parsing,
+name resolution, and semantic analysis are next.
 
 ### What this proves Exotickik can already express
 
