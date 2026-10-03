@@ -1,0 +1,54 @@
+program UjiIntern
+
+impor Intern
+
+impor Sumber
+
+fungsi id_dari(t: &ubah Tabel, s: teks) -> angka {
+    nilai src = dari_teks(s)
+    kembalikan intern(t, ambil(src), 0, panjang(s))
+}
+
+fungsi uji_sama_byte_sama_id() -> boolean {
+    ubah t: Tabel = tabel_baru()
+    nilai a = id_dari(ambil_ubah(t), "alpha")
+    nilai b = id_dari(ambil_ubah(t), "beta")
+    nilai c = id_dari(ambil_ubah(t), "alpha")
+    kembalikan a == c && a != b
+}
+
+fungsi uji_id_berurutan() -> boolean {
+    ubah t: Tabel = tabel_baru()
+    nilai a = id_dari(ambil_ubah(t), "satu")
+    nilai b = id_dari(ambil_ubah(t), "dua")
+    nilai c = id_dari(ambil_ubah(t), "tiga")
+    kembalikan a == 0 && b == 1 && c == 2
+}
+
+fungsi uji_jumlah_simbol() -> boolean {
+    ubah t: Tabel = tabel_baru()
+    nilai a = id_dari(ambil_ubah(t), "x")
+    nilai b = id_dari(ambil_ubah(t), "y")
+    nilai c = id_dari(ambil_ubah(t), "x")
+    kembalikan jumlah_simbol(ambil(t)) == 2
+}
+
+fungsi uji_panjang_simbol() -> boolean {
+    ubah t: Tabel = tabel_baru()
+    nilai a = id_dari(ambil_ubah(t), "halo")
+    nilai b = id_dari(ambil_ubah(t), "dunia_panjang")
+    kembalikan panjang_simbol(ambil(t), a) == 4 && panjang_simbol(ambil(t), b) == 13
+}
+
+fungsi uji_pulih_byte() -> boolean {
+    ubah t: Tabel = tabel_baru()
+    nilai a = id_dari(ambil_ubah(t), "abc")
+    kembalikan byte_simbol(ambil(t), a, 0) == 97 && byte_simbol(ambil(t), a, 1) == 98 && byte_simbol(ambil(t), a, 2) == 99
+}
+
+fungsi uji_awalan_bukan_sama() -> boolean {
+    ubah t: Tabel = tabel_baru()
+    nilai a = id_dari(ambil_ubah(t), "for")
+    nilai b = id_dari(ambil_ubah(t), "fore")
+    kembalikan a != b && jumlah_simbol(ambil(t)) == 2
+}

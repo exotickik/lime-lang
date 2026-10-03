@@ -1,0 +1,54 @@
+modul Intern
+
+publik tipe Tabel {
+    byte: daftar<bita>
+    offset: daftar<angka>
+    len: daftar<angka>
+}
+
+publik fungsi tabel_baru() -> Tabel {
+    kembalikan Tabel { byte: daftar(), offset: daftar(), len: daftar() }
+}
+
+publik fungsi jumlah_simbol(t: &Tabel) -> angka {
+    kembalikan panjang(ambil(t.offset))
+}
+
+publik fungsi panjang_simbol(t: &Tabel, id: angka) -> angka {
+    kembalikan elemen(ambil(t.len), id)
+}
+
+publik fungsi byte_simbol(t: &Tabel, id: angka, i: angka) -> angka {
+    nilai p = elemen(ambil(t.offset), id)
+    kembalikan elemen(ambil(t.byte), p + i) sebagai angka
+}
+
+fungsi sama_rentang(t: &ubah Tabel, id: angka, src: &daftar<bita>, mulai: angka, akhir: angka) -> boolean {
+    nilai p = elemen(ambil(t.offset), id)
+    nilai l = elemen(ambil(t.len), id)
+    jika l != akhir - mulai {
+        kembalikan salah
+    }
+    untuk i dari 0 sampai l {
+        jika elemen(ambil(t.byte), p + i) sebagai angka != elemen(src, mulai + i) sebagai angka {
+            kembalikan salah
+        }
+    }
+    kembalikan benar
+}
+
+publik fungsi intern(t: &ubah Tabel, src: &daftar<bita>, mulai: angka, akhir: angka) -> angka {
+    nilai n = panjang(ambil(t.offset))
+    untuk id dari 0 sampai n {
+        jika sama_rentang(t, id, src, mulai, akhir) {
+            kembalikan id
+        }
+    }
+    nilai p = panjang(ambil(t.byte))
+    untuk i dari mulai sampai akhir {
+        dorong(ambil_ubah(t.byte), elemen(src, i))
+    }
+    dorong(ambil_ubah(t.offset), p)
+    dorong(ambil_ubah(t.len), akhir - mulai)
+    kembalikan n
+}
