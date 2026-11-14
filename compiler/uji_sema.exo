@@ -1,0 +1,67 @@
+program UjiSema
+
+impor Lekser
+
+impor Token
+
+impor Ast
+
+impor Pernyataan
+
+impor Item
+
+impor Parser
+
+impor Intern
+
+impor Sumber
+
+impor Sema
+
+fungsi periksa_sumber(defs: teks) -> angka {
+    nilai src = dari_teks(defs)
+    nilai toks = lekser(ambil(src))
+    ubah tabel: Tabel = tabel_baru()
+    ubah earena: daftar<Simpul> = daftar()
+    ubah sarena: daftar<Pernyataan> = daftar()
+    ubah parms: daftar<angka> = daftar()
+    ubah funcs: daftar<Fungsi> = daftar()
+    urai_item_program(ambil(toks), ambil(src), ambil_ubah(tabel), ambil_ubah(earena), ambil_ubah(sarena), ambil_ubah(parms), ambil_ubah(funcs))
+    kembalikan periksa_program(ambil(earena), ambil(sarena), ambil(funcs), ambil(parms))
+}
+
+fungsi uji_program_valid() -> boolean {
+    nilai src = "fungsi fib(n: angka) -> angka { jika n < 2 { kembalikan n } kembalikan fib(n - 1) + fib(n - 2) } fungsi mula() -> angka { ubah acc = 0 ubah i = 0 selama i < 5 { acc = acc + fib(i) i = i + 1 } kembalikan acc }"
+    kembalikan periksa_sumber(src) == 0
+}
+
+fungsi uji_variabel_tak_terdefinisi() -> boolean {
+    kembalikan periksa_sumber("fungsi f() -> angka { kembalikan x + 1 }") == 1
+}
+
+fungsi uji_tetapkan_nilai_immutabel() -> boolean {
+    kembalikan periksa_sumber("fungsi f() -> angka { nilai x = 10 x = 20 kembalikan x }") == 1
+}
+
+fungsi uji_tetapkan_belum_deklarasi() -> boolean {
+    kembalikan periksa_sumber("fungsi f() -> angka { x = 5 kembalikan 0 }") == 1
+}
+
+fungsi uji_panggil_fungsi_hilang() -> boolean {
+    kembalikan periksa_sumber("fungsi f() -> angka { kembalikan g(1, 2) }") == 1
+}
+
+fungsi uji_aritas_panggilan_salah() -> boolean {
+    kembalikan periksa_sumber("fungsi tambah(a: angka, b: angka) -> angka { kembalikan a + b } fungsi f() -> angka { kembalikan tambah(1) }") == 1
+}
+
+fungsi uji_lingkup_blok_terisolasi() -> boolean {
+    kembalikan periksa_sumber("fungsi f(cond: angka) -> angka { jika cond > 0 { nilai dalam = 42 } kembalikan dalam }") == 1
+}
+
+fungsi uji_duplikat_fungsi() -> boolean {
+    kembalikan periksa_sumber("fungsi f() -> angka { kembalikan 1 } fungsi f() -> angka { kembalikan 2 }") == 1
+}
+
+utama {
+}

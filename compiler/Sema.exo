@@ -1,0 +1,217 @@
+modul Sema
+
+impor Ast
+
+impor Pernyataan
+
+impor Item
+
+publik tipe Simbol {
+    nama: angka
+    mutabel: boolean
+    kedalaman: angka
+}
+
+publik tipe KonteksSema {
+    simbol: daftar<Simbol>
+    tinggi_simbol: angka
+    batas: daftar<angka>
+    tinggi_batas: angka
+    kedalaman: angka
+    galat: angka
+}
+
+publik fungsi konteks_baru() -> KonteksSema {
+    kembalikan KonteksSema { simbol: daftar(), tinggi_simbol: 0, batas: daftar(), tinggi_batas: 0, kedalaman: 0, galat: 0 }
+}
+
+fungsi dorong_batas(k: &ubah KonteksSema, nilai_batas: angka) {
+    nilai len_b = panjang(ambil(k.batas))
+    nilai idx_b = k.tinggi_batas
+    jika idx_b < len_b {
+        atur(ambil_ubah(k.batas), idx_b, nilai_batas)
+    } lain {
+        dorong(ambil_ubah(k.batas), nilai_batas)
+    }
+    k.tinggi_batas = idx_b + 1
+}
+
+fungsi buka_lingkup(k: &ubah KonteksSema) {
+    dorong_batas(k, k.tinggi_simbol)
+    k.kedalaman = k.kedalaman + 1
+}
+
+fungsi tutup_lingkup(k: &ubah KonteksSema) {
+    jika k.tinggi_batas == 0 {
+        kembalikan
+    }
+    k.tinggi_batas = k.tinggi_batas - 1
+    nilai target = elemen(ambil(k.batas), k.tinggi_batas)
+    k.tinggi_simbol = target
+    k.kedalaman = k.kedalaman - 1
+}
+
+fungsi cari_simbol(k: &KonteksSema, nama: angka) -> angka {
+    ubah i = k.tinggi_simbol - 1
+    selama i >= 0 {
+        jika elemen(ambil(k.simbol), i).nama == nama {
+            kembalikan i
+        }
+        i = i - 1
+    }
+    kembalikan 0 - 1
+}
+
+fungsi cari_di_lingkup_aktif(k: &KonteksSema, nama: angka) -> angka {
+    ubah i = k.tinggi_simbol - 1
+    selama i >= 0 {
+        nilai s = elemen(ambil(k.simbol), i)
+        jika s.kedalaman < k.kedalaman {
+            kembalikan 0 - 1
+        }
+        jika s.nama == nama {
+            kembalikan i
+        }
+        i = i - 1
+    }
+    kembalikan 0 - 1
+}
+
+fungsi tambah_simbol(k: &ubah KonteksSema, nama: angka, mutabel: boolean) {
+    nilai entri = Simbol { nama: nama, mutabel: mutabel, kedalaman: k.kedalaman }
+    nilai len_s = panjang(ambil(k.simbol))
+    nilai idx_s = k.tinggi_simbol
+    jika idx_s < len_s {
+        atur(ambil_ubah(k.simbol), idx_s, entri)
+    } lain {
+        dorong(ambil_ubah(k.simbol), entri)
+    }
+    k.tinggi_simbol = idx_s + 1
+}
+
+fungsi cari_fungsi(funcs: &daftar<Fungsi>, nama: angka) -> angka {
+    untuk i dari 0 sampai panjang(funcs) {
+        jika elemen(funcs, i).nama == nama {
+            kembalikan i
+        }
+    }
+    kembalikan 0 - 1
+}
+
+fungsi periksa_ekspr(k: &ubah KonteksSema, earena: &daftar<Simpul>, funcs: &daftar<Fungsi>, idx: angka) {
+    jika idx < 0 {
+        kembalikan
+    }
+    nilai s = elemen(earena, idx)
+    nilai kd = kode_simpul(s)
+    jika kd == 0 {
+        kembalikan
+    }
+    jika kd == 6 {
+        k.galat = k.galat + 1
+        kembalikan
+    }
+    jika kd == 4 {
+        nilai sym = sym_dari(s)
+        jika cari_simbol(k, sym) < 0 {
+            k.galat = k.galat + 1
+        }
+        kembalikan
+    }
+    jika kd == 1 {
+        periksa_ekspr(k, earena, funcs, s.kiri)
+        kembalikan
+    }
+    jika kd == 2 {
+        periksa_ekspr(k, earena, funcs, s.kiri)
+        periksa_ekspr(k, earena, funcs, s.kanan)
+        kembalikan
+    }
+    jika kd == 5 {
+        nilai callee = callee_dari(s)
+        nilai fidx = cari_fungsi(funcs, callee)
+        ubah argc = 0
+        ubah a = s.kiri
+        selama a >= 0 {
+            nilai an = elemen(earena, a)
+            periksa_ekspr(k, earena, funcs, an.kiri)
+            argc = argc + 1
+            a = an.kanan
+        }
+        jika fidx < 0 {
+            k.galat = k.galat + 1
+            kembalikan
+        }
+        nilai f = elemen(funcs, fidx)
+        jika argc != f.param_jumlah {
+            k.galat = k.galat + 1
+        }
+    }
+}
+
+fungsi periksa_blok(k: &ubah KonteksSema, earena: &daftar<Simpul>, sarena: &daftar<Pernyataan>, funcs: &daftar<Fungsi>, head: angka) {
+    buka_lingkup(k)
+    ubah cur = head
+    selama cur >= 0 {
+        nilai p = elemen(sarena, cur)
+        nilai kd = kode_pernyataan(p)
+        jika kd == 0 {
+            periksa_ekspr(k, earena, funcs, p.ekspr)
+            tambah_simbol(k, sym_pernyataan(p), salah)
+        } lain jika kd == 1 {
+            periksa_ekspr(k, earena, funcs, p.ekspr)
+            tambah_simbol(k, sym_pernyataan(p), benar)
+        } lain jika kd == 2 {
+            periksa_ekspr(k, earena, funcs, p.ekspr)
+            nilai sidx = cari_simbol(k, sym_pernyataan(p))
+            jika sidx < 0 {
+                k.galat = k.galat + 1
+            } lain {
+                nilai mut = elemen(ambil(k.simbol), sidx).mutabel
+                jika !mut {
+                    k.galat = k.galat + 1
+                }
+            }
+        } lain jika kd == 3 {
+            periksa_ekspr(k, earena, funcs, p.ekspr)
+        } lain jika kd == 4 {
+            periksa_ekspr(k, earena, funcs, p.ekspr)
+        } lain jika kd == 5 {
+            periksa_ekspr(k, earena, funcs, p.ekspr)
+            periksa_blok(k, earena, sarena, funcs, p.blok1)
+            jika p.blok2 >= 0 {
+                periksa_blok(k, earena, sarena, funcs, p.blok2)
+            }
+        } lain jika kd == 6 {
+            periksa_ekspr(k, earena, funcs, p.ekspr)
+            periksa_blok(k, earena, sarena, funcs, p.blok1)
+        }
+        cur = p.next
+    }
+    tutup_lingkup(k)
+}
+
+publik fungsi periksa_program(earena: &daftar<Simpul>, sarena: &daftar<Pernyataan>, funcs: &daftar<Fungsi>, parms: &daftar<angka>) -> angka {
+    ubah k = konteks_baru()
+    untuk i dari 0 sampai panjang(funcs) {
+        nilai f = elemen(funcs, i)
+        jika cari_fungsi(funcs, f.nama) != i {
+            k.galat = k.galat + 1
+        }
+    }
+    untuk i dari 0 sampai panjang(funcs) {
+        nilai f = elemen(funcs, i)
+        buka_lingkup(ambil_ubah(k))
+        untuk j dari 0 sampai f.param_jumlah {
+            nilai p = elemen(parms, f.param_mulai + j)
+            nilai dup = cari_di_lingkup_aktif(ambil(k), p)
+            jika dup >= 0 {
+                k.galat = k.galat + 1
+            }
+            tambah_simbol(ambil_ubah(k), p, salah)
+        }
+        periksa_blok(ambil_ubah(k), earena, sarena, funcs, f.body)
+        tutup_lingkup(ambil_ubah(k))
+    }
+    kembalikan k.galat
+}

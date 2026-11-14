@@ -59,10 +59,6 @@ Implemented and tested end-to-end:
 - constant folding + dead-code elimination on Exotickik IR
 - a formatter, and a `exotickik` CLI toolchain
 
-See [`docs/ROADMAP.md`](docs/ROADMAP.md) for what is done and what is planned
-(structs, generics, enums, pattern matching, ownership/borrow checking, the
-standard library, modules across files, LSP, and the package manager).
-
 ## Building
 
 Requires a Rust toolchain, plus LLVM's `llc` and a C-ABI linker (`cc`/`clang`)
