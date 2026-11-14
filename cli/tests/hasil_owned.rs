@@ -27,7 +27,7 @@ const BUAT: &str = "fungsi buat(n: angka) -> Hasil<daftar<angka>, teks> {\n\
       jika n < 0 { kembalikan gagal(\"negatif\") }\n\
       ubah d: daftar<angka> = daftar()\n\
       ubah i: angka = 0\n\
-      selama i < n { dorong(ambil_ubah(d), i) i = i + 1 }\n\
+      selama i < n { masukkan(ambil_ubah(d), i) i = i + 1 }\n\
       kembalikan sukses(d)\n\
     }\n";
 
@@ -85,7 +85,7 @@ fn owned_error_payload_drops() {
         fungsi f(ok: boolean) -> Hasil<angka, daftar<bita>> {\n\
           jika ok { kembalikan sukses(1) }\n\
           ubah p: daftar<bita> = daftar()\n\
-          dorong(ambil_ubah(p), 65 sebagai bita)\n\
+          masukkan(ambil_ubah(p), 65 sebagai bita)\n\
           kembalikan gagal(p)\n\
         }\n\
         utama { nilai a = f(benar) nilai b = f(salah) tampilkan(9) }";
@@ -100,7 +100,7 @@ fn nested_owned_payload_peta() {
         fungsi muat(ok: boolean) -> Hasil<peta<teks, angka>, teks> {\n\
           jika bukan ok { kembalikan gagal(\"x\") }\n\
           ubah m: peta<teks, angka> = peta()\n\
-          taruh(ambil_ubah(m), \"k\", 77)\n\
+          simpan(ambil_ubah(m), \"k\", 77)\n\
           kembalikan sukses(m)\n\
         }\n\
         fungsi baca(ok: boolean) -> Hasil<angka, teks> {\n\

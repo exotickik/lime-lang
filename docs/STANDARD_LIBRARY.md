@@ -123,7 +123,7 @@ own C-ABI FFI path — no separate allocator library. Growable containers
 
 ### Collections
 - `daftar()` — a new empty growable list `daftar<T>` (element type from context).
-- `dorong(ambil_ubah(d), x)` — append `x` (grows via `realloc`).
+- `masukkan(ambil_ubah(d), x)` — append `x` (grows via `realloc`).
 - `elemen(ambil(d), i) -> T` — element `i` (runtime bounds-checked).
 - `atur(ambil_ubah(d), i, x)` — overwrite element `i`.
 - `panjang(ambil(d)) -> angka` — length.
@@ -133,7 +133,7 @@ own C-ABI FFI path — no separate allocator library. Growable containers
 
 ### Maps (`peta<K, V>`)
 - `peta()` — a new empty hash map `peta<K, V>` (type from context).
-- `taruh(ambil_ubah(m), k, v)` — insert or overwrite key `k` with value `v`.
+- `simpan(ambil_ubah(m), k, v)` — insert or overwrite key `k` with value `v`.
 - `ambil_peta(ambil(m), k, cadangan) -> V` — value for `k`, or `cadangan` if absent.
 - `ada(ambil(m), k) -> boolean` — is key `k` present?
 - `panjang(ambil(m)) -> angka` — number of entries.
@@ -147,7 +147,7 @@ own C-ABI FFI path — no separate allocator library. Growable containers
 
 ### Concurrency
 - `mulai(f, n)` — run `f` (a `fungsi(angka) -> angka`) on a new OS thread with
-  argument `n`; returns a thread handle `Utas<angka>`.
+  argument `n`; returns a thread handle `Tugas<angka>`.
 - `tunggu(h)` — join the thread `h` and return its result.
 
   Real `pthread` threads; the argument is passed by value and the result comes

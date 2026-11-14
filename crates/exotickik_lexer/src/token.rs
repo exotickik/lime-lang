@@ -34,6 +34,7 @@ pub enum Keyword {
     Dan,
     Atau,
     Bukan,
+    Tidak,
     Sebagai,
 }
 
@@ -62,7 +63,7 @@ impl Keyword {
             "salah" => Salah,
             "tipe" => Tipe,
             "enum" => Enum,
-            "sifat" => Sifat,
+            "kontrak" => Sifat,
             "implementasi" => Implementasi,
             "cocok" => Cocok,
             "coba" => Coba,
@@ -73,6 +74,7 @@ impl Keyword {
             "dan" => Dan,
             "atau" => Atau,
             "bukan" => Bukan,
+            "tidak" => Tidak,
             "sebagai" => Sebagai,
             _ => return None,
         })
@@ -102,7 +104,7 @@ impl Keyword {
             Salah => "salah",
             Tipe => "tipe",
             Enum => "enum",
-            Sifat => "sifat",
+            Sifat => "kontrak",
             Implementasi => "implementasi",
             Cocok => "cocok",
             Coba => "coba",
@@ -113,6 +115,7 @@ impl Keyword {
             Dan => "dan",
             Atau => "atau",
             Bukan => "bukan",
+            Tidak => "tidak",
             Sebagai => "sebagai",
         }
     }

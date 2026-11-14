@@ -24,7 +24,7 @@ impor Turunkan
 
 impor Llvm
 
-fungsi mengandung(hay: &daftar<bita>, needle: teks) -> boolean {
+fungsi ada_subteks(hay: &daftar<bita>, needle: teks) -> boolean {
     nilai nh = panjang(hay)
     nilai nn = panjang(needle)
     jika nn == 0 {
@@ -47,7 +47,7 @@ fungsi mengandung(hay: &daftar<bita>, needle: teks) -> boolean {
     kembalikan salah
 }
 
-fungsi kompilasi(defs: teks) -> daftar<bita> {
+fungsi buat_llvm(defs: teks) -> daftar<bita> {
     nilai src = dari_teks(defs)
     nilai toks = lekser(ambil(src))
     ubah tabel: Tabel = tabel_baru()
@@ -64,23 +64,23 @@ fungsi kompilasi(defs: teks) -> daftar<bita> {
     kembalikan cetak_llvm(ambil(ir), ambil(tabel))
 }
 
-fungsi uji_emisi_fungsi_sederhana() -> boolean {
-    nilai ll = kompilasi("fungsi tambah(a: angka, b: angka) -> angka { kembalikan a + b }")
-    kembalikan mengandung(ambil(ll), "define i64 @tambah(i64 %r0, i64 %r1)") && mengandung(ambil(ll), "add i64") && mengandung(ambil(ll), "ret i64")
+fungsi uji_cetak_fungsi_sederhana() -> boolean {
+    nilai ll = buat_llvm("fungsi tambah(a: angka, b: angka) -> angka { kembalikan a + b }")
+    kembalikan ada_subteks(ambil(ll), "define i64 @tambah(i64 %r0, i64 %r1)") && ada_subteks(ambil(ll), "add i64") && ada_subteks(ambil(ll), "ret i64")
 }
 
-fungsi uji_emisi_rekursi_fib() -> boolean {
-    nilai ll = kompilasi("fungsi fib(n: angka) -> angka { jika n < 2 { kembalikan n } kembalikan fib(n - 1) + fib(n - 2) }")
-    kembalikan mengandung(ambil(ll), "define i64 @fib(i64 %r0)") && mengandung(ambil(ll), "icmp slt i64") && mengandung(ambil(ll), "br i1") && mengandung(ambil(ll), "call i64 @fib(")
+fungsi uji_cetak_rekursi_fib() -> boolean {
+    nilai ll = buat_llvm("fungsi fib(n: angka) -> angka { jika n < 2 { kembalikan n } kembalikan fib(n - 1) + fib(n - 2) }")
+    kembalikan ada_subteks(ambil(ll), "define i64 @fib(i64 %r0)") && ada_subteks(ambil(ll), "icmp slt i64") && ada_subteks(ambil(ll), "br i1") && ada_subteks(ambil(ll), "call i64 @fib(")
 }
 
-fungsi uji_emisi_loop_faktorial() -> boolean {
-    nilai ll = kompilasi("fungsi fak(n: angka) -> angka { ubah h = 1 ubah i = 1 selama i <= n { h = h * i i = i + 1 } kembalikan h }")
-    kembalikan mengandung(ambil(ll), "define i64 @fak(i64 %r0)") && mengandung(ambil(ll), "icmp sle i64") && mengandung(ambil(ll), "mul i64")
+fungsi uji_cetak_loop_faktorial() -> boolean {
+    nilai ll = buat_llvm("fungsi fak(n: angka) -> angka { ubah h = 1 ubah i = 1 selama i <= n { h = h * i i = i + 1 } kembalikan h }")
+    kembalikan ada_subteks(ambil(ll), "define i64 @fak(i64 %r0)") && ada_subteks(ambil(ll), "icmp sle i64") && ada_subteks(ambil(ll), "mul i64")
 }
 
-fungsi uji_tolak_program_galat_sema() -> boolean {
-    nilai ll = kompilasi("fungsi f() -> angka { kembalikan tidak_ada }")
+fungsi uji_tolak_galat_sema() -> boolean {
+    nilai ll = buat_llvm("fungsi f() -> angka { kembalikan tidak_ada }")
     kembalikan panjang(ambil(ll)) == 0
 }
 

@@ -161,7 +161,7 @@ fungsi eval(s: teks) -> angka {
     ubah env: daftar<angka> = daftar()
     nilai n = jumlah_simbol(ambil(tabel))
     untuk i dari 0 sampai n {
-        dorong(ambil_ubah(env), 0)
+        masukkan(ambil_ubah(env), 0)
     }
     nilai r = jalankan(ambil(earena), ambil(sarena), ambil_ubah(env), first)
     kembalikan r.hasil
@@ -192,15 +192,15 @@ fungsi uji_presedensi_dengan_variabel() -> boolean {
 }
 
 fungsi uji_jika() -> boolean {
-    kembalikan eval("ubah x = 0 jika 3 > 2 { x = 10 } lain { x = 20 } kembalikan x") == 10
+    kembalikan eval("ubah x = 0 jika 3 > 2 { x = 10 } jika tidak { x = 20 } kembalikan x") == 10
 }
 
-fungsi uji_jika_lain() -> boolean {
-    kembalikan eval("ubah x = 0 jika 1 > 2 { x = 10 } lain { x = 20 } kembalikan x") == 20
+fungsi uji_jika_tidak() -> boolean {
+    kembalikan eval("ubah x = 0 jika 1 > 2 { x = 10 } jika tidak { x = 20 } kembalikan x") == 20
 }
 
-fungsi uji_jika_lain_jika() -> boolean {
-    kembalikan eval("nilai n = 2 ubah x = 0 jika n == 1 { x = 10 } lain jika n == 2 { x = 20 } lain { x = 30 } kembalikan x") == 20
+fungsi uji_atau_jika() -> boolean {
+    kembalikan eval("nilai n = 2 ubah x = 0 jika n == 1 { x = 10 } atau jika n == 2 { x = 20 } jika tidak { x = 30 } kembalikan x") == 20
 }
 
 fungsi uji_selama() -> boolean {

@@ -10,17 +10,17 @@ tipe Penghitung {
 
 fungsi tulis_teks(buf: &ubah daftar<bita>, s: teks) {
     untuk i dari 0 sampai panjang(s) {
-        dorong(buf, bita_pada(s, i))
+        masukkan(buf, bita_pada(s, i))
     }
 }
 
 fungsi tulis_baris(buf: &ubah daftar<bita>) {
-    dorong(buf, 10 sebagai bita)
+    masukkan(buf, 10 sebagai bita)
 }
 
 fungsi tulis_angka(buf: &ubah daftar<bita>, n: angka) {
     jika n < 0 {
-        dorong(buf, 45 sebagai bita)
+        masukkan(buf, 45 sebagai bita)
         tulis_angka(buf, 0 - n)
         kembalikan
     }
@@ -28,13 +28,13 @@ fungsi tulis_angka(buf: &ubah daftar<bita>, n: angka) {
         tulis_angka(buf, n / 10)
     }
     nilai d = n % 10
-    dorong(buf, (48 + d) sebagai bita)
+    masukkan(buf, (48 + d) sebagai bita)
 }
 
 fungsi tulis_simbol(buf: &ubah daftar<bita>, tabel: &Tabel, id: angka) {
     nilai n = panjang_simbol(tabel, id)
     untuk i dari 0 sampai n {
-        dorong(buf, byte_simbol(tabel, id, i) sebagai bita)
+        masukkan(buf, byte_simbol(tabel, id, i) sebagai bita)
     }
 }
 
@@ -70,13 +70,13 @@ fungsi tulis_biner(buf: &ubah daftar<bita>, op: angka, hasil: angka, a: angka, b
         tulis_teks(buf, " = ")
         jika op == 0 {
             tulis_teks(buf, "add")
-        } lain jika op == 1 {
+        } atau jika op == 1 {
             tulis_teks(buf, "sub")
-        } lain jika op == 2 {
+        } atau jika op == 2 {
             tulis_teks(buf, "mul")
-        } lain jika op == 3 {
+        } atau jika op == 3 {
             tulis_teks(buf, "sdiv")
-        } lain {
+        } jika tidak {
             tulis_teks(buf, "srem")
         }
         tulis_teks(buf, " i64 ")
@@ -114,7 +114,7 @@ fungsi tulis_biner(buf: &ubah daftar<bita>, op: angka, hasil: angka, a: angka, b
     tulis_reg(buf, hasil)
     jika op == 11 {
         tulis_teks(buf, " = and i64 ")
-    } lain {
+    } jika tidak {
         tulis_teks(buf, " = or i64 ")
     }
     tulis_reg(buf, a)
@@ -159,23 +159,23 @@ publik fungsi cetak_llvm(ir: &ProgramIr, tabel: &Tabel) -> daftar<bita> {
                 tulis_teks(ambil_ubah(buf), ":")
                 tulis_baris(ambil_ubah(buf))
                 dalam_blok = benar
-            } lain jika dalam_blok {
+            } atau jika dalam_blok {
                 jika kd == 0 {
                     tulis_teks(ambil_ubah(buf), "  ")
                     tulis_reg(ambil_ubah(buf), ins.hasil)
                     tulis_teks(ambil_ubah(buf), " = add i64 0, ")
                     tulis_angka(ambil_ubah(buf), val)
                     tulis_baris(ambil_ubah(buf))
-                } lain jika kd == 1 {
+                } atau jika kd == 1 {
                     tulis_biner(ambil_ubah(buf), val, ins.hasil, ins.a, ins.b, ambil_ubah(ctr))
-                } lain jika kd == 2 {
+                } atau jika kd == 2 {
                     jika val == 0 {
                         tulis_teks(ambil_ubah(buf), "  ")
                         tulis_reg(ambil_ubah(buf), ins.hasil)
                         tulis_teks(ambil_ubah(buf), " = sub i64 0, ")
                         tulis_reg(ambil_ubah(buf), ins.a)
                         tulis_baris(ambil_ubah(buf))
-                    } lain {
+                    } jika tidak {
                         nilai t = ctr.urut
                         ctr.urut = t + 1
                         tulis_teks(ambil_ubah(buf), "  %c")
@@ -191,24 +191,24 @@ publik fungsi cetak_llvm(ir: &ProgramIr, tabel: &Tabel) -> daftar<bita> {
                         tulis_teks(ambil_ubah(buf), " to i64")
                         tulis_baris(ambil_ubah(buf))
                     }
-                } lain jika kd == 3 {
+                } atau jika kd == 3 {
                     tulis_teks(ambil_ubah(buf), "  ")
                     tulis_reg(ambil_ubah(buf), ins.hasil)
                     tulis_teks(ambil_ubah(buf), " = alloca i64")
                     tulis_baris(ambil_ubah(buf))
-                } lain jika kd == 4 {
+                } atau jika kd == 4 {
                     tulis_teks(ambil_ubah(buf), "  ")
                     tulis_reg(ambil_ubah(buf), ins.hasil)
                     tulis_teks(ambil_ubah(buf), " = load i64, ptr ")
                     tulis_reg(ambil_ubah(buf), ins.a)
                     tulis_baris(ambil_ubah(buf))
-                } lain jika kd == 5 {
+                } atau jika kd == 5 {
                     tulis_teks(ambil_ubah(buf), "  store i64 ")
                     tulis_reg(ambil_ubah(buf), ins.a)
                     tulis_teks(ambil_ubah(buf), ", ptr ")
                     tulis_reg(ambil_ubah(buf), ins.b)
                     tulis_baris(ambil_ubah(buf))
-                } lain jika kd == 6 {
+                } atau jika kd == 6 {
                     tulis_teks(ambil_ubah(buf), "  ")
                     tulis_reg(ambil_ubah(buf), ins.hasil)
                     tulis_teks(ambil_ubah(buf), " = call i64 @")
@@ -223,12 +223,12 @@ publik fungsi cetak_llvm(ir: &ProgramIr, tabel: &Tabel) -> daftar<bita> {
                     }
                     tulis_teks(ambil_ubah(buf), ")")
                     tulis_baris(ambil_ubah(buf))
-                } lain jika kd == 8 {
+                } atau jika kd == 8 {
                     tulis_teks(ambil_ubah(buf), "  br label %L")
                     tulis_angka(ambil_ubah(buf), val)
                     tulis_baris(ambil_ubah(buf))
                     dalam_blok = salah
-                } lain jika kd == 9 {
+                } atau jika kd == 9 {
                     nilai t = ctr.urut
                     ctr.urut = t + 1
                     tulis_teks(ambil_ubah(buf), "  %c")
@@ -245,7 +245,7 @@ publik fungsi cetak_llvm(ir: &ProgramIr, tabel: &Tabel) -> daftar<bita> {
                     tulis_angka(ambil_ubah(buf), ins.b)
                     tulis_baris(ambil_ubah(buf))
                     dalam_blok = salah
-                } lain jika kd == 10 {
+                } atau jika kd == 10 {
                     tulis_teks(ambil_ubah(buf), "  ret i64 ")
                     tulis_reg(ambil_ubah(buf), ins.a)
                     tulis_baris(ambil_ubah(buf))

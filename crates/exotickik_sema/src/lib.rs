@@ -105,7 +105,7 @@ mod tests {
     fn all_paths_return_ok() {
         let d = check(
             "program P\n\
-             fungsi f(x: angka) -> angka { jika x > 0 { kembalikan 1 } lain { kembalikan 2 } }\n\
+             fungsi f(x: angka) -> angka { jika x > 0 { kembalikan 1 } jika tidak { kembalikan 2 } }\n\
              utama { tampilkan(f(1)) }",
         );
         assert!(!d.has_errors(), "{:?}", d.diagnostics());
@@ -485,7 +485,7 @@ mod tests {
         let d = check(
             "program P\n\
              fungsi konsum(k: kotak<i64>) -> i64 { kembalikan isi(k) }\n\
-             utama { nilai b = kotak(5) nilai c = 1 jika c > 0 { tampilkan(konsum(b)) } lain { tampilkan(konsum(b)) } }",
+             utama { nilai b = kotak(5) nilai c = 1 jika c > 0 { tampilkan(konsum(b)) } jika tidak { tampilkan(konsum(b)) } }",
         );
         assert!(!d.has_errors(), "{:?}", d.diagnostics());
     }
@@ -690,7 +690,7 @@ mod tests {
 
     const TRAIT_PRELUDE: &str = "program P\n\
         tipe Persegi { sisi: angka }\n\
-        sifat Luas { fungsi luas(diri: &Diri) -> angka }\n\
+        kontrak Luas { fungsi luas(diri: &Diri) -> angka }\n\
         implementasi Luas untuk Persegi { fungsi luas(diri: &Diri) -> angka { kembalikan diri.sisi * diri.sisi } }\n";
 
     #[test]
@@ -753,7 +753,7 @@ mod tests {
     fn impl_missing_method_rejected() {
         let d = check(
             "program P\ntipe A { x: angka }\n\
-             sifat S { fungsi m(diri: &Diri) -> angka }\n\
+             kontrak S { fungsi m(diri: &Diri) -> angka }\n\
              implementasi S untuk A { }\nutama { }",
         );
         assert!(has_code(&d, codes::E_IMPL_METHOD_MISMATCH));
@@ -763,7 +763,7 @@ mod tests {
     fn impl_signature_mismatch_rejected() {
         let d = check(
             "program P\ntipe A { x: angka }\n\
-             sifat S { fungsi m(diri: &Diri) -> angka }\n\
+             kontrak S { fungsi m(diri: &Diri) -> angka }\n\
              implementasi S untuk A { fungsi m(diri: &Diri) -> teks { kembalikan \"x\" } }\nutama { }",
         );
         assert!(has_code(&d, codes::E_IMPL_METHOD_MISMATCH));
@@ -773,7 +773,7 @@ mod tests {
     fn extra_method_in_trait_impl_rejected() {
         let d = check(
             "program P\ntipe A { x: angka }\n\
-             sifat S { fungsi m(diri: &Diri) -> angka }\n\
+             kontrak S { fungsi m(diri: &Diri) -> angka }\n\
              implementasi S untuk A { \
                fungsi m(diri: &Diri) -> angka { kembalikan diri.x } \
                fungsi dua(diri: &Diri) -> angka { kembalikan diri.x } }\nutama { }",
@@ -792,7 +792,7 @@ mod tests {
     #[test]
     fn duplicate_trait_method_rejected() {
         let d = check(
-            "program P\nsifat S { fungsi m(diri: &Diri) -> angka fungsi m(diri: &Diri) -> angka }\nutama { }",
+            "program P\nkontrak S { fungsi m(diri: &Diri) -> angka fungsi m(diri: &Diri) -> angka }\nutama { }",
         );
         assert!(has_code(&d, codes::E_TRAIT_DUP_METHOD));
     }
@@ -810,8 +810,8 @@ mod tests {
     fn ambiguous_method_rejected() {
         let d = check(
             "program P\ntipe A { x: angka }\n\
-             sifat S1 { fungsi m(diri: &Diri) -> angka }\n\
-             sifat S2 { fungsi m(diri: &Diri) -> angka }\n\
+             kontrak S1 { fungsi m(diri: &Diri) -> angka }\n\
+             kontrak S2 { fungsi m(diri: &Diri) -> angka }\n\
              implementasi S1 untuk A { fungsi m(diri: &Diri) -> angka { kembalikan diri.x } }\n\
              implementasi S2 untuk A { fungsi m(diri: &Diri) -> angka { kembalikan diri.x } }\n\
              utama { nilai a = A { x: 1 } tampilkan(a.m()) }",
@@ -836,7 +836,7 @@ mod tests {
         let d = check(&format!(
             "{HASIL_BAGI}utama {{ nilai r = bagi(10, 2) \
              jika berhasil(r) {{ tampilkan(nilai_atau(r, 0)) }} \
-             lain {{ tampilkan(gagal_atau(r, \"?\")) }} }}"
+             jika tidak {{ tampilkan(gagal_atau(r, \"?\")) }} }}"
         ));
         assert!(!d.has_errors(), "{:?}", d.diagnostics());
     }
@@ -970,7 +970,7 @@ mod tests {
     fn daftar_build_and_read_ok() {
         let d = check(
             "program P\nutama { ubah d: daftar<angka> = daftar() \
-             dorong(ambil_ubah(d), 1) dorong(ambil_ubah(d), 2) \
+             masukkan(ambil_ubah(d), 1) masukkan(ambil_ubah(d), 2) \
              atur(ambil_ubah(d), 0, 9) \
              tampilkan(elemen(ambil(d), 0)) tampilkan(panjang(ambil(d))) }",
         );
@@ -986,7 +986,7 @@ mod tests {
     #[test]
     fn daftar_wrong_element_type_rejected() {
         let d = check(
-            "program P\nutama { ubah d: daftar<angka> = daftar() dorong(ambil_ubah(d), \"x\") }",
+            "program P\nutama { ubah d: daftar<angka> = daftar() masukkan(ambil_ubah(d), \"x\") }",
         );
         assert!(has_code(&d, codes::E_COLLECTION_MISUSE));
     }
@@ -1022,8 +1022,8 @@ mod tests {
     fn byte_string_building_ok() {
         let d = check(
             "program P\nutama { ubah b: daftar<bita> = daftar() \
-             dorong(ambil_ubah(b), bita_pada(\"hi\", 0)) \
-             dorong(ambil_ubah(b), (65 + 1) sebagai bita) \
+             masukkan(ambil_ubah(b), bita_pada(\"hi\", 0)) \
+             masukkan(ambil_ubah(b), (65 + 1) sebagai bita) \
              cetak_bita(ambil(b)) }",
         );
         assert!(!d.has_errors(), "{:?}", d.diagnostics());
@@ -1059,7 +1059,7 @@ mod tests {
             "program P\n\
              ekstern fungsi fopen(nama: teks, mode: teks) -> pointer\n\
              ekstern fungsi fclose(f: pointer) -> i32\n\
-             utama { nilai f = fopen(\"x\", \"r\") jika f == kosong() { } lain { nilai c = fclose(f) tampilkan(c) } }",
+             utama { nilai f = fopen(\"x\", \"r\") jika f == kosong() { } jika tidak { nilai c = fclose(f) tampilkan(c) } }",
         );
         assert!(!d.has_errors(), "{:?}", d.diagnostics());
     }
@@ -1142,7 +1142,7 @@ mod tests {
     fn peta_ok() {
         let d = check(
             "program P\nutama { ubah m: peta<teks, angka> = peta() \
-             taruh(ambil_ubah(m), \"a\", 1) \
+             simpan(ambil_ubah(m), \"a\", 1) \
              nilai v = ambil_peta(ambil(m), \"a\", 0) \
              jika ada(ambil(m), \"a\") { } tampilkan(v) tampilkan(panjang(ambil(m))) }",
         );
@@ -1152,7 +1152,7 @@ mod tests {
     #[test]
     fn peta_non_teks_key_errors() {
         let d = check(
-            "program P\nutama { ubah m: peta<angka, angka> = peta() taruh(ambil_ubah(m), 1, 2) }",
+            "program P\nutama { ubah m: peta<angka, angka> = peta() simpan(ambil_ubah(m), 1, 2) }",
         );
         assert!(has_code(&d, codes::E_COLLECTION_MISUSE));
     }

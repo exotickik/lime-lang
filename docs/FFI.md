@@ -90,7 +90,7 @@ ekstern fungsi fopen(nama: teks, mode: teks) -> pointer
 ekstern fungsi fclose(f: pointer) -> i32
 utama {
     nilai f = fopen("data.txt", "r")
-    jika f == kosong() { tampilkan("gagal") } lain { nilai _ = fclose(f) }
+    jika f == kosong() { tampilkan("gagal") } jika tidak { nilai _ = fclose(f) }
 }
 ```
 

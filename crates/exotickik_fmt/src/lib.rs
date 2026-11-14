@@ -135,7 +135,7 @@ impl Printer {
 
     fn print_trait(&mut self, t: &TraitDecl) {
         let vis = if t.public { "publik " } else { "" };
-        self.line(&format!("{}sifat {} {{", vis, t.name.name));
+        self.line(&format!("{}kontrak {} {{", vis, t.name.name));
         self.indent += 1;
         for m in &t.methods {
             let ret = match &m.ret {
@@ -272,13 +272,13 @@ impl Printer {
         self.print_stmts(&if_stmt.then_block.stmts);
         self.indent -= 1;
         for (cond, block) in &if_stmt.else_ifs {
-            self.line(&format!("}} lain jika {} {{", expr_str(cond, 0)));
+            self.line(&format!("}} atau jika {} {{", expr_str(cond, 0)));
             self.indent += 1;
             self.print_stmts(&block.stmts);
             self.indent -= 1;
         }
         if let Some(block) = &if_stmt.else_block {
-            self.line("} lain {");
+            self.line("} jika tidak {");
             self.indent += 1;
             self.print_stmts(&block.stmts);
             self.indent -= 1;

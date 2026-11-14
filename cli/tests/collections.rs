@@ -30,7 +30,7 @@ fn grow_push_get_set_len() {
     let src = "program P\nutama {\n\
         ubah d: daftar<angka> = daftar()\n\
         ubah i = 0\n\
-        selama i < 10 { dorong(ambil_ubah(d), i * i) i = i + 1 }\n\
+        selama i < 10 { masukkan(ambil_ubah(d), i * i) i = i + 1 }\n\
         tampilkan(panjang(ambil(d)))\n\
         tampilkan(elemen(ambil(d), 0))\n\
         tampilkan(elemen(ambil(d), 9))\n\
@@ -46,8 +46,8 @@ fn grow_push_get_set_len() {
 fn list_of_strings() {
     let src = "program P\nutama {\n\
         ubah d: daftar<teks> = daftar()\n\
-        dorong(ambil_ubah(d), \"halo\")\n\
-        dorong(ambil_ubah(d), \"dunia\")\n\
+        masukkan(ambil_ubah(d), \"halo\")\n\
+        masukkan(ambil_ubah(d), \"dunia\")\n\
         tampilkan(elemen(ambil(d), 0))\n\
         tampilkan(elemen(ambil(d), 1))\n\
         tampilkan(panjang(ambil(d)))\n\
@@ -59,7 +59,7 @@ fn list_of_strings() {
 #[test]
 fn out_of_bounds_aborts() {
     let src = "program P\nutama {\n\
-        ubah d: daftar<angka> = daftar() dorong(ambil_ubah(d), 1)\n\
+        ubah d: daftar<angka> = daftar() masukkan(ambil_ubah(d), 1)\n\
         tampilkan(elemen(ambil(d), 5))\n\
     }";
     let (_, code) = run_source("oob", src);
@@ -69,7 +69,7 @@ fn out_of_bounds_aborts() {
 #[test]
 fn buffer_is_freed_on_drop() {
     let src = "program P\nutama {\n\
-        ubah d: daftar<angka> = daftar() dorong(ambil_ubah(d), 1) tampilkan(panjang(ambil(d)))\n\
+        ubah d: daftar<angka> = daftar() masukkan(ambil_ubah(d), 1) tampilkan(panjang(ambil(d)))\n\
     }";
     let ir = emit_ir("free", src);
     assert_eq!(ir.matches("call void @free").count(), 1, "the heap buffer must be freed once");
@@ -85,7 +85,7 @@ fn list_in_struct_and_passed_around() {
         }\n\
         utama {\n\
             ubah d: daftar<angka> = daftar()\n\
-            dorong(ambil_ubah(d), 10) dorong(ambil_ubah(d), 20) dorong(ambil_ubah(d), 30)\n\
+            masukkan(ambil_ubah(d), 10) masukkan(ambil_ubah(d), 20) masukkan(ambil_ubah(d), 30)\n\
             tampilkan(total(ambil(d)))\n\
         }";
     let (out, _) = run_source("pass", src);

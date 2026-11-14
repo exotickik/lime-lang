@@ -127,7 +127,7 @@ publik fungsi kode_kata_kunci(src: &daftar<bita>, mulai: angka, akhir: angka) ->
     jika cocok_kata(src, mulai, akhir, "enum") {
         kembalikan 20
     }
-    jika cocok_kata(src, mulai, akhir, "sifat") {
+    jika cocok_kata(src, mulai, akhir, "kontrak") {
         kembalikan 21
     }
     jika cocok_kata(src, mulai, akhir, "implementasi") {
@@ -162,6 +162,9 @@ publik fungsi kode_kata_kunci(src: &daftar<bita>, mulai: angka, akhir: angka) ->
     }
     jika cocok_kata(src, mulai, akhir, "sebagai") {
         kembalikan 32
+    }
+    jika cocok_kata(src, mulai, akhir, "tidak") {
+        kembalikan 33
     }
     kembalikan 0 - 1
 }
@@ -369,7 +372,7 @@ publik fungsi nama_kata_kunci(kode: angka) -> teks {
         kembalikan "enum"
     }
     jika kode == 21 {
-        kembalikan "sifat"
+        kembalikan "kontrak"
     }
     jika kode == 22 {
         kembalikan "implementasi"
@@ -403,6 +406,9 @@ publik fungsi nama_kata_kunci(kode: angka) -> teks {
     }
     jika kode == 32 {
         kembalikan "sebagai"
+    }
+    jika kode == 33 {
+        kembalikan "tidak"
     }
     kembalikan "?"
 }

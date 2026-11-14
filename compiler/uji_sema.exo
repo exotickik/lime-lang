@@ -35,27 +35,27 @@ fungsi uji_program_valid() -> boolean {
     kembalikan periksa_sumber(src) == 0
 }
 
-fungsi uji_variabel_tak_terdefinisi() -> boolean {
+fungsi uji_variabel_belum_ada() -> boolean {
     kembalikan periksa_sumber("fungsi f() -> angka { kembalikan x + 1 }") == 1
 }
 
-fungsi uji_tetapkan_nilai_immutabel() -> boolean {
+fungsi uji_ubah_nilai_tetap() -> boolean {
     kembalikan periksa_sumber("fungsi f() -> angka { nilai x = 10 x = 20 kembalikan x }") == 1
 }
 
-fungsi uji_tetapkan_belum_deklarasi() -> boolean {
+fungsi uji_isi_belum_deklarasi() -> boolean {
     kembalikan periksa_sumber("fungsi f() -> angka { x = 5 kembalikan 0 }") == 1
 }
 
-fungsi uji_panggil_fungsi_hilang() -> boolean {
+fungsi uji_panggil_fungsi_tidak_ada() -> boolean {
     kembalikan periksa_sumber("fungsi f() -> angka { kembalikan g(1, 2) }") == 1
 }
 
-fungsi uji_aritas_panggilan_salah() -> boolean {
+fungsi uji_jumlah_arg_salah() -> boolean {
     kembalikan periksa_sumber("fungsi tambah(a: angka, b: angka) -> angka { kembalikan a + b } fungsi f() -> angka { kembalikan tambah(1) }") == 1
 }
 
-fungsi uji_lingkup_blok_terisolasi() -> boolean {
+fungsi uji_batas_blok() -> boolean {
     kembalikan periksa_sumber("fungsi f(cond: angka) -> angka { jika cond > 0 { nilai dalam = 42 } kembalikan dalam }") == 1
 }
 

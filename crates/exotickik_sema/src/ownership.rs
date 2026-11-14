@@ -122,7 +122,7 @@ impl<'a> Own<'a> {
                 self.diags.emit(
                     Diagnostic::error(
                         codes::E_REF_IN_FFI,
-                        "reference Exotickik tidak boleh melewati batas FFI",
+                        "referensi Exotickik tidak boleh melewati batas FFI",
                     )
                     .primary(p.span, "parameter ekstern bertipe reference"),
                 );
@@ -130,7 +130,7 @@ impl<'a> Own<'a> {
                 self.diags.emit(
                     Diagnostic::error(
                         codes::E_OWNED_IN_FFI,
-                        format!("tipe milik '{}' tidak boleh melewati batas FFI", ty.display()),
+                        format!("tipe dengan kepemilikan '{}' tidak boleh melewati batas FFI", ty.display()),
                     )
                     .primary(p.span, "parameter ekstern bertipe milik"),
                 );
@@ -140,7 +140,7 @@ impl<'a> Own<'a> {
             self.diags.emit(
                 Diagnostic::error(
                     codes::E_REF_IN_FFI,
-                    "fungsi ekstern tidak boleh mengembalikan reference",
+                    "fungsi ekstern tidak boleh mengembalikan referensi",
                 )
                 .primary(e.span, "nilai kembalian ekstern bertipe reference"),
             );
@@ -148,7 +148,7 @@ impl<'a> Own<'a> {
             self.diags.emit(
                 Diagnostic::error(
                     codes::E_OWNED_IN_FFI,
-                    "fungsi ekstern tidak boleh mengembalikan tipe milik",
+                    "fungsi ekstern tidak boleh mengembalikan tipe dengan kepemilikan",
                 )
                 .primary(e.span, "nilai kembalian ekstern bertipe milik"),
             );
@@ -256,10 +256,10 @@ impl<'a> Own<'a> {
                         self.diags.emit(
                             Diagnostic::error(
                                 codes::E_REF_ESCAPE,
-                                "reference tidak boleh dikembalikan dari fungsi",
+                                "referensi tidak boleh dikembalikan dari fungsi",
                             )
                             .primary(e.span, "reference ini bisa menggantung")
-                            .help("kembalikan nilainya, bukan reference-nya"),
+                            .help("kembalikan nilainya, bukan referensinya"),
                         );
                     }
                     self.visit(e, true);
@@ -318,8 +318,8 @@ impl<'a> Own<'a> {
                             "nilai hanya dipindahkan di sebagian cabang",
                         )
                         .primary(span, "dipindahkan di lengan ini")
-                        .secondary(m.span, "lengan lain tidak memindahkannya")
-                        .help("pindahkan nilai di semua lengan atau tidak sama sekali"),
+                        .secondary(m.span, "cabang lain tidak memindahkannya")
+                        .help("pindahkan nilai di semua cabang atau tidak sama sekali"),
                     );
                 }
             }
@@ -538,7 +538,7 @@ impl<'a> Own<'a> {
                 self.diags.emit(
                     Diagnostic::error(
                         codes::E_OWNED_IN_FFI,
-                        format!("nilai bertipe milik '{}' tidak boleh melewati batas FFI", at.display()),
+                        format!("nilai bertipe dengan kepemilikan '{}' tidak boleh melewati batas FFI", at.display()),
                     )
                     .primary(a.span, "argumen ekstern bertipe milik"),
                 );
@@ -547,7 +547,7 @@ impl<'a> Own<'a> {
                 self.diags.emit(
                     Diagnostic::error(
                         codes::E_REF_IN_FFI,
-                        "reference Exotickik tidak boleh melewati batas FFI",
+                        "referensi Exotickik tidak boleh melewati batas FFI",
                     )
                     .primary(a.span, "argumen ekstern bertipe reference"),
                 );
@@ -569,7 +569,7 @@ impl<'a> Own<'a> {
             self.diags.emit(
                 Diagnostic::error(
                     codes::E_USE_AFTER_MOVE,
-                    "nilai ini sudah dipindahkan, tidak bisa diambil reference-nya",
+                    "nilai ini sudah dipindahkan, tidak bisa diambil referensinya",
                 )
                 .primary(target.span, "reference diambil di sini")
                 .secondary(prev, "dipindahkan di sini"),
@@ -585,7 +585,7 @@ impl<'a> Own<'a> {
                 Diagnostic::error(
                     codes::E_BORROW_CONFLICT,
                     if mutable {
-                        "nilai ini masih dipakai reference lain, tidak bisa diambil reference mutable"
+                        "nilai ini masih dipakai referensi lain, tidak bisa diambil referensi '&ubah'"
                     } else {
                         "nilai ini sudah dipakai reference mutable"
                     },
@@ -612,10 +612,10 @@ impl<'a> Own<'a> {
             self.diags.emit(
                 Diagnostic::error(
                     codes::E_REF_ESCAPE,
-                    format!("reference tidak boleh disimpan di {}", context),
+                    format!("referensi tidak boleh disimpan di {}", context),
                 )
                 .primary(e.span, "reference bisa hidup lebih lama dari nilainya")
-                .help("simpan nilainya, bukan reference-nya"),
+                .help("simpan nilainya, bukan referensinya"),
             );
         }
     }

@@ -3,17 +3,17 @@ modul Teks
 publik fungsi tambah_teks(buf: &ubah daftar<bita>, s: teks) {
     ubah i = 0
     selama i < panjang(s) {
-        dorong(buf, bita_pada(s, i))
+        masukkan(buf, bita_pada(s, i))
         i = i + 1
     }
 }
 
 publik fungsi tambah_bita(buf: &ubah daftar<bita>, b: bita) {
-    dorong(buf, b)
+    masukkan(buf, b)
 }
 
 publik fungsi baris_baru(buf: &ubah daftar<bita>) {
-    dorong(buf, 10 sebagai bita)
+    masukkan(buf, 10 sebagai bita)
 }
 
 publik fungsi sama_teks(buf: &daftar<bita>, s: teks) -> boolean {
@@ -73,7 +73,7 @@ publik fungsi potong(buf: &daftar<bita>, mulai: angka, akhir: angka) -> daftar<b
     ubah keluar: daftar<bita> = daftar()
     ubah i = mulai
     selama i < akhir {
-        dorong(ambil_ubah(keluar), elemen(buf, i))
+        masukkan(ambil_ubah(keluar), elemen(buf, i))
         i = i + 1
     }
     kembalikan keluar
@@ -81,23 +81,23 @@ publik fungsi potong(buf: &daftar<bita>, mulai: angka, akhir: angka) -> daftar<b
 
 publik fungsi tambah_angka(buf: &ubah daftar<bita>, n: angka) {
     jika n == 0 {
-        dorong(buf, 48 sebagai bita)
+        masukkan(buf, 48 sebagai bita)
         kembalikan
     }
     ubah m = n
     jika m < 0 {
-        dorong(buf, 45 sebagai bita)
+        masukkan(buf, 45 sebagai bita)
         m = 0 - m
     }
     ubah digit: daftar<bita> = daftar()
     selama m > 0 {
         nilai d = m % 10
-        dorong(ambil_ubah(digit), (48 + d) sebagai bita)
+        masukkan(ambil_ubah(digit), (48 + d) sebagai bita)
         m = m / 10
     }
     ubah j = panjang(ambil(digit)) - 1
     selama j >= 0 {
-        dorong(buf, elemen(ambil(digit), j))
+        masukkan(buf, elemen(ambil(digit), j))
         j = j - 1
     }
 }

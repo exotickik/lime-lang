@@ -35,7 +35,7 @@ fn emit_ir(tag: &str, src: &str) -> String {
 const SHAPES: &str = "program Bentuk\n\
     tipe Persegi { sisi: angka }\n\
     tipe Lingkaran { jari: angka }\n\
-    sifat Luas { fungsi luas(diri: &Diri) -> angka }\n\
+    kontrak Luas { fungsi luas(diri: &Diri) -> angka }\n\
     implementasi Luas untuk Persegi { fungsi luas(diri: &Diri) -> angka { kembalikan diri.sisi * diri.sisi } }\n\
     implementasi Luas untuk Lingkaran { fungsi luas(diri: &Diri) -> angka { kembalikan 3 * diri.jari * diri.jari } }\n";
 
@@ -129,7 +129,7 @@ fn method_not_found_is_error() {
 #[test]
 fn incomplete_impl_is_error() {
     let src = "program A\ntipe A { x: angka }\n\
-        sifat S { fungsi m(diri: &Diri) -> angka }\n\
+        kontrak S { fungsi m(diri: &Diri) -> angka }\n\
         implementasi S untuk A { }\nutama { }";
     let (code, err) = check_stderr("incomplete", src);
     assert_eq!(code, 1);

@@ -52,7 +52,7 @@ pub enum Type {
     Kotak(Box<Type>),
     Ref { inner: Box<Type>, mutable: bool },
     Hasil { ok: Box<Type>, err: Box<Type> },
-    Utas(Box<Type>),
+    Tugas(Box<Type>),
     Daftar(Box<Type>),
     Peta { key: Box<Type>, val: Box<Type> },
     Fn { params: Vec<Type>, ret: Box<Type> },
@@ -154,7 +154,7 @@ impl Type {
                 }
             }
             Type::Hasil { ok, err } => format!("Hasil<{}, {}>", ok.display(), err.display()),
-            Type::Utas(r) => format!("Utas<{}>", r.display()),
+            Type::Tugas(r) => format!("Tugas<{}>", r.display()),
             Type::Daftar(t) => format!("daftar<{}>", t.display()),
             Type::Peta { key, val } => format!("peta<{}, {}>", key.display(), val.display()),
             Type::Param(name) => name.clone(),

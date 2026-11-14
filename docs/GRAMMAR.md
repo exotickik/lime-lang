@@ -19,7 +19,7 @@ item           = function
                | use_decl
                | import_decl ;
 
-trait          = [ "publik" ] "sifat" Ident "{" { method_sig } "}" ;
+trait          = [ "publik" ] "kontrak" Ident "{" { method_sig } "}" ;
 method_sig     = "fungsi" Ident "(" [ param_list ] ")" [ "->" type ] ;   (* no body *)
 
 impl_block     = "implementasi" [ Ident "untuk" ] Ident "{" { function } "}" ;
@@ -107,7 +107,7 @@ literal        = IntLit | FloatLit | StringLit | CharLit | "benar" | "salah" ;
 
 ## Notes on disambiguation
 - `jika ... { }` — the parser requires a block, so there is no dangling-else
-  ambiguity; `lain jika` chains are parsed iteratively.
+  ambiguity; `atau jika` chains are parsed iteratively.
 - `assign_or_expr_stmt` first parses a full expression; if a `=` follows, the
   parsed expression must be an *l-value* (a bare identifier, a field or index
   access, or a dereference `*r`), otherwise `E0301 (target penugasan tidak
@@ -121,13 +121,13 @@ literal        = IntLit | FloatLit | StringLit | CharLit | "benar" | "salah" ;
   `call_suffix`). The checker treats a call whose callee is `base.name` as a
   method call, resolving `name` against the implementations for the type of
   `base` and passing `base` as the receiver.
-- `Diri` is a contextual type name (not a keyword) usable only inside a `sifat`
+- `Diri` is a contextual type name (not a keyword) usable only inside a `kontrak`
   or `implementasi`, standing for the implementing type; `&Diri` / `&ubah Diri`
   / `Diri` choose the receiver's borrow mode.
 - `Hasil<T, R>` is the built-in result type (an `Applied` type). `sukses`,
   `gagal`, `berhasil`, `nilai_atau`, and `gagal_atau` are reserved builtins used
   with ordinary call syntax; `coba e` is the propagation operator.
-- `daftar`, `dorong`, `elemen`, `atur`, `bita_pada`, `cetak_bita`, `baca_file`,
+- `daftar`, `masukkan`, `elemen`, `atur`, `bita_pada`, `cetak_bita`, `baca_file`,
   and `tulis_file` are reserved builtins called with ordinary call syntax;
   `baca_file`/`tulis_file` do whole-file I/O over `daftar<bita>` buffers.
 - Statement boundaries are determined structurally; a leading `-` on a new line

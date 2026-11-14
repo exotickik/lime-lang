@@ -71,7 +71,7 @@ fn kw_code(k: Keyword) -> i64 {
         Hingga => 13, Pada => 14, Berhenti => 15, Lanjut => 16, Benar => 17, Salah => 18,
         Tipe => 19, Enum => 20, Sifat => 21, Implementasi => 22, Cocok => 23, Coba => 24,
         Gunakan => 25, Impor => 26, Ekstern => 27, Publik => 28, Dan => 29, Atau => 30,
-        Bukan => 31, Sebagai => 32,
+        Bukan => 31, Sebagai => 32, Tidak => 33,
     }
 }
 

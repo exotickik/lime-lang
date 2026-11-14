@@ -12,7 +12,7 @@ utama {
     tampilkan(x)
     jika x >= 40 {
         tampilkan("besar")
-    } lain {
+    } jika tidak {
         tampilkan("kecil")
     }
 }

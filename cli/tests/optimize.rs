@@ -25,7 +25,7 @@ fn run_level(path: &PathBuf, level: &str) -> String {
 const SRC: &str = "program Opt\n\
     utama {\n\
         nilai a = 2 + 3 * 4\n\
-        jika benar { tampilkan(a) } lain { tampilkan(0) }\n\
+        jika benar { tampilkan(a) } jika tidak { tampilkan(0) }\n\
     }\n";
 
 #[test]

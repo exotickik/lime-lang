@@ -381,7 +381,7 @@ impl<'a> Checker<'a> {
                     self.diags.emit(
                         Diagnostic::error(
                             codes::E_REDEFINITION,
-                            format!("sifat '{}' didefinisikan lebih dari sekali", t.name.name),
+                            format!("kontrak '{}' didefinisikan lebih dari sekali", t.name.name),
                         )
                         .primary(t.name.span, "definisi ulang di sini"),
                     );
@@ -395,7 +395,7 @@ impl<'a> Checker<'a> {
                         self.diags.emit(
                             Diagnostic::error(
                                 codes::E_TRAIT_DUP_METHOD,
-                                format!("metode '{}' ditulis dua kali di sifat '{}'", m.name.name, t.name.name),
+                                format!("metode '{}' ditulis dua kali di kontrak '{}'", m.name.name, t.name.name),
                             )
                             .primary(m.name.span, "metode ganda"),
                         );
@@ -429,9 +429,9 @@ impl<'a> Checker<'a> {
                     self.diags.emit(
                         Diagnostic::error(
                             codes::E_UNKNOWN_TRAIT_OR_TYPE,
-                            format!("sifat '{}' tidak dikenal", tn.name),
+                            format!("kontrak '{}' tidak dikenal", tn.name),
                         )
-                        .primary(tn.span, "bukan sifat yang dikenal"),
+                        .primary(tn.span, "bukan kontrak yang dikenal"),
                     );
                     continue;
                 }
@@ -533,7 +533,7 @@ impl<'a> Checker<'a> {
                         codes::E_IMPL_METHOD_MISMATCH,
                         format!("implementasi '{}' belum punya metode '{}'", ti.name, tm.name),
                     )
-                    .primary(b.span, "metode dari sifat belum diisi"),
+                    .primary(b.span, "metode dari kontrak belum diisi"),
                 );
                 continue;
             };
@@ -546,9 +546,9 @@ impl<'a> Checker<'a> {
                 self.diags.emit(
                     Diagnostic::error(
                         codes::E_IMPL_METHOD_MISMATCH,
-                        format!("tanda tangan metode '{}' tidak cocok dengan sifat '{}'", tm.name, ti.name),
+                        format!("tanda tangan metode '{}' tidak cocok dengan kontrak '{}'", tm.name, ti.name),
                     )
-                    .primary(sig.def_span, "tanda tangan berbeda dari sifat"),
+                    .primary(sig.def_span, "tanda tangan berbeda dari kontrak"),
                 );
             }
         }
@@ -557,9 +557,9 @@ impl<'a> Checker<'a> {
                 self.diags.emit(
                     Diagnostic::error(
                         codes::E_IMPL_METHOD_MISMATCH,
-                        format!("metode '{}' bukan bagian dari sifat '{}'", name, ti.name),
+                        format!("metode '{}' bukan bagian dari kontrak '{}'", name, ti.name),
                     )
-                    .primary(b.span, "metode ini tidak ada di sifat"),
+                    .primary(b.span, "metode ini tidak ada di kontrak"),
                 );
             }
         }
@@ -596,7 +596,7 @@ impl<'a> Checker<'a> {
             self.diags.emit(
                 Diagnostic::error(
                     codes::E_METHOD_AMBIGUOUS,
-                    format!("metode '{}' ada di lebih dari satu sifat untuk tipe ini", field.name),
+                    format!("metode '{}' ada di lebih dari satu kontrak untuk tipe ini", field.name),
                 )
                 .primary(field.span, "metode ambigu"),
             );
@@ -612,7 +612,7 @@ impl<'a> Checker<'a> {
                 self.diags.emit(
                     Diagnostic::error(
                         codes::E_METHOD_NOT_FOUND,
-                        format!("metode '{}' tidak punya penerima 'diri'", field.name),
+                        format!("metode '{}' tidak punya parameter 'diri'", field.name),
                     )
                     .primary(field.span, "metode tanpa penerima"),
                 );
@@ -651,9 +651,9 @@ impl<'a> Checker<'a> {
                 self.diags.emit(
                     Diagnostic::error(
                         codes::E_BORROW_IMMUTABLE,
-                        format!("metode '{}' butuh penerima yang bisa diubah ('&ubah Diri')", field.name),
+                        format!("metode '{}' butuh parameter '&ubah diri'", field.name),
                     )
-                    .primary(base.span, "penerima ini tidak bisa diubah")
+                    .primary(base.span, "parameter 'diri' ini tidak bisa diubah")
                     .help("deklarasikan penerima dengan 'ubah'"),
                 );
             }
@@ -716,7 +716,7 @@ impl<'a> Checker<'a> {
         self.globals.insert("mulai".to_string(), Res::Builtin(Builtin::Mulai));
         self.globals.insert("tunggu".to_string(), Res::Builtin(Builtin::Tunggu));
         self.globals.insert("daftar".to_string(), Res::Builtin(Builtin::DaftarBaru));
-        self.globals.insert("dorong".to_string(), Res::Builtin(Builtin::Dorong));
+        self.globals.insert("masukkan".to_string(), Res::Builtin(Builtin::Dorong));
         self.globals.insert("elemen".to_string(), Res::Builtin(Builtin::Pada));
         self.globals.insert("atur".to_string(), Res::Builtin(Builtin::Atur));
         self.globals.insert("bita_pada".to_string(), Res::Builtin(Builtin::BitaPada));
@@ -725,7 +725,7 @@ impl<'a> Checker<'a> {
         self.globals.insert("tulis_file".to_string(), Res::Builtin(Builtin::TulisFile));
         self.globals.insert("kosong".to_string(), Res::Builtin(Builtin::Kosong));
         self.globals.insert("peta".to_string(), Res::Builtin(Builtin::PetaBaru));
-        self.globals.insert("taruh".to_string(), Res::Builtin(Builtin::Taruh));
+        self.globals.insert("simpan".to_string(), Res::Builtin(Builtin::Taruh));
         self.globals.insert("ambil_peta".to_string(), Res::Builtin(Builtin::AmbilPeta));
         self.globals.insert("ada".to_string(), Res::Builtin(Builtin::Ada));
     }
@@ -812,7 +812,7 @@ impl<'a> Checker<'a> {
             if let Some(_prev) = terminated {
                 self.diags.emit(
                     Diagnostic::warning(codes::W_UNREACHABLE, "kode ini tidak akan dieksekusi")
-                        .primary(stmt_span(stmt), "tidak terjangkau"),
+                        .primary(stmt_span(stmt), "kode ini tidak pernah dijalankan"),
                 );
                 terminated = None;
             }
@@ -1034,7 +1034,7 @@ impl<'a> Checker<'a> {
             self.diags.emit(
                 Diagnostic::error(
                     codes::E_UNKNOWN_VARIANT,
-                    format!("varian '{}' tidak membawa data untuk diikat", arm.variant.name),
+                    format!("varian '{}' tidak memiliki data", arm.variant.name),
                 )
                 .primary(arm.variant.span, "varian tanpa payload"),
             );
@@ -1052,7 +1052,7 @@ impl<'a> Checker<'a> {
                         arm.bindings.len()
                     ),
                 )
-                .primary(arm.span, "jumlah pengikat tidak cocok"),
+                .primary(arm.span, "jumlah variabel pola tidak cocok"),
             );
         }
         self.enter_scope();
@@ -1074,7 +1074,7 @@ impl<'a> Checker<'a> {
         self.check_block(&if_stmt.then_block);
         for (cond, block) in &if_stmt.else_ifs {
             let t = self.check_expr(cond, Some(&Type::Bool));
-            self.expect_bool(&t, cond.span, "kondisi 'lain jika'");
+            self.expect_bool(&t, cond.span, "kondisi 'atau jika'");
             self.check_block(block);
         }
         if let Some(block) = &if_stmt.else_block {
@@ -1209,7 +1209,7 @@ impl<'a> Checker<'a> {
                             codes::E_UNDEFINED_NAME,
                             format!("nama '{}' belum didefinisikan", name),
                         )
-                        .primary(expr.span, "tidak ditemukan pada scope ini"),
+                        .primary(expr.span, "tidak ditemukan di lingkup ini"),
                     );
                     Type::Error
                 }
@@ -2006,7 +2006,7 @@ impl<'a> Checker<'a> {
             }
             Builtin::Dorong => {
                 if args.len() != 2 {
-                    self.collection_error(call.span, "'dorong' butuh 2 argumen (&ubah daftar, nilai)");
+                    self.collection_error(call.span, "'masukkan' butuh 2 argumen (&ubah daftar, nilai)");
                     for a in args {
                         self.check_expr(a, None);
                     }
@@ -2029,7 +2029,7 @@ impl<'a> Checker<'a> {
                         if !dt.is_error() {
                             self.collection_error(
                                 args[0].span,
-                                "'dorong' butuh '&ubah daftar<T>' pada argumen pertama",
+                                "'masukkan' butuh '&ubah daftar<T>' pada argumen pertama",
                             );
                         }
                     }
@@ -2134,7 +2134,7 @@ impl<'a> Checker<'a> {
             }
             Builtin::Taruh => {
                 if args.len() != 3 {
-                    self.collection_error(call.span, "'taruh' butuh 3 argumen (&ubah peta, kunci, nilai)");
+                    self.collection_error(call.span, "'simpan' butuh 3 argumen (&ubah peta, kunci, nilai)");
                     for a in args {
                         self.check_expr(a, None);
                     }
@@ -2164,7 +2164,7 @@ impl<'a> Checker<'a> {
                         if !mt.is_error() {
                             self.collection_error(
                                 args[0].span,
-                                "'taruh' butuh '&ubah peta<K, V>' pada argumen pertama",
+                                "'simpan' butuh '&ubah peta<K, V>' pada argumen pertama",
                             );
                         }
                     }
@@ -2252,7 +2252,7 @@ impl<'a> Checker<'a> {
             for a in args {
                 self.check_expr(a, None);
             }
-            return Type::Utas(Box::new(Type::I64));
+            return Type::Tugas(Box::new(Type::I64));
         }
         let ft = self.check_expr(&args[0], None);
         let at = self.check_expr(&args[1], Some(&Type::I64));
@@ -2277,7 +2277,7 @@ impl<'a> Checker<'a> {
                 .primary(args[1].span, "bukan angka"),
             );
         }
-        Type::Utas(Box::new(Type::I64))
+        Type::Tugas(Box::new(Type::I64))
     }
 
     fn check_tunggu(&mut self, call: &Expr, args: &[Expr]) -> Type {
@@ -2296,13 +2296,13 @@ impl<'a> Checker<'a> {
         }
         let ht = self.check_expr(&args[0], None);
         match ht {
-            Type::Utas(r) => *r,
+            Type::Tugas(r) => *r,
             Type::Error => Type::Error,
             other => {
                 self.diags.emit(
                     Diagnostic::error(
                         codes::E_THREAD_MISUSE,
-                        format!("'tunggu' butuh 'Utas<R>', bukan '{}'", other.display()),
+                        format!("'tunggu' butuh 'Tugas<R>', bukan '{}'", other.display()),
                     )
                     .primary(args[0].span, "bukan utas"),
                 );
@@ -2437,9 +2437,9 @@ impl<'a> Checker<'a> {
                     self.diags.emit(
                         Diagnostic::error(
                             codes::E_UNKNOWN_TRAIT_OR_TYPE,
-                            format!("sifat '{}' tidak dikenal", bound.name),
+                            format!("kontrak '{}' tidak dikenal", bound.name),
                         )
-                        .primary(bound.span, "bukan sifat yang dikenal"),
+                        .primary(bound.span, "bukan kontrak yang dikenal"),
                     );
                     bound_failed = true;
                 } else if !self.type_implements(concrete, &bound.name) {
@@ -2447,12 +2447,12 @@ impl<'a> Checker<'a> {
                         Diagnostic::error(
                             codes::E_BOUND_NOT_SATISFIED,
                             format!(
-                                "tipe '{}' tidak mengimplementasi sifat '{}'",
+                                "tipe '{}' tidak mengimplementasi kontrak '{}'",
                                 concrete.display(),
                                 bound.name
                             ),
                         )
-                        .primary(call.span, "batas sifat tidak terpenuhi")
+                        .primary(call.span, "batas kontrak tidak terpenuhi")
                         .secondary(tp.name.span, "diminta di sini"),
                     );
                     bound_failed = true;
@@ -2542,8 +2542,8 @@ impl<'a> Checker<'a> {
                     err: Box::new(self.resolve_type_generic(&args[1], type_params)),
                 }
             }
-            TypeExprKind::Applied { name, args } if name == "Utas" && args.len() == 1 => {
-                Type::Utas(Box::new(self.resolve_type_generic(&args[0], type_params)))
+            TypeExprKind::Applied { name, args } if name == "Tugas" && args.len() == 1 => {
+                Type::Tugas(Box::new(self.resolve_type_generic(&args[0], type_params)))
             }
             TypeExprKind::Applied { name, args } if name == "daftar" && args.len() == 1 => {
                 Type::Daftar(Box::new(self.resolve_type_generic(&args[0], type_params)))
@@ -3343,9 +3343,9 @@ impl<'a> Checker<'a> {
                             self.diags.emit(
                                 Diagnostic::error(
                                     codes::E_UNKNOWN_TYPE,
-                                    "'Diri' hanya bisa dipakai di dalam 'sifat' atau 'implementasi'",
+                                    "'Diri' hanya bisa dipakai di dalam 'kontrak' atau 'implementasi'",
                                 )
-                                .primary(ty.span, "di luar konteks sifat/implementasi"),
+                                .primary(ty.span, "di luar konteks kontrak/implementasi"),
                             );
                             Type::Error
                         }
@@ -3407,9 +3407,9 @@ impl<'a> Checker<'a> {
                     let err = self.resolve_type(&args[1]);
                     return Type::Hasil { ok: Box::new(ok), err: Box::new(err) };
                 }
-                if name == "Utas" && args.len() == 1 {
+                if name == "Tugas" && args.len() == 1 {
                     let r = self.resolve_type(&args[0]);
-                    return Type::Utas(Box::new(r));
+                    return Type::Tugas(Box::new(r));
                 }
                 if name == "daftar" && args.len() == 1 {
                     let t = self.resolve_type(&args[0]);
@@ -3501,7 +3501,7 @@ impl<'a> Checker<'a> {
                 .variants
                 .iter()
                 .all(|v| v.payload.iter().all(|t| self.is_copy(t))),
-            Type::Utas(_) => true,
+            Type::Tugas(_) => true,
             Type::Daftar(_) => false,
             Type::Peta { .. } => false,
             Type::Param(_) => true,
@@ -3597,7 +3597,7 @@ fn is_builtin_name(name: &str) -> bool {
             | "mulai"
             | "tunggu"
             | "daftar"
-            | "dorong"
+            | "masukkan"
             | "elemen"
             | "atur"
             | "bita_pada"
@@ -3606,7 +3606,7 @@ fn is_builtin_name(name: &str) -> bool {
             | "tulis_file"
             | "kosong"
             | "peta"
-            | "taruh"
+            | "simpan"
             | "ambil_peta"
             | "ada"
     )
@@ -3656,8 +3656,8 @@ fn unify(pat: &Type, actual: &Type, subst: &mut HashMap<String, Type>) -> bool {
                 false
             }
         }
-        Type::Utas(r) => {
-            if let Type::Utas(r2) = actual {
+        Type::Tugas(r) => {
+            if let Type::Tugas(r2) = actual {
                 unify(r, r2, subst)
             } else {
                 false
@@ -3697,7 +3697,7 @@ fn subst_type(ty: &Type, subst: &HashMap<String, Type>) -> Type {
             ok: Box::new(subst_type(ok, subst)),
             err: Box::new(subst_type(err, subst)),
         },
-        Type::Utas(r) => Type::Utas(Box::new(subst_type(r, subst))),
+        Type::Tugas(r) => Type::Tugas(Box::new(subst_type(r, subst))),
         Type::Daftar(t) => Type::Daftar(Box::new(subst_type(t, subst))),
         Type::Peta { key, val } => Type::Peta {
             key: Box::new(subst_type(key, subst)),

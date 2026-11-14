@@ -34,10 +34,10 @@ fungsi jalankan(kode: &daftar<Instruksi>) -> angka {
 
 utama {
     ubah kode: daftar<Instruksi> = daftar()
-    dorong(ambil_ubah(kode), Instruksi.Muat(12))
-    dorong(ambil_ubah(kode), Instruksi.Tambah(34))
-    dorong(ambil_ubah(kode), Instruksi.Kali(5))
-    dorong(ambil_ubah(kode), Instruksi.Kurang(30))
-    dorong(ambil_ubah(kode), Instruksi.Negasi)
+    masukkan(ambil_ubah(kode), Instruksi.Muat(12))
+    masukkan(ambil_ubah(kode), Instruksi.Tambah(34))
+    masukkan(ambil_ubah(kode), Instruksi.Kali(5))
+    masukkan(ambil_ubah(kode), Instruksi.Kurang(30))
+    masukkan(ambil_ubah(kode), Instruksi.Negasi)
     tampilkan(jalankan(ambil(kode)))
 }

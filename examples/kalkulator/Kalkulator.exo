@@ -55,10 +55,10 @@ fungsi lex(sumber: teks) -> daftar<Token> {
                 v = v * 10 + (bita_pada(sumber, i) sebagai angka - 48)
                 i = i + 1
             }
-            dorong(ambil_ubah(keluar), Token { jenis: Jenis.Angka, muatan: v })
+            masukkan(ambil_ubah(keluar), Token { jenis: Jenis.Angka, muatan: v })
             lanjut
         }
-        dorong(ambil_ubah(keluar), Token { jenis: jenis_operator(b), muatan: 0 })
+        masukkan(ambil_ubah(keluar), Token { jenis: jenis_operator(b), muatan: 0 })
         i = i + 1
     }
     kembalikan keluar

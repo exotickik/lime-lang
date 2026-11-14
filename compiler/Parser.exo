@@ -93,17 +93,17 @@ fungsi prec(op: angka) -> angka {
 
 fungsi tambah(arena: &ubah daftar<Simpul>, s: Simpul) -> angka {
     nilai idx = panjang(arena)
-    dorong(arena, s)
+    masukkan(arena, s)
     kembalikan idx
 }
 
-fungsi set_kanan(arena: &ubah daftar<Simpul>, idx: angka, kanan: angka) {
+fungsi atur_kanan(arena: &ubah daftar<Simpul>, idx: angka, kanan: angka) {
     nilai s = elemen(arena, idx)
     atur(arena, idx, Simpul { jenis: s.jenis, kiri: s.kiri, kanan: kanan, rentang: s.rentang })
 }
 
-fungsi urai_postfix(toks: &daftar<Token>, src: &daftar<bita>, tabel: &ubah Tabel, arena: &ubah daftar<Simpul>, pos: angka) -> Langkah {
-    nilai atom = urai_primary(toks, src, tabel, arena, pos)
+fungsi urai_akhiran(toks: &daftar<Token>, src: &daftar<bita>, tabel: &ubah Tabel, arena: &ubah daftar<Simpul>, pos: angka) -> Langkah {
+    nilai atom = urai_dasar(toks, src, tabel, arena, pos)
     ubah idx = atom.idx
     ubah p = atom.pos
     selama kode_jenis(jenis_di(toks, p)) == 6 {
@@ -116,8 +116,8 @@ fungsi urai_postfix(toks: &daftar<Token>, src: &daftar<bita>, tabel: &ubah Tabel
             nilai argnode = tambah(arena, simpul(JenisSimpul.Arg, a.idx, 0 - 1, r.mulai, r.akhir))
             jika first_arg < 0 {
                 first_arg = argnode
-            } lain {
-                set_kanan(arena, prev_arg, argnode)
+            } jika tidak {
+                atur_kanan(arena, prev_arg, argnode)
             }
             prev_arg = argnode
             p = a.pos
@@ -135,7 +135,7 @@ fungsi urai_postfix(toks: &daftar<Token>, src: &daftar<bita>, tabel: &ubah Tabel
     kembalikan Langkah { idx: idx, pos: p }
 }
 
-fungsi urai_primary(toks: &daftar<Token>, src: &daftar<bita>, tabel: &ubah Tabel, arena: &ubah daftar<Simpul>, pos: angka) -> Langkah {
+fungsi urai_dasar(toks: &daftar<Token>, src: &daftar<bita>, tabel: &ubah Tabel, arena: &ubah daftar<Simpul>, pos: angka) -> Langkah {
     nilai j = jenis_di(toks, pos)
     nilai k = kode_jenis(j)
     jika k == 2 {
@@ -184,7 +184,7 @@ fungsi urai_uner(toks: &daftar<Token>, src: &daftar<bita>, tabel: &ubah Tabel, a
         nilai idx = tambah(arena, simpul(JenisSimpul.Uner(1), operan.idx, 0 - 1, r.mulai, r.akhir))
         kembalikan Langkah { idx: idx, pos: operan.pos }
     }
-    kembalikan urai_postfix(toks, src, tabel, arena, pos)
+    kembalikan urai_akhiran(toks, src, tabel, arena, pos)
 }
 
 fungsi urai_biner(toks: &daftar<Token>, src: &daftar<bita>, tabel: &ubah Tabel, arena: &ubah daftar<Simpul>, pos: angka, min_prec: angka) -> Langkah {
@@ -215,11 +215,11 @@ publik fungsi urai_ekspresi(toks: &daftar<Token>, src: &daftar<bita>, tabel: &ub
 
 fungsi tambah_p(sarena: &ubah daftar<Pernyataan>, p: Pernyataan) -> angka {
     nilai idx = panjang(sarena)
-    dorong(sarena, p)
+    masukkan(sarena, p)
     kembalikan idx
 }
 
-fungsi set_next(sarena: &ubah daftar<Pernyataan>, idx: angka, next: angka) {
+fungsi atur_berikutnya(sarena: &ubah daftar<Pernyataan>, idx: angka, next: angka) {
     nilai p = elemen(sarena, idx)
     atur(sarena, idx, Pernyataan { jenis: p.jenis, ekspr: p.ekspr, blok1: p.blok1, blok2: p.blok2, next: next })
 }
@@ -248,8 +248,8 @@ fungsi urai_seq(toks: &daftar<Token>, src: &daftar<bita>, tabel: &ubah Tabel, ea
         }
         jika first < 0 {
             first = st.idx
-        } lain {
-            set_next(sarena, prev, st.idx)
+        } jika tidak {
+            atur_berikutnya(sarena, prev, st.idx)
         }
         prev = st.idx
         p = st.pos
@@ -269,7 +269,7 @@ fungsi urai_pernyataan(toks: &daftar<Token>, src: &daftar<bita>, tabel: &ubah Ta
             ubah idx = 0
             jika kw == 5 {
                 idx = tambah_p(sarena, pernyataan(JenisPernyataan.Nilai(sym), e.idx))
-            } lain {
+            } jika tidak {
                 idx = tambah_p(sarena, pernyataan(JenisPernyataan.Ubah(sym), e.idx))
             }
             kembalikan Langkah { idx: idx, pos: e.pos }
@@ -284,14 +284,13 @@ fungsi urai_pernyataan(toks: &daftar<Token>, src: &daftar<bita>, tabel: &ubah Ta
             nilai b1 = urai_blok(toks, src, tabel, earena, sarena, c.pos)
             ubah b2 = 0 - 1
             ubah akhir = b1.pos
-            jika kode_jenis(jenis_di(toks, b1.pos)) == 1 && kata_kunci_dari(jenis_di(toks, b1.pos)) == 8 {
-                nilai setelah = b1.pos + 1
-                jika kode_jenis(jenis_di(toks, setelah)) == 1 && kata_kunci_dari(jenis_di(toks, setelah)) == 7 {
-                    nilai lain_if = urai_pernyataan(toks, src, tabel, earena, sarena, setelah)
-                    b2 = lain_if.idx
-                    akhir = lain_if.pos
-                } lain {
-                    nilai b2blk = urai_blok(toks, src, tabel, earena, sarena, setelah)
+            jika kode_jenis(jenis_di(toks, b1.pos)) == 1 && kata_kunci_dari(jenis_di(toks, b1.pos)) == 30 && kode_jenis(jenis_di(toks, b1.pos + 1)) == 1 && kata_kunci_dari(jenis_di(toks, b1.pos + 1)) == 7 {
+                nilai lain_if = urai_pernyataan(toks, src, tabel, earena, sarena, b1.pos + 1)
+                b2 = lain_if.idx
+                akhir = lain_if.pos
+            } jika tidak {
+                jika kode_jenis(jenis_di(toks, b1.pos)) == 1 && kata_kunci_dari(jenis_di(toks, b1.pos)) == 7 && kode_jenis(jenis_di(toks, b1.pos + 1)) == 1 && kata_kunci_dari(jenis_di(toks, b1.pos + 1)) == 33 {
+                    nilai b2blk = urai_blok(toks, src, tabel, earena, sarena, b1.pos + 2)
                     b2 = b2blk.idx
                     akhir = b2blk.pos
                 }
@@ -382,7 +381,7 @@ fungsi urai_fungsi(toks: &daftar<Token>, src: &daftar<bita>, tabel: &ubah Tabel,
     selama kode_jenis(jenis_di(toks, p)) != 7 && kode_jenis(jenis_di(toks, p)) != 34 {
         nilai pr = elemen(toks, p).rentang
         nilai psym = intern(tabel, src, pr.mulai, pr.akhir)
-        dorong(parms, psym)
+        masukkan(parms, psym)
         param_jumlah = param_jumlah + 1
         p = p + 1
         jika kode_jenis(jenis_di(toks, p)) == 13 {
@@ -401,7 +400,7 @@ fungsi urai_fungsi(toks: &daftar<Token>, src: &daftar<bita>, tabel: &ubah Tabel,
         p = urai_tipe(toks, p)
     }
     nilai b = urai_blok(toks, src, tabel, earena, sarena, p)
-    dorong(funcs, fungsi_baru(nama, param_mulai, param_jumlah, b.idx))
+    masukkan(funcs, fungsi_baru(nama, param_mulai, param_jumlah, b.idx))
     kembalikan b.pos
 }
 

@@ -52,7 +52,7 @@ fn cross_module_struct_and_trait() {
         "Geometri.exo",
         "modul Geometri\n\
          publik tipe Titik { x: angka, y: angka }\n\
-         publik sifat Ukur { fungsi ukur(diri: &Diri) -> angka }\n\
+         publik kontrak Ukur { fungsi ukur(diri: &Diri) -> angka }\n\
          implementasi Ukur untuk Titik { fungsi ukur(diri: &Diri) -> angka { kembalikan diri.x + diri.y } }\n",
     );
     let entry = (

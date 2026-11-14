@@ -4,7 +4,7 @@ publik tipe Persegi {
     sisi: angka
 }
 
-publik sifat Luas {
+publik kontrak Luas {
     fungsi luas(diri: &Diri) -> angka
 }
 

@@ -46,7 +46,7 @@ fungsi hitung(earena: &daftar<Simpul>, sarena: &daftar<Pernyataan>, funcs: &daft
         ubah a = s.kiri
         selama a >= 0 {
             nilai an = elemen(earena, a)
-            dorong(ambil_ubah(argvals), hitung(earena, sarena, funcs, parms, nsym, env, an.kiri))
+            masukkan(ambil_ubah(argvals), hitung(earena, sarena, funcs, parms, nsym, env, an.kiri))
             a = an.kanan
         }
         jika fidx < 0 {
@@ -181,7 +181,7 @@ fungsi panggil(earena: &daftar<Simpul>, sarena: &daftar<Pernyataan>, funcs: &daf
     nilai f = elemen(funcs, fidx)
     ubah env: daftar<angka> = daftar()
     untuk i dari 0 sampai nsym {
-        dorong(ambil_ubah(env), 0)
+        masukkan(ambil_ubah(env), 0)
     }
     untuk i dari 0 sampai f.param_jumlah {
         nilai psym = elemen(parms, f.param_mulai + i)

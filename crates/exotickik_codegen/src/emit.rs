@@ -548,7 +548,7 @@ fn ty_str(ty: &Type) -> String {
         Type::Kotak(_) => "ptr".to_string(),
         Type::Ref { .. } => "ptr".to_string(),
         Type::Hasil { ok, err } => format!("{{ i32, {}, {} }}", ty_str(ok), ty_str(err)),
-        Type::Utas(_) => "i64".to_string(),
+        Type::Tugas(_) => "i64".to_string(),
         Type::Daftar(_) => "{ ptr, i64, i64 }".to_string(),
         Type::Peta { .. } => "{ ptr, ptr, i64, i64 }".to_string(),
         Type::Param(_) => "void".to_string(),

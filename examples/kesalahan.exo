@@ -25,7 +25,7 @@ fungsi lapor(nama: teks, r: Hasil<angka, teks>) {
     tampilkan(nama)
     jika berhasil(r) {
         tampilkan(nilai_atau(r, 0))
-    } lain {
+    } jika tidak {
         tampilkan(gagal_atau(r, "kesalahan tak dikenal"))
     }
 }

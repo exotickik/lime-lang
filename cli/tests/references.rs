@@ -168,8 +168,8 @@ fn mut_ref_usable_where_shared_expected() {
     let src = "program R\n\
         fungsi baca(xs: &daftar<angka>, i: angka) -> angka { kembalikan elemen(xs, i) }\n\
         fungsi kerja(xs: &ubah daftar<angka>) -> angka {\n\
-          dorong(xs, 10)\n\
-          dorong(xs, 20)\n\
+          masukkan(xs, 10)\n\
+          masukkan(xs, 20)\n\
           kembalikan baca(xs, 1)\n\
         }\n\
         utama { ubah a: daftar<angka> = daftar() tampilkan(kerja(ambil_ubah(a))) }";

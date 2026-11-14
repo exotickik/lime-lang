@@ -1,4 +1,4 @@
-program Utas
+program Tugas
 
 fungsi jumlah_kuadrat(n: angka) -> angka {
     ubah total = 0

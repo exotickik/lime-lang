@@ -11,7 +11,7 @@ fungsi kinds(s: teks) -> daftar<angka> {
     nilai toks = lekser(ambil(src))
     ubah k: daftar<angka> = daftar()
     untuk i dari 0 sampai panjang(ambil(toks)) {
-        dorong(ambil_ubah(k), kode_jenis(elemen(ambil(toks), i).jenis))
+        masukkan(ambil_ubah(k), kode_jenis(elemen(ambil(toks), i).jenis))
     }
     kembalikan k
 }

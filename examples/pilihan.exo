@@ -29,9 +29,9 @@ fungsi ambil_atau(o: Pilihan<angka>, bawaan: angka) -> angka {
 
 utama {
     ubah data: daftar<angka> = daftar()
-    dorong(ambil_ubah(data), 11)
-    dorong(ambil_ubah(data), 22)
-    dorong(ambil_ubah(data), 33)
+    masukkan(ambil_ubah(data), 11)
+    masukkan(ambil_ubah(data), 22)
+    masukkan(ambil_ubah(data), 33)
     tampilkan(ambil_atau(cari(ambil(data), 22), 0 - 1))
     tampilkan(ambil_atau(cari(ambil(data), 99), 0 - 1))
     nilai kabar: Pilihan<boolean> = Pilihan.Ada(benar)

@@ -8,7 +8,7 @@ tipe Lingkaran {
     jari: angka
 }
 
-sifat Bentuk {
+kontrak Bentuk {
     fungsi luas(diri: &Diri) -> angka
     fungsi keliling(diri: &Diri) -> angka
 }

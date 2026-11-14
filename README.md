@@ -54,7 +54,7 @@ Implemented and tested end-to-end:
 - immutable/mutable bindings (`nilai` / `ubah`) with type inference
 - functions, recursion, explicit parameter and return types
 - arithmetic, comparison, and short-circuit logical operators
-- `jika` / `lain jika` / `lain`, `selama`, `untuk … dari … sampai/hingga …`
+- `jika` / `atau jika` / `lain`, `selama`, `untuk … dari … sampai/hingga …`
 - rich diagnostics (source spans, error codes, snippets, carets, help notes)
 - constant folding + dead-code elimination on Exotickik IR
 - a formatter, and a `exotickik` CLI toolchain

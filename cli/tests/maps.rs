@@ -28,11 +28,11 @@ fn put_get_overwrite_len() {
     let src = "program P\n\
         utama {\n\
           ubah m: peta<teks, angka> = peta()\n\
-          taruh(ambil_ubah(m), \"satu\", 1)\n\
-          taruh(ambil_ubah(m), \"dua\", 2)\n\
+          simpan(ambil_ubah(m), \"satu\", 1)\n\
+          simpan(ambil_ubah(m), \"dua\", 2)\n\
           tampilkan(ambil_peta(ambil(m), \"satu\", 0))\n\
           tampilkan(ambil_peta(ambil(m), \"dua\", 0))\n\
-          taruh(ambil_ubah(m), \"satu\", 11)\n\
+          simpan(ambil_ubah(m), \"satu\", 11)\n\
           tampilkan(ambil_peta(ambil(m), \"satu\", 0))\n\
           tampilkan(panjang(ambil(m)))\n\
         }";
@@ -46,7 +46,7 @@ fn absent_returns_default() {
     let src = "program P\n\
         utama {\n\
           ubah m: peta<teks, angka> = peta()\n\
-          taruh(ambil_ubah(m), \"ada\", 7)\n\
+          simpan(ambil_ubah(m), \"ada\", 7)\n\
           tampilkan(ambil_peta(ambil(m), \"hilang\", 0 - 9))\n\
         }";
     let (out, _) = run_source("absent", src);
@@ -58,9 +58,9 @@ fn ada_contains() {
     let src = "program P\n\
         utama {\n\
           ubah m: peta<teks, angka> = peta()\n\
-          taruh(ambil_ubah(m), \"k\", 1)\n\
-          jika ada(ambil(m), \"k\") { tampilkan(1) } lain { tampilkan(0) }\n\
-          jika ada(ambil(m), \"z\") { tampilkan(1) } lain { tampilkan(0) }\n\
+          simpan(ambil_ubah(m), \"k\", 1)\n\
+          jika ada(ambil(m), \"k\") { tampilkan(1) } jika tidak { tampilkan(0) }\n\
+          jika ada(ambil(m), \"z\") { tampilkan(1) } jika tidak { tampilkan(0) }\n\
         }";
     let (out, _) = run_source("ada", src);
     assert_eq!(out, "1\n0\n");
@@ -72,7 +72,7 @@ fn empty_map_is_safe() {
         utama {\n\
           ubah m: peta<teks, angka> = peta()\n\
           tampilkan(ambil_peta(ambil(m), \"x\", 42))\n\
-          jika ada(ambil(m), \"x\") { tampilkan(1) } lain { tampilkan(0) }\n\
+          jika ada(ambil(m), \"x\") { tampilkan(1) } jika tidak { tampilkan(0) }\n\
           tampilkan(panjang(ambil(m)))\n\
         }";
     let (out, code) = run_source("empty", src);
@@ -85,16 +85,16 @@ fn growth_preserves_all_entries() {
     let src = "program P\n\
         utama {\n\
           ubah m: peta<teks, angka> = peta()\n\
-          taruh(ambil_ubah(m), \"a\", 1)\n\
-          taruh(ambil_ubah(m), \"b\", 2)\n\
-          taruh(ambil_ubah(m), \"c\", 3)\n\
-          taruh(ambil_ubah(m), \"d\", 4)\n\
-          taruh(ambil_ubah(m), \"e\", 5)\n\
-          taruh(ambil_ubah(m), \"f\", 6)\n\
-          taruh(ambil_ubah(m), \"g\", 7)\n\
-          taruh(ambil_ubah(m), \"h\", 8)\n\
-          taruh(ambil_ubah(m), \"i\", 9)\n\
-          taruh(ambil_ubah(m), \"j\", 10)\n\
+          simpan(ambil_ubah(m), \"a\", 1)\n\
+          simpan(ambil_ubah(m), \"b\", 2)\n\
+          simpan(ambil_ubah(m), \"c\", 3)\n\
+          simpan(ambil_ubah(m), \"d\", 4)\n\
+          simpan(ambil_ubah(m), \"e\", 5)\n\
+          simpan(ambil_ubah(m), \"f\", 6)\n\
+          simpan(ambil_ubah(m), \"g\", 7)\n\
+          simpan(ambil_ubah(m), \"h\", 8)\n\
+          simpan(ambil_ubah(m), \"i\", 9)\n\
+          simpan(ambil_ubah(m), \"j\", 10)\n\
           tampilkan(panjang(ambil(m)))\n\
           tampilkan(ambil_peta(ambil(m), \"a\", 0))\n\
           tampilkan(ambil_peta(ambil(m), \"f\", 0))\n\
@@ -111,7 +111,7 @@ fn passed_by_reference() {
         fungsi cari(m: &peta<teks, angka>, k: teks) -> angka { kembalikan ambil_peta(m, k, 0 - 1) }\n\
         utama {\n\
           ubah m: peta<teks, angka> = peta()\n\
-          taruh(ambil_ubah(m), \"umur\", 25)\n\
+          simpan(ambil_ubah(m), \"umur\", 25)\n\
           tampilkan(cari(ambil(m), \"umur\"))\n\
           tampilkan(cari(ambil(m), \"nil\"))\n\
         }";
@@ -122,7 +122,7 @@ fn passed_by_reference() {
 #[test]
 fn non_teks_key_is_error() {
     let src = "program P\n\
-        utama { ubah m: peta<angka, angka> = peta() taruh(ambil_ubah(m), 1, 2) }";
+        utama { ubah m: peta<angka, angka> = peta() simpan(ambil_ubah(m), 1, 2) }";
     let (err, code) = check_source("badkey", src);
     assert_eq!(code, 1);
     assert!(err.contains("kunci 'teks'"), "{err}");

@@ -46,9 +46,9 @@ publik fungsi intern(t: &ubah Tabel, src: &daftar<bita>, mulai: angka, akhir: an
     }
     nilai p = panjang(ambil(t.byte))
     untuk i dari mulai sampai akhir {
-        dorong(ambil_ubah(t.byte), elemen(src, i))
+        masukkan(ambil_ubah(t.byte), elemen(src, i))
     }
-    dorong(ambil_ubah(t.offset), p)
-    dorong(ambil_ubah(t.len), akhir - mulai)
+    masukkan(ambil_ubah(t.offset), p)
+    masukkan(ambil_ubah(t.len), akhir - mulai)
     kembalikan n
 }

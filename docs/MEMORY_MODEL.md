@@ -172,7 +172,7 @@ later extension, rejected with a diagnostic today rather than mishandled.
 
 `daftar<T>` is the growable collection: an Owned value laid out as
 `{ data: *T, len, cap }` that owns a heap buffer. It is built with `daftar()`,
-grown with `dorong` (which `realloc`s, doubling capacity), read with `elemen`
+grown with `masukkan` (which `realloc`s, doubling capacity), read with `elemen`
 and `panjang`, and written with `atur`; indices are runtime bounds-checked. Being
 Owned, it moves rather than copies and is dropped deterministically — its drop
 frees the buffer with `free`, so there is one `free` per list and no leak. For

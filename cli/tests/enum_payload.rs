@@ -88,10 +88,10 @@ fn payload_enum_in_daftar() {
         }\n\
         utama {\n\
           ubah ts: daftar<Token> = daftar()\n\
-          dorong(ambil_ubah(ts), Token.Angka(10))\n\
-          dorong(ambil_ubah(ts), Token.Operator(43 sebagai char))\n\
-          dorong(ambil_ubah(ts), Token.Angka(32))\n\
-          dorong(ambil_ubah(ts), Token.Akhir)\n\
+          masukkan(ambil_ubah(ts), Token.Angka(10))\n\
+          masukkan(ambil_ubah(ts), Token.Operator(43 sebagai char))\n\
+          masukkan(ambil_ubah(ts), Token.Angka(32))\n\
+          masukkan(ambil_ubah(ts), Token.Akhir)\n\
           tampilkan(total(ambil(ts)))\n\
         }";
     let (out, code) = run_source("daftar", src);
@@ -243,7 +243,7 @@ fn owned_daftar_payload_works() {
         }\n\
         utama {\n\
           ubah xs: daftar<angka> = daftar()\n\
-          dorong(ambil_ubah(xs), 5) dorong(ambil_ubah(xs), 15) dorong(ambil_ubah(xs), 25)\n\
+          masukkan(ambil_ubah(xs), 5) masukkan(ambil_ubah(xs), 15) masukkan(ambil_ubah(xs), 25)\n\
           tampilkan(jumlah(Simpul.Daftar(xs)))\n\
           tampilkan(jumlah(Simpul.Kosong))\n\
         }";
@@ -283,7 +283,7 @@ fn nested_owned_enum_payload() {
         }\n\
         utama {\n\
           ubah d: daftar<angka> = daftar()\n\
-          dorong(ambil_ubah(d), 3) dorong(ambil_ubah(d), 6) dorong(ambil_ubah(d), 9)\n\
+          masukkan(ambil_ubah(d), 3) masukkan(ambil_ubah(d), 6) masukkan(ambil_ubah(d), 9)\n\
           tampilkan(hitung(Luar.Bungkus(Dalam.Isi(d))))\n\
           tampilkan(hitung(Luar.Bungkus(Dalam.Nol)))\n\
           tampilkan(hitung(Luar.Habis))\n\
@@ -299,7 +299,7 @@ fn owned_enum_dropped_unmatched() {
         enum N { List(daftar<angka>), Kosong }\n\
         utama {\n\
           ubah d: daftar<angka> = daftar()\n\
-          dorong(ambil_ubah(d), 1) dorong(ambil_ubah(d), 2)\n\
+          masukkan(ambil_ubah(d), 1) masukkan(ambil_ubah(d), 2)\n\
           nilai tak_dipakai = N.List(d)\n\
           tampilkan(0)\n\
         }";
@@ -314,7 +314,7 @@ fn owned_payload_use_after_move_rejected() {
         enum N { List(daftar<angka>), Kosong }\n\
         utama {\n\
           ubah d: daftar<angka> = daftar()\n\
-          dorong(ambil_ubah(d), 1)\n\
+          masukkan(ambil_ubah(d), 1)\n\
           nilai a = N.List(d)\n\
           nilai b = a\n\
           cocok a { List(x) => { tampilkan(panjang(ambil(x))) } Kosong => {} }\n\

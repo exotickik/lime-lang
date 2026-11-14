@@ -28,8 +28,8 @@ fungsi tambah_slot(kt: &ubah KonteksTurun, nama: angka, reg: angka) {
     nilai idx = kt.tinggi
     jika idx < len_s {
         atur(ambil_ubah(kt.slot), idx, entri)
-    } lain {
-        dorong(ambil_ubah(kt.slot), entri)
+    } jika tidak {
+        masukkan(ambil_ubah(kt.slot), entri)
     }
     kt.tinggi = idx + 1
 }
@@ -84,13 +84,13 @@ fungsi turunkan_ekspr(ir: &ubah ProgramIr, kt: &ubah KonteksTurun, earena: &daft
         selama a >= 0 {
             nilai an = elemen(earena, a)
             nilai rv = turunkan_ekspr(ir, kt, earena, an.kiri)
-            dorong(ambil_ubah(regs), rv)
+            masukkan(ambil_ubah(regs), rv)
             a = an.kanan
         }
         nilai mulai = panjang(ambil(ir.arg))
         nilai jumlah = panjang(ambil(regs))
         untuk i dari 0 sampai jumlah {
-            dorong(ambil_ubah(ir.arg), elemen(ambil(regs), i))
+            masukkan(ambil_ubah(ir.arg), elemen(ambil(regs), i))
         }
         nilai r = reg_baru(ir)
         tambah_inst(ir, JenisIr.Panggil(callee_dari(s)), r, mulai, jumlah)
@@ -113,16 +113,16 @@ fungsi turunkan_blok(ir: &ubah ProgramIr, kt: &ubah KonteksTurun, earena: &dafta
             tambah_inst(ir, JenisIr.Alok, slot, 0, 0)
             tambah_inst(ir, JenisIr.Simpan, 0, v, slot)
             tambah_slot(kt, sym_pernyataan(p), slot)
-        } lain jika kd == 2 {
+        } atau jika kd == 2 {
             nilai v = turunkan_ekspr(ir, kt, earena, p.ekspr)
             nilai slot = cari_slot(kt, sym_pernyataan(p))
             tambah_inst(ir, JenisIr.Simpan, 0, v, slot)
-        } lain jika kd == 3 {
+        } atau jika kd == 3 {
             nilai v = turunkan_ekspr(ir, kt, earena, p.ekspr)
             tambah_inst(ir, JenisIr.Kembalikan, 0, v, 0)
-        } lain jika kd == 4 {
+        } atau jika kd == 4 {
             turunkan_ekspr(ir, kt, earena, p.ekspr)
-        } lain jika kd == 5 {
+        } atau jika kd == 5 {
             nilai c = turunkan_ekspr(ir, kt, earena, p.ekspr)
             nilai lt = label_baru(ir)
             nilai lf = label_baru(ir)
@@ -137,7 +137,7 @@ fungsi turunkan_blok(ir: &ubah ProgramIr, kt: &ubah KonteksTurun, earena: &dafta
             }
             tambah_inst(ir, JenisIr.Lompat(le), 0, 0, 0)
             tambah_inst(ir, JenisIr.Label(le), 0, 0, 0)
-        } lain jika kd == 6 {
+        } atau jika kd == 6 {
             nilai lc = label_baru(ir)
             nilai lb = label_baru(ir)
             nilai le = label_baru(ir)
@@ -173,7 +173,7 @@ publik fungsi turunkan_program(earena: &daftar<Simpul>, sarena: &daftar<Pernyata
         tambah_inst(ambil_ubah(ir), JenisIr.Konst(0), r0, 0, 0)
         tambah_inst(ambil_ubah(ir), JenisIr.Kembalikan, 0, r0, 0)
         nilai inst_akhir = panjang(ambil(ir.inst))
-        dorong(ambil_ubah(ir.daftar_fungsi), IrFungsi { nama: f.nama, param_mulai: f.param_mulai, param_jumlah: f.param_jumlah, inst_mulai: inst_mulai, inst_akhir: inst_akhir })
+        masukkan(ambil_ubah(ir.daftar_fungsi), IrFungsi { nama: f.nama, param_mulai: f.param_mulai, param_jumlah: f.param_jumlah, inst_mulai: inst_mulai, inst_akhir: inst_akhir })
     }
     kembalikan ir
 }

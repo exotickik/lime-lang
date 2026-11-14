@@ -38,7 +38,7 @@ utama {
         nilai ir = turunkan_program(ambil(earena), ambil(sarena), ambil(funcs), ambil(parms))
         nilai ll = cetak_llvm(ambil(ir), ambil(tabel))
         tampilkan(panjang(ambil(ll)))
-    } lain {
+    } jika tidak {
         tampilkan(galat)
     }
 }

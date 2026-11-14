@@ -575,20 +575,20 @@ impl<'a> Parser<'a> {
         let mut else_ifs = Vec::new();
         let mut else_block = None;
         let mut end = then_block.span;
-        while self.is_kw(Keyword::Lain) {
+        while self.is_kw(Keyword::Atau) && matches!(self.peek2(), TokenKind::Keyword(Keyword::Jika)) {
             self.bump();
-            if self.is_kw(Keyword::Jika) {
-                self.bump();
-                let c = self.parse_cond_expr()?;
-                let b = self.parse_block()?;
-                end = b.span;
-                else_ifs.push((c, b));
-            } else {
-                let b = self.parse_block()?;
-                end = b.span;
-                else_block = Some(b);
-                break;
-            }
+            self.bump();
+            let c = self.parse_cond_expr()?;
+            let b = self.parse_block()?;
+            end = b.span;
+            else_ifs.push((c, b));
+        }
+        if self.is_kw(Keyword::Jika) && matches!(self.peek2(), TokenKind::Keyword(Keyword::Tidak)) {
+            self.bump();
+            self.bump();
+            let b = self.parse_block()?;
+            end = b.span;
+            else_block = Some(b);
         }
         Ok(IfStmt { cond, then_block, else_ifs, else_block, span: start.to(end) })
     }
@@ -1138,7 +1138,7 @@ mod tests {
     #[test]
     fn if_else_if_else_chain() {
         let (p, d) = parse_src(
-            "program P\nutama { jika benar { } lain jika salah { } lain { } }",
+            "program P\nutama { jika benar { } atau jika salah { } jika tidak { } }",
         );
         assert!(!d.has_errors(), "{:?}", d.diagnostics());
         let Item::Main(m) = &p.items[0] else { panic!() };

@@ -65,7 +65,7 @@ fn reverse_a_string_via_byte_buffer() {
         nilai s = \"halo\"\n\
         ubah buf: daftar<bita> = daftar()\n\
         ubah i = panjang(s) - 1\n\
-        selama i >= 0 { dorong(ambil_ubah(buf), bita_pada(s, i)) i = i - 1 }\n\
+        selama i >= 0 { masukkan(ambil_ubah(buf), bita_pada(s, i)) i = i - 1 }\n\
         baris_baru(ambil_ubah(buf))\n\
         cetak_bita(ambil(buf))\n\
     }";

@@ -20,7 +20,7 @@ Type =
   | Kotak(Type)                                   // owned heap cell kotak<T>
   | Ref { inner: Type, mutable: bool }            // reference &T / &ubah T (native pointer)
   | Hasil { ok: Type, err: Type }                 // recoverable result Hasil<T, R>
-  | Utas(Type)                                    // OS-thread handle Utas<R>
+  | Tugas(Type)                                    // OS-thread handle Tugas<R>
   | Daftar(Type)                                  // growable list daftar<T>
   | Peta { key: Type, val: Type }                 // hash map peta<K, V>
   | Fn { params: [Type], ret: Type }              // function value type fungsi(A)->R
@@ -213,13 +213,13 @@ supported.
 
 ## Traits
 
-A **trait** (`sifat`) is a named set of method signatures; an **implementation**
+A **trait** (`kontrak`) is a named set of method signatures; an **implementation**
 (`implementasi`) provides those methods for a concrete type. Dispatch is fully
 **static** — every method call resolves at compile time to an ordinary function,
 so traits add no runtime representation and no vtables.
 
 ```exotickik
-sifat Luas {
+kontrak Luas {
     fungsi luas(diri: &Diri) -> angka
 }
 implementasi Luas untuk Persegi {
@@ -227,7 +227,7 @@ implementasi Luas untuk Persegi {
 }
 ```
 
-- **Self type.** `Diri` inside a `sifat`/`implementasi` denotes the implementing
+- **Self type.** `Diri` inside a `kontrak`/`implementasi` denotes the implementing
   type. The first parameter's form picks the receiver mode: `&Diri` (shared
   borrow), `&ubah Diri` (mutable borrow), or `Diri` (by value).
 - **Method calls.** `x.m(a)` resolves `m` among the implementations for the type
@@ -240,7 +240,7 @@ implementasi Luas untuk Persegi {
   matching signatures (`Diri` substituted by the target type); a missing,
   extra, or mis-typed method is `E02A1`. Implementing the same trait twice for a
   type is `E02A5`; an unknown trait or target type is `E02A6`; a duplicated
-  method name inside a `sifat` is `E02A0`. `implementasi Tipe { ... }` (no
+  method name inside a `kontrak` is `E02A0`. `implementasi Tipe { ... }` (no
   trait) adds inherent methods.
 - **Bounds.** A type parameter may carry trait bounds: `fungsi f<T: Luas>(x: &T)`.
   At each call the inferred concrete type must implement every bound (`E02A4`);
@@ -288,13 +288,13 @@ method bodies, associated types/constants, and blanket or generic impls.
 | E0296 | nilai diubah padahal masih dipakai reference |
 | E0297 | reference keluar dari scope nilainya (kembalian/struct/larik) |
 | E0298 | reference melewati batas FFI |
-| E02A0 | metode ditulis dua kali di dalam sifat |
-| E02A1 | implementasi tidak cocok dengan sifat (metode kurang/lebih/beda tipe) |
+| E02A0 | metode ditulis dua kali di dalam kontrak |
+| E02A1 | implementasi tidak cocok dengan kontrak (metode kurang/lebih/beda tipe) |
 | E02A2 | metode tidak ditemukan untuk tipe penerima |
-| E02A3 | metode ambigu (didefinisikan lebih dari satu sifat) |
-| E02A4 | tipe tidak memenuhi batas sifat |
-| E02A5 | implementasi ganda sebuah sifat untuk satu tipe |
-| E02A6 | sifat atau tipe target tidak dikenal |
+| E02A3 | metode ambigu (didefinisikan lebih dari satu kontrak) |
+| E02A4 | tipe tidak memenuhi batas kontrak |
+| E02A5 | implementasi ganda sebuah kontrak untuk satu tipe |
+| E02A6 | kontrak atau tipe target tidak dikenal |
 | E02B0 | `sukses`/`gagal` tanpa tipe `Hasil` yang diharapkan |
 | E02B1 | `coba` pada sesuatu yang bukan `Hasil` |
 | E02B2 | `coba` di luar fungsi `Hasil<_, R>` atau tipe error tak cocok |

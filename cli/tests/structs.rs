@@ -71,7 +71,7 @@ fn struct_default_i64_fields() {
 #[test]
 fn struct_literal_not_confused_with_block_in_if() {
     let src = "program S\n\
-        utama { nilai x = 5 jika x > 3 { tampilkan(\"lebih\") } lain { tampilkan(\"kurang\") } }";
+        utama { nilai x = 5 jika x > 3 { tampilkan(\"lebih\") } jika tidak { tampilkan(\"kurang\") } }";
     let (out, _) = run_source("ifblock", src);
     assert_eq!(out, "lebih\n");
 }

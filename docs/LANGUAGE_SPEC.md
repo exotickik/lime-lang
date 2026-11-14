@@ -40,7 +40,7 @@ nilai    ubah
 jika     lain     selama   untuk    dari   sampai   hingga
 berhenti    lanjut
 benar    salah
-tipe     enum     sifat    implementasi   cocok
+tipe     enum     kontrak    implementasi   cocok
 gunakan  impor    ekstern  publik
 dan      atau     bukan    coba     sebagai
 ```
@@ -101,11 +101,11 @@ generator selects signed vs unsigned instructions (`sdiv`/`udiv`,
   is Exotickik's first **owned (`milik`)** type; it moves rather than copies.
 - **`daftar<T>`**: a growable, heap-backed list of `T` (a vector). Owned
   (`milik`): it owns its buffer and frees it on drop. Built with `daftar()`;
-  `dorong`/`elemen`/`atur`/`panjang` append, read, write, and measure it. `T`
+  `masukkan`/`elemen`/`atur`/`panjang` append, read, write, and measure it. `T`
   must be Copy for now. See §7.2.
 - **`peta<K, V>`**: a growable hash map (open addressing, linear probing, rehash
   on growth). Owned (`milik`): frees its buffers on drop. Built with `peta()`;
-  `taruh`/`ambil_peta`/`ada`/`panjang` insert, look up, test, and count. Keys are
+  `simpan`/`ambil_peta`/`ada`/`panjang` insert, look up, test, and count. Keys are
   `teks` for now; `V` must be Copy. See `docs/STANDARD_LIBRARY.md`.
 - **Function value** `fungsi(A, B) -> R`: a first-class reference to a function.
   A function name used as a value yields a function pointer; it can be stored,
@@ -474,12 +474,12 @@ utama {
 
 See `docs/MEMORY_MODEL.md` for the complete borrowing rules and their rationale.
 
-### 3.11 Traits (`sifat` / `implementasi`)
+### 3.11 Traits (`kontrak` / `implementasi`)
 A trait names a set of method signatures; an implementation supplies them for a
 type. Dispatch is **static**: a method call compiles to a direct function call,
 with no vtable and no runtime cost.
 ```exotickik
-sifat Luas {
+kontrak Luas {
     fungsi luas(diri: &Diri) -> angka
 }
 implementasi Luas untuk Persegi {
@@ -524,8 +524,7 @@ fungsi rata(total: angka, n: angka) -> Hasil<angka, teks> {
 }
 utama {
     nilai r = rata(100, 0)
-    jika berhasil(r) { tampilkan(nilai_atau(r, 0)) }
-    lain { tampilkan(gagal_atau(r, "?")) }
+    jika berhasil(r) { tampilkan(nilai_atau(r, 0)) } jika tidak { tampilkan(gagal_atau(r, "?")) }
 }
 ```
 - `sukses(x)` / `gagal(e)` build a result; the other type parameter comes from
@@ -550,7 +549,7 @@ utama {
 ## 4. Statements
 
 ```exotickik
-jika c { ... } lain jika d { ... } lain { ... }
+jika c { ... } atau jika d { ... } jika tidak { ... }
 
 selama kondisi { ... }
 
@@ -614,7 +613,7 @@ read an owned heap cell (§3.9). `ambil(x)` / `ambil_ubah(x)` — borrow a place
 a shared or mutable reference (§3.10). `sukses(x)` / `gagal(e)` build a
 `Hasil<T, R>`, and `berhasil(r)` / `nilai_atau(r, d)` / `gagal_atau(r, d)`
 inspect one (§3.12). `mulai(f, n)` / `tunggu(h)` spawn and join an OS thread
-(§7.1). `daftar()` builds a list and `dorong`/`elemen`/`atur` (plus `panjang`)
+(§7.1). `daftar()` builds a list and `masukkan`/`elemen`/`atur` (plus `panjang`)
 operate on it (§7.2). These names are reserved builtins and cannot be redefined.
 
 ### 7.2 Dynamic lists (`daftar<T>`)
@@ -623,14 +622,14 @@ frees it on drop, and moves rather than copies. Accessors take references, so
 they never consume the list:
 ```exotickik
 ubah d: daftar<angka> = daftar()
-dorong(ambil_ubah(d), 10)          // append (grows the buffer as needed)
-dorong(ambil_ubah(d), 20)
+masukkan(ambil_ubah(d), 10)          // append (grows the buffer as needed)
+masukkan(ambil_ubah(d), 20)
 tampilkan(panjang(ambil(d)))        // 2
 tampilkan(elemen(ambil(d), 0))      // 10  (bounds-checked)
 atur(ambil_ubah(d), 1, 99)          // overwrite index 1
 ```
 - `daftar()` — a new empty list; element type from the expected type in scope.
-- `dorong(&ubah d, x)`, `atur(&ubah d, i, x)`, `elemen(&d, i) -> T`,
+- `masukkan(&ubah d, x)`, `atur(&ubah d, i, x)`, `elemen(&d, i) -> T`,
   `panjang(&d) -> angka`. Indices are runtime bounds-checked (abort on OOB).
 - `T` must be a Copy type for now; owned element types are a follow-up.
 
@@ -681,7 +680,7 @@ error type is a follow-up tied to heap-owned results.
 
 ### 7.1 Concurrency (`mulai` / `tunggu`)
 `mulai(f, n)` runs the function `f` (a `fungsi(angka) -> angka`) on a new OS
-thread with argument `n`, returning a thread handle `Utas<angka>`. `tunggu(h)`
+thread with argument `n`, returning a thread handle `Tugas<angka>`. `tunggu(h)`
 joins the thread and returns its result:
 ```exotickik
 fungsi kerja(n: angka) -> angka { kembalikan n * n }
@@ -760,7 +759,7 @@ ekstern fungsi fopen(nama: teks, mode: teks) -> pointer
 ekstern fungsi fclose(f: pointer) -> i32
 utama {
     nilai f = fopen("data.txt", "r")
-    jika f == kosong() { tampilkan("gagal buka") } lain {
+    jika f == kosong() { tampilkan("gagal buka") } jika tidak {
         nilai _ = fclose(f)
     }
 }

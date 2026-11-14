@@ -81,8 +81,8 @@ fn generic_struct_in_daftar() {
         tipe Titik<T> { x: T y: T }\n\
         utama {\n\
           ubah ts: daftar<Titik<angka>> = daftar()\n\
-          dorong(ambil_ubah(ts), Titik { x: 1, y: 2 })\n\
-          dorong(ambil_ubah(ts), Titik { x: 3, y: 4 })\n\
+          masukkan(ambil_ubah(ts), Titik { x: 1, y: 2 })\n\
+          masukkan(ambil_ubah(ts), Titik { x: 3, y: 4 })\n\
           nilai t = elemen(ambil(ts), 1)\n\
           tampilkan(panjang(ambil(ts))) tampilkan(t.x + t.y)\n\
         }";
@@ -98,7 +98,7 @@ fn owned_field_makes_struct_owned() {
         fungsi ukur(b: Bungkus<daftar<angka>>) -> angka { kembalikan panjang(ambil(b.isi)) }\n\
         utama {\n\
           ubah d: daftar<angka> = daftar()\n\
-          dorong(ambil_ubah(d), 1) dorong(ambil_ubah(d), 2)\n\
+          masukkan(ambil_ubah(d), 1) masukkan(ambil_ubah(d), 2)\n\
           nilai b: Bungkus<daftar<angka>> = Bungkus { isi: d }\n\
           tampilkan(ukur(b))\n\
         }";

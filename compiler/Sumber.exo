@@ -9,7 +9,7 @@ publik fungsi dari_teks(s: teks) -> daftar<bita> {
     ubah keluaran: daftar<bita> = daftar()
     nilai n = panjang(s)
     untuk i dari 0 sampai n {
-        dorong(ambil_ubah(keluaran), bita_pada(s, i) sebagai bita)
+        masukkan(ambil_ubah(keluaran), bita_pada(s, i) sebagai bita)
     }
     kembalikan keluaran
 }
@@ -29,7 +29,7 @@ publik fungsi posisi_di(src: &daftar<bita>, offset: angka) -> Posisi {
         jika elemen(src, i) sebagai angka == 10 {
             baris = baris + 1
             kolom = 1
-        } lain {
+        } jika tidak {
             kolom = kolom + 1
         }
         i = i + 1

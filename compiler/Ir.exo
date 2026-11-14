@@ -54,7 +54,7 @@ publik fungsi label_baru(ir: &ubah ProgramIr) -> angka {
 }
 
 publik fungsi tambah_inst(ir: &ubah ProgramIr, jenis: JenisIr, hasil: angka, a: angka, b: angka) {
-    dorong(ambil_ubah(ir.inst), Instruksi { jenis: jenis, hasil: hasil, a: a, b: b })
+    masukkan(ambil_ubah(ir.inst), Instruksi { jenis: jenis, hasil: hasil, a: a, b: b })
 }
 
 publik fungsi kode_ir(ins: Instruksi) -> angka {

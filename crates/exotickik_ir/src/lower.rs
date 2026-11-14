@@ -1375,7 +1375,7 @@ impl<'a> FnLowerer<'a> {
                             root_slot = self.slot_of_local[&id.0];
                         }
                         _ => {
-                            self.unsupported(target.span, "akar penugasan field bukan variabel");
+                            self.unsupported(target.span, "target pengisian field harus berupa variabel");
                             return;
                         }
                     }

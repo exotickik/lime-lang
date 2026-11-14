@@ -30,7 +30,7 @@ fn enum_equality_branches() {
         enum Arah { Utara, Selatan }\n\
         utama {\n\
           nilai a = Arah.Utara\n\
-          jika a == Arah.Utara { tampilkan(\"utara\") } lain { tampilkan(\"lain\") }\n\
+          jika a == Arah.Utara { tampilkan(\"utara\") } jika tidak { tampilkan(\"lain\") }\n\
           jika a != Arah.Selatan { tampilkan(\"bukan selatan\") }\n\
         }";
     let (out, _) = run_source("eq", src);

@@ -81,7 +81,7 @@ fn boolean_and_short_circuit() {
 #[test]
 fn conditional_branches() {
     let src = "program C\n\
-        utama { nilai x = 7 jika x > 10 { tampilkan(\"besar\") } lain jika x > 5 { tampilkan(\"sedang\") } lain { tampilkan(\"kecil\") } }";
+        utama { nilai x = 7 jika x > 10 { tampilkan(\"besar\") } atau jika x > 5 { tampilkan(\"sedang\") } jika tidak { tampilkan(\"kecil\") } }";
     let (out, _) = run_source("cond", src);
     assert_eq!(out, "sedang\n");
 }

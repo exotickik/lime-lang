@@ -38,26 +38,26 @@ fungsi lewati_trivia(src: &daftar<bita>, mulai: angka) -> angka {
         nilai b = elemen(src, p) sebagai angka
         jika spasi(b) {
             p = p + 1
-        } lain jika b == 47 && di(src, p + 1) == 47 {
+        } atau jika b == 47 && di(src, p + 1) == 47 {
             p = p + 2
             selama p < n && elemen(src, p) sebagai angka != 10 {
                 p = p + 1
             }
-        } lain jika b == 47 && di(src, p + 1) == 42 {
+        } atau jika b == 47 && di(src, p + 1) == 42 {
             p = p + 2
             ubah dalam = 1
             selama dalam > 0 && p < n {
                 jika di(src, p) == 47 && di(src, p + 1) == 42 {
                     p = p + 2
                     dalam = dalam + 1
-                } lain jika di(src, p) == 42 && di(src, p + 1) == 47 {
+                } atau jika di(src, p) == 42 && di(src, p + 1) == 47 {
                     p = p + 2
                     dalam = dalam - 1
-                } lain {
+                } jika tidak {
                     p = p + 1
                 }
             }
-        } lain {
+        } jika tidak {
             berhenti
         }
     }
@@ -83,16 +83,16 @@ fungsi baca_angka(src: &daftar<bita>, mulai: angka) -> Token {
             nilai c = di(src, p)
             jika c == 95 {
                 p = p + 1
-            } lain jika digit(c) {
+            } atau jika digit(c) {
                 nilai_int = nilai_int * 16 + (c - 48)
                 p = p + 1
-            } lain jika c >= 97 && c <= 102 {
+            } atau jika c >= 97 && c <= 102 {
                 nilai_int = nilai_int * 16 + (c - 97 + 10)
                 p = p + 1
-            } lain jika c >= 65 && c <= 70 {
+            } atau jika c >= 65 && c <= 70 {
                 nilai_int = nilai_int * 16 + (c - 65 + 10)
                 p = p + 1
-            } lain {
+            } jika tidak {
                 berhenti
             }
         }
@@ -164,7 +164,7 @@ fungsi baca_teks(src: &daftar<bita>, mulai: angka) -> Token {
         }
         jika c == 92 {
             p = p + 2
-        } lain {
+        } jika tidak {
             p = p + 1
         }
     }
@@ -194,7 +194,7 @@ fungsi baca_karakter(src: &daftar<bita>, mulai: angka) -> Token {
         p = p + 1
         kode = nilai_escape(di(src, p))
         p = p + 1
-    } lain {
+    } jika tidak {
         kode = di(src, p)
         p = p + 1
     }
@@ -304,7 +304,7 @@ publik fungsi lekser(src: &daftar<bita>) -> daftar<Token> {
         pos = lewati_trivia(src, pos)
         nilai mulai = pos
         jika pos >= n {
-            dorong(ambil_ubah(hasil), token(Jenis.Akhir, mulai, mulai))
+            masukkan(ambil_ubah(hasil), token(Jenis.Akhir, mulai, mulai))
             berhenti
         }
         nilai b = elemen(src, pos) sebagai angka
@@ -312,27 +312,27 @@ publik fungsi lekser(src: &daftar<bita>) -> daftar<Token> {
             nilai akhir = akhir_pengenal(src, mulai)
             nilai kode = kode_kata_kunci(src, mulai, akhir)
             jika kode < 0 {
-                dorong(ambil_ubah(hasil), token(Jenis.Pengenal, mulai, akhir))
-            } lain {
-                dorong(ambil_ubah(hasil), token(Jenis.KataKunci(kode), mulai, akhir))
+                masukkan(ambil_ubah(hasil), token(Jenis.Pengenal, mulai, akhir))
+            } jika tidak {
+                masukkan(ambil_ubah(hasil), token(Jenis.KataKunci(kode), mulai, akhir))
             }
             pos = akhir
-        } lain jika digit(b) {
+        } atau jika digit(b) {
             nilai t = baca_angka(src, mulai)
             pos = t.rentang.akhir
-            dorong(ambil_ubah(hasil), t)
-        } lain jika b == 34 {
+            masukkan(ambil_ubah(hasil), t)
+        } atau jika b == 34 {
             nilai t = baca_teks(src, mulai)
             pos = t.rentang.akhir
-            dorong(ambil_ubah(hasil), t)
-        } lain jika b == 39 {
+            masukkan(ambil_ubah(hasil), t)
+        } atau jika b == 39 {
             nilai t = baca_karakter(src, mulai)
             pos = t.rentang.akhir
-            dorong(ambil_ubah(hasil), t)
-        } lain {
+            masukkan(ambil_ubah(hasil), t)
+        } jika tidak {
             nilai t = baca_operator(src, mulai)
             pos = t.rentang.akhir
-            dorong(ambil_ubah(hasil), t)
+            masukkan(ambil_ubah(hasil), t)
         }
     }
     kembalikan hasil

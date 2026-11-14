@@ -74,7 +74,7 @@ fn returned_from_function() {
          }}\n\
          utama {{\n\
            ubah xs: daftar<angka> = daftar()\n\
-           dorong(ambil_ubah(xs), 10) dorong(ambil_ubah(xs), 20) dorong(ambil_ubah(xs), 30)\n\
+           masukkan(ambil_ubah(xs), 10) masukkan(ambil_ubah(xs), 20) masukkan(ambil_ubah(xs), 30)\n\
            tampilkan(buka(cari(ambil(xs), 20), -1))\n\
            tampilkan(buka(cari(ambil(xs), 77), -1))\n\
          }}"
@@ -144,7 +144,7 @@ fn generic_enum_owned_type_argument_works() {
         "program G\n{PILIHAN}\
          utama {{\n\
            ubah xs: daftar<angka> = daftar()\n\
-           dorong(ambil_ubah(xs), 10) dorong(ambil_ubah(xs), 20)\n\
+           masukkan(ambil_ubah(xs), 10) masukkan(ambil_ubah(xs), 20)\n\
            nilai p: Pilihan<daftar<angka>> = Pilihan.Ada(xs)\n\
            cocok p {{ Ada(v) => {{ tampilkan(panjang(ambil(v))) }} Kosong => {{ tampilkan(0) }} }}\n\
          }}"
@@ -160,7 +160,7 @@ fn generic_enum_owned_unused_payload_dropped() {
         "program G\n{PILIHAN}\
          utama {{\n\
            ubah xs: daftar<angka> = daftar()\n\
-           dorong(ambil_ubah(xs), 1)\n\
+           masukkan(ambil_ubah(xs), 1)\n\
            nilai p: Pilihan<daftar<angka>> = Pilihan.Ada(xs)\n\
            cocok p {{ Ada => {{ tampilkan(-5) }} Kosong => {{ tampilkan(0) }} }}\n\
          }}"

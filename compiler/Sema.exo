@@ -8,51 +8,51 @@ impor Item
 
 publik tipe Simbol {
     nama: angka
-    mutabel: boolean
+    bisa_ubah: boolean
     kedalaman: angka
 }
 
 publik tipe KonteksSema {
     simbol: daftar<Simbol>
-    tinggi_simbol: angka
+    jml_simbol: angka
     batas: daftar<angka>
-    tinggi_batas: angka
+    jml_batas: angka
     kedalaman: angka
     galat: angka
 }
 
 publik fungsi konteks_baru() -> KonteksSema {
-    kembalikan KonteksSema { simbol: daftar(), tinggi_simbol: 0, batas: daftar(), tinggi_batas: 0, kedalaman: 0, galat: 0 }
+    kembalikan KonteksSema { simbol: daftar(), jml_simbol: 0, batas: daftar(), jml_batas: 0, kedalaman: 0, galat: 0 }
 }
 
 fungsi dorong_batas(k: &ubah KonteksSema, nilai_batas: angka) {
     nilai len_b = panjang(ambil(k.batas))
-    nilai idx_b = k.tinggi_batas
+    nilai idx_b = k.jml_batas
     jika idx_b < len_b {
         atur(ambil_ubah(k.batas), idx_b, nilai_batas)
-    } lain {
-        dorong(ambil_ubah(k.batas), nilai_batas)
+    } jika tidak {
+        masukkan(ambil_ubah(k.batas), nilai_batas)
     }
-    k.tinggi_batas = idx_b + 1
+    k.jml_batas = idx_b + 1
 }
 
 fungsi buka_lingkup(k: &ubah KonteksSema) {
-    dorong_batas(k, k.tinggi_simbol)
+    dorong_batas(k, k.jml_simbol)
     k.kedalaman = k.kedalaman + 1
 }
 
 fungsi tutup_lingkup(k: &ubah KonteksSema) {
-    jika k.tinggi_batas == 0 {
+    jika k.jml_batas == 0 {
         kembalikan
     }
-    k.tinggi_batas = k.tinggi_batas - 1
-    nilai target = elemen(ambil(k.batas), k.tinggi_batas)
-    k.tinggi_simbol = target
+    k.jml_batas = k.jml_batas - 1
+    nilai target = elemen(ambil(k.batas), k.jml_batas)
+    k.jml_simbol = target
     k.kedalaman = k.kedalaman - 1
 }
 
 fungsi cari_simbol(k: &KonteksSema, nama: angka) -> angka {
-    ubah i = k.tinggi_simbol - 1
+    ubah i = k.jml_simbol - 1
     selama i >= 0 {
         jika elemen(ambil(k.simbol), i).nama == nama {
             kembalikan i
@@ -63,7 +63,7 @@ fungsi cari_simbol(k: &KonteksSema, nama: angka) -> angka {
 }
 
 fungsi cari_di_lingkup_aktif(k: &KonteksSema, nama: angka) -> angka {
-    ubah i = k.tinggi_simbol - 1
+    ubah i = k.jml_simbol - 1
     selama i >= 0 {
         nilai s = elemen(ambil(k.simbol), i)
         jika s.kedalaman < k.kedalaman {
@@ -77,16 +77,16 @@ fungsi cari_di_lingkup_aktif(k: &KonteksSema, nama: angka) -> angka {
     kembalikan 0 - 1
 }
 
-fungsi tambah_simbol(k: &ubah KonteksSema, nama: angka, mutabel: boolean) {
-    nilai entri = Simbol { nama: nama, mutabel: mutabel, kedalaman: k.kedalaman }
+fungsi tambah_simbol(k: &ubah KonteksSema, nama: angka, bisa_ubah: boolean) {
+    nilai entri = Simbol { nama: nama, bisa_ubah: bisa_ubah, kedalaman: k.kedalaman }
     nilai len_s = panjang(ambil(k.simbol))
-    nilai idx_s = k.tinggi_simbol
+    nilai idx_s = k.jml_simbol
     jika idx_s < len_s {
         atur(ambil_ubah(k.simbol), idx_s, entri)
-    } lain {
-        dorong(ambil_ubah(k.simbol), entri)
+    } jika tidak {
+        masukkan(ambil_ubah(k.simbol), entri)
     }
-    k.tinggi_simbol = idx_s + 1
+    k.jml_simbol = idx_s + 1
 }
 
 fungsi cari_fungsi(funcs: &daftar<Fungsi>, nama: angka) -> angka {
@@ -158,31 +158,31 @@ fungsi periksa_blok(k: &ubah KonteksSema, earena: &daftar<Simpul>, sarena: &daft
         jika kd == 0 {
             periksa_ekspr(k, earena, funcs, p.ekspr)
             tambah_simbol(k, sym_pernyataan(p), salah)
-        } lain jika kd == 1 {
+        } atau jika kd == 1 {
             periksa_ekspr(k, earena, funcs, p.ekspr)
             tambah_simbol(k, sym_pernyataan(p), benar)
-        } lain jika kd == 2 {
+        } atau jika kd == 2 {
             periksa_ekspr(k, earena, funcs, p.ekspr)
             nilai sidx = cari_simbol(k, sym_pernyataan(p))
             jika sidx < 0 {
                 k.galat = k.galat + 1
-            } lain {
-                nilai mut = elemen(ambil(k.simbol), sidx).mutabel
-                jika !mut {
+            } jika tidak {
+                nilai boleh = elemen(ambil(k.simbol), sidx).bisa_ubah
+                jika !boleh {
                     k.galat = k.galat + 1
                 }
             }
-        } lain jika kd == 3 {
+        } atau jika kd == 3 {
             periksa_ekspr(k, earena, funcs, p.ekspr)
-        } lain jika kd == 4 {
+        } atau jika kd == 4 {
             periksa_ekspr(k, earena, funcs, p.ekspr)
-        } lain jika kd == 5 {
+        } atau jika kd == 5 {
             periksa_ekspr(k, earena, funcs, p.ekspr)
             periksa_blok(k, earena, sarena, funcs, p.blok1)
             jika p.blok2 >= 0 {
                 periksa_blok(k, earena, sarena, funcs, p.blok2)
             }
-        } lain jika kd == 6 {
+        } atau jika kd == 6 {
             periksa_ekspr(k, earena, funcs, p.ekspr)
             periksa_blok(k, earena, sarena, funcs, p.blok1)
         }
