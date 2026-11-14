@@ -1,0 +1,127 @@
+modul Ir
+
+publik enum JenisIr {
+    Konst(angka),
+    Biner(angka),
+    Uner(angka),
+    Alok,
+    Muat,
+    Simpan,
+    Panggil(angka),
+    Label(angka),
+    Lompat(angka),
+    Cabang(angka),
+    Kembalikan,
+}
+
+publik tipe Instruksi {
+    jenis: JenisIr
+    hasil: angka
+    a: angka
+    b: angka
+}
+
+publik tipe IrFungsi {
+    nama: angka
+    param_mulai: angka
+    param_jumlah: angka
+    inst_mulai: angka
+    inst_akhir: angka
+}
+
+publik tipe ProgramIr {
+    inst: daftar<Instruksi>
+    arg: daftar<angka>
+    daftar_fungsi: daftar<IrFungsi>
+    next_reg: angka
+    next_label: angka
+}
+
+publik fungsi program_ir_baru() -> ProgramIr {
+    kembalikan ProgramIr { inst: daftar(), arg: daftar(), daftar_fungsi: daftar(), next_reg: 0, next_label: 0 }
+}
+
+publik fungsi reg_baru(ir: &ubah ProgramIr) -> angka {
+    nilai r = ir.next_reg
+    ir.next_reg = r + 1
+    kembalikan r
+}
+
+publik fungsi label_baru(ir: &ubah ProgramIr) -> angka {
+    nilai l = ir.next_label
+    ir.next_label = l + 1
+    kembalikan l
+}
+
+publik fungsi tambah_inst(ir: &ubah ProgramIr, jenis: JenisIr, hasil: angka, a: angka, b: angka) {
+    dorong(ambil_ubah(ir.inst), Instruksi { jenis: jenis, hasil: hasil, a: a, b: b })
+}
+
+publik fungsi kode_ir(ins: Instruksi) -> angka {
+    cocok ins.jenis {
+        Konst(v) => {
+            kembalikan 0
+        }
+        Biner(op) => {
+            kembalikan 1
+        }
+        Uner(op) => {
+            kembalikan 2
+        }
+        Alok => {
+            kembalikan 3
+        }
+        Muat => {
+            kembalikan 4
+        }
+        Simpan => {
+            kembalikan 5
+        }
+        Panggil(f) => {
+            kembalikan 6
+        }
+        Label(l) => {
+            kembalikan 7
+        }
+        Lompat(l) => {
+            kembalikan 8
+        }
+        Cabang(lt) => {
+            kembalikan 9
+        }
+        Kembalikan => {
+            kembalikan 10
+        }
+    }
+    kembalikan 0 - 1
+}
+
+publik fungsi nilai_ir(ins: Instruksi) -> angka {
+    cocok ins.jenis {
+        Konst(v) => {
+            kembalikan v
+        }
+        Biner(op) => {
+            kembalikan op
+        }
+        Uner(op) => {
+            kembalikan op
+        }
+        Panggil(f) => {
+            kembalikan f
+        }
+        Label(l) => {
+            kembalikan l
+        }
+        Lompat(l) => {
+            kembalikan l
+        }
+        Cabang(lt) => {
+            kembalikan lt
+        }
+        lain => {
+            kembalikan 0 - 1
+        }
+    }
+    kembalikan 0 - 1
+}

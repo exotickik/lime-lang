@@ -4,13 +4,41 @@ impor Lekser
 
 impor Token
 
+impor Ast
+
+impor Pernyataan
+
+impor Item
+
+impor Parser
+
+impor Intern
+
 impor Sumber
+
+impor Sema
+
+impor Ir
+
+impor Turunkan
+
+impor Llvm
 
 utama {
     nilai src = dari_teks("fungsi tambah(a: angka) -> angka { kembalikan a + 1 }")
     nilai toks = lekser(ambil(src))
-    tampilkan(panjang(ambil(toks)))
-    untuk i dari 0 sampai panjang(ambil(toks)) {
-        tampilkan(kode_jenis(elemen(ambil(toks), i).jenis))
+    ubah tabel: Tabel = tabel_baru()
+    ubah earena: daftar<Simpul> = daftar()
+    ubah sarena: daftar<Pernyataan> = daftar()
+    ubah parms: daftar<angka> = daftar()
+    ubah funcs: daftar<Fungsi> = daftar()
+    urai_item_program(ambil(toks), ambil(src), ambil_ubah(tabel), ambil_ubah(earena), ambil_ubah(sarena), ambil_ubah(parms), ambil_ubah(funcs))
+    nilai galat = periksa_program(ambil(earena), ambil(sarena), ambil(funcs), ambil(parms))
+    jika galat == 0 {
+        nilai ir = turunkan_program(ambil(earena), ambil(sarena), ambil(funcs), ambil(parms))
+        nilai ll = cetak_llvm(ambil(ir), ambil(tabel))
+        tampilkan(panjang(ambil(ll)))
+    } lain {
+        tampilkan(galat)
     }
 }

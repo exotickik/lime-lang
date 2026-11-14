@@ -1,0 +1,261 @@
+modul Llvm
+
+impor Intern
+
+impor Ir
+
+tipe Penghitung {
+    urut: angka
+}
+
+fungsi tulis_teks(buf: &ubah daftar<bita>, s: teks) {
+    untuk i dari 0 sampai panjang(s) {
+        dorong(buf, bita_pada(s, i))
+    }
+}
+
+fungsi tulis_baris(buf: &ubah daftar<bita>) {
+    dorong(buf, 10 sebagai bita)
+}
+
+fungsi tulis_angka(buf: &ubah daftar<bita>, n: angka) {
+    jika n < 0 {
+        dorong(buf, 45 sebagai bita)
+        tulis_angka(buf, 0 - n)
+        kembalikan
+    }
+    jika n >= 10 {
+        tulis_angka(buf, n / 10)
+    }
+    nilai d = n % 10
+    dorong(buf, (48 + d) sebagai bita)
+}
+
+fungsi tulis_simbol(buf: &ubah daftar<bita>, tabel: &Tabel, id: angka) {
+    nilai n = panjang_simbol(tabel, id)
+    untuk i dari 0 sampai n {
+        dorong(buf, byte_simbol(tabel, id, i) sebagai bita)
+    }
+}
+
+fungsi tulis_reg(buf: &ubah daftar<bita>, r: angka) {
+    tulis_teks(buf, "%r")
+    tulis_angka(buf, r)
+}
+
+fungsi tulis_icmp(buf: &ubah daftar<bita>, hasil: angka, pred: teks, a: angka, b: angka, ctr: &ubah Penghitung) {
+    nilai t = ctr.urut
+    ctr.urut = t + 1
+    tulis_teks(buf, "  %c")
+    tulis_angka(buf, t)
+    tulis_teks(buf, " = icmp ")
+    tulis_teks(buf, pred)
+    tulis_teks(buf, " i64 ")
+    tulis_reg(buf, a)
+    tulis_teks(buf, ", ")
+    tulis_reg(buf, b)
+    tulis_baris(buf)
+    tulis_teks(buf, "  ")
+    tulis_reg(buf, hasil)
+    tulis_teks(buf, " = zext i1 %c")
+    tulis_angka(buf, t)
+    tulis_teks(buf, " to i64")
+    tulis_baris(buf)
+}
+
+fungsi tulis_biner(buf: &ubah daftar<bita>, op: angka, hasil: angka, a: angka, b: angka, ctr: &ubah Penghitung) {
+    jika op >= 0 && op <= 4 {
+        tulis_teks(buf, "  ")
+        tulis_reg(buf, hasil)
+        tulis_teks(buf, " = ")
+        jika op == 0 {
+            tulis_teks(buf, "add")
+        } lain jika op == 1 {
+            tulis_teks(buf, "sub")
+        } lain jika op == 2 {
+            tulis_teks(buf, "mul")
+        } lain jika op == 3 {
+            tulis_teks(buf, "sdiv")
+        } lain {
+            tulis_teks(buf, "srem")
+        }
+        tulis_teks(buf, " i64 ")
+        tulis_reg(buf, a)
+        tulis_teks(buf, ", ")
+        tulis_reg(buf, b)
+        tulis_baris(buf)
+        kembalikan
+    }
+    jika op == 5 {
+        tulis_icmp(buf, hasil, "eq", a, b, ctr)
+        kembalikan
+    }
+    jika op == 6 {
+        tulis_icmp(buf, hasil, "ne", a, b, ctr)
+        kembalikan
+    }
+    jika op == 7 {
+        tulis_icmp(buf, hasil, "slt", a, b, ctr)
+        kembalikan
+    }
+    jika op == 8 {
+        tulis_icmp(buf, hasil, "sle", a, b, ctr)
+        kembalikan
+    }
+    jika op == 9 {
+        tulis_icmp(buf, hasil, "sgt", a, b, ctr)
+        kembalikan
+    }
+    jika op == 10 {
+        tulis_icmp(buf, hasil, "sge", a, b, ctr)
+        kembalikan
+    }
+    tulis_teks(buf, "  ")
+    tulis_reg(buf, hasil)
+    jika op == 11 {
+        tulis_teks(buf, " = and i64 ")
+    } lain {
+        tulis_teks(buf, " = or i64 ")
+    }
+    tulis_reg(buf, a)
+    tulis_teks(buf, ", ")
+    tulis_reg(buf, b)
+    tulis_baris(buf)
+}
+
+publik fungsi cetak_llvm(ir: &ProgramIr, tabel: &Tabel) -> daftar<bita> {
+    ubah buf: daftar<bita> = daftar()
+    ubah ctr = Penghitung { urut: 0 }
+    nilai nf = panjang(ambil(ir.daftar_fungsi))
+    untuk fi dari 0 sampai nf {
+        nilai f = elemen(ambil(ir.daftar_fungsi), fi)
+        tulis_teks(ambil_ubah(buf), "define i64 @")
+        tulis_simbol(ambil_ubah(buf), tabel, f.nama)
+        tulis_teks(ambil_ubah(buf), "(")
+        untuk pi dari 0 sampai f.param_jumlah {
+            jika pi > 0 {
+                tulis_teks(ambil_ubah(buf), ", ")
+            }
+            tulis_teks(ambil_ubah(buf), "i64 ")
+            tulis_reg(ambil_ubah(buf), pi)
+        }
+        tulis_teks(ambil_ubah(buf), ") {")
+        tulis_baris(ambil_ubah(buf))
+        tulis_teks(ambil_ubah(buf), "entry:")
+        tulis_baris(ambil_ubah(buf))
+        ubah dalam_blok = benar
+        untuk ii dari f.inst_mulai sampai f.inst_akhir {
+            nilai ins = elemen(ambil(ir.inst), ii)
+            nilai kd = kode_ir(ins)
+            nilai val = nilai_ir(ins)
+            jika kd == 7 {
+                jika dalam_blok {
+                    tulis_teks(ambil_ubah(buf), "  br label %L")
+                    tulis_angka(ambil_ubah(buf), val)
+                    tulis_baris(ambil_ubah(buf))
+                }
+                tulis_teks(ambil_ubah(buf), "L")
+                tulis_angka(ambil_ubah(buf), val)
+                tulis_teks(ambil_ubah(buf), ":")
+                tulis_baris(ambil_ubah(buf))
+                dalam_blok = benar
+            } lain jika dalam_blok {
+                jika kd == 0 {
+                    tulis_teks(ambil_ubah(buf), "  ")
+                    tulis_reg(ambil_ubah(buf), ins.hasil)
+                    tulis_teks(ambil_ubah(buf), " = add i64 0, ")
+                    tulis_angka(ambil_ubah(buf), val)
+                    tulis_baris(ambil_ubah(buf))
+                } lain jika kd == 1 {
+                    tulis_biner(ambil_ubah(buf), val, ins.hasil, ins.a, ins.b, ambil_ubah(ctr))
+                } lain jika kd == 2 {
+                    jika val == 0 {
+                        tulis_teks(ambil_ubah(buf), "  ")
+                        tulis_reg(ambil_ubah(buf), ins.hasil)
+                        tulis_teks(ambil_ubah(buf), " = sub i64 0, ")
+                        tulis_reg(ambil_ubah(buf), ins.a)
+                        tulis_baris(ambil_ubah(buf))
+                    } lain {
+                        nilai t = ctr.urut
+                        ctr.urut = t + 1
+                        tulis_teks(ambil_ubah(buf), "  %c")
+                        tulis_angka(ambil_ubah(buf), t)
+                        tulis_teks(ambil_ubah(buf), " = icmp eq i64 ")
+                        tulis_reg(ambil_ubah(buf), ins.a)
+                        tulis_teks(ambil_ubah(buf), ", 0")
+                        tulis_baris(ambil_ubah(buf))
+                        tulis_teks(ambil_ubah(buf), "  ")
+                        tulis_reg(ambil_ubah(buf), ins.hasil)
+                        tulis_teks(ambil_ubah(buf), " = zext i1 %c")
+                        tulis_angka(ambil_ubah(buf), t)
+                        tulis_teks(ambil_ubah(buf), " to i64")
+                        tulis_baris(ambil_ubah(buf))
+                    }
+                } lain jika kd == 3 {
+                    tulis_teks(ambil_ubah(buf), "  ")
+                    tulis_reg(ambil_ubah(buf), ins.hasil)
+                    tulis_teks(ambil_ubah(buf), " = alloca i64")
+                    tulis_baris(ambil_ubah(buf))
+                } lain jika kd == 4 {
+                    tulis_teks(ambil_ubah(buf), "  ")
+                    tulis_reg(ambil_ubah(buf), ins.hasil)
+                    tulis_teks(ambil_ubah(buf), " = load i64, ptr ")
+                    tulis_reg(ambil_ubah(buf), ins.a)
+                    tulis_baris(ambil_ubah(buf))
+                } lain jika kd == 5 {
+                    tulis_teks(ambil_ubah(buf), "  store i64 ")
+                    tulis_reg(ambil_ubah(buf), ins.a)
+                    tulis_teks(ambil_ubah(buf), ", ptr ")
+                    tulis_reg(ambil_ubah(buf), ins.b)
+                    tulis_baris(ambil_ubah(buf))
+                } lain jika kd == 6 {
+                    tulis_teks(ambil_ubah(buf), "  ")
+                    tulis_reg(ambil_ubah(buf), ins.hasil)
+                    tulis_teks(ambil_ubah(buf), " = call i64 @")
+                    tulis_simbol(ambil_ubah(buf), tabel, val)
+                    tulis_teks(ambil_ubah(buf), "(")
+                    untuk ai dari 0 sampai ins.b {
+                        jika ai > 0 {
+                            tulis_teks(ambil_ubah(buf), ", ")
+                        }
+                        tulis_teks(ambil_ubah(buf), "i64 ")
+                        tulis_reg(ambil_ubah(buf), elemen(ambil(ir.arg), ins.a + ai))
+                    }
+                    tulis_teks(ambil_ubah(buf), ")")
+                    tulis_baris(ambil_ubah(buf))
+                } lain jika kd == 8 {
+                    tulis_teks(ambil_ubah(buf), "  br label %L")
+                    tulis_angka(ambil_ubah(buf), val)
+                    tulis_baris(ambil_ubah(buf))
+                    dalam_blok = salah
+                } lain jika kd == 9 {
+                    nilai t = ctr.urut
+                    ctr.urut = t + 1
+                    tulis_teks(ambil_ubah(buf), "  %c")
+                    tulis_angka(ambil_ubah(buf), t)
+                    tulis_teks(ambil_ubah(buf), " = icmp ne i64 ")
+                    tulis_reg(ambil_ubah(buf), ins.a)
+                    tulis_teks(ambil_ubah(buf), ", 0")
+                    tulis_baris(ambil_ubah(buf))
+                    tulis_teks(ambil_ubah(buf), "  br i1 %c")
+                    tulis_angka(ambil_ubah(buf), t)
+                    tulis_teks(ambil_ubah(buf), ", label %L")
+                    tulis_angka(ambil_ubah(buf), val)
+                    tulis_teks(ambil_ubah(buf), ", label %L")
+                    tulis_angka(ambil_ubah(buf), ins.b)
+                    tulis_baris(ambil_ubah(buf))
+                    dalam_blok = salah
+                } lain jika kd == 10 {
+                    tulis_teks(ambil_ubah(buf), "  ret i64 ")
+                    tulis_reg(ambil_ubah(buf), ins.a)
+                    tulis_baris(ambil_ubah(buf))
+                    dalam_blok = salah
+                }
+            }
+        }
+        tulis_teks(ambil_ubah(buf), "}")
+        tulis_baris(ambil_ubah(buf))
+        tulis_baris(ambil_ubah(buf))
+    }
+    kembalikan buf
+}

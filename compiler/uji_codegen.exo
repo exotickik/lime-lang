@@ -1,0 +1,88 @@
+program UjiCodegen
+
+impor Lekser
+
+impor Token
+
+impor Ast
+
+impor Pernyataan
+
+impor Item
+
+impor Parser
+
+impor Intern
+
+impor Sumber
+
+impor Sema
+
+impor Ir
+
+impor Turunkan
+
+impor Llvm
+
+fungsi mengandung(hay: &daftar<bita>, needle: teks) -> boolean {
+    nilai nh = panjang(hay)
+    nilai nn = panjang(needle)
+    jika nn == 0 {
+        kembalikan benar
+    }
+    jika nh < nn {
+        kembalikan salah
+    }
+    untuk i dari 0 sampai nh - nn + 1 {
+        ubah cocok_semua = benar
+        untuk j dari 0 sampai nn {
+            jika elemen(hay, i + j) != bita_pada(needle, j) {
+                cocok_semua = salah
+            }
+        }
+        jika cocok_semua {
+            kembalikan benar
+        }
+    }
+    kembalikan salah
+}
+
+fungsi kompilasi(defs: teks) -> daftar<bita> {
+    nilai src = dari_teks(defs)
+    nilai toks = lekser(ambil(src))
+    ubah tabel: Tabel = tabel_baru()
+    ubah earena: daftar<Simpul> = daftar()
+    ubah sarena: daftar<Pernyataan> = daftar()
+    ubah parms: daftar<angka> = daftar()
+    ubah funcs: daftar<Fungsi> = daftar()
+    urai_item_program(ambil(toks), ambil(src), ambil_ubah(tabel), ambil_ubah(earena), ambil_ubah(sarena), ambil_ubah(parms), ambil_ubah(funcs))
+    nilai galat = periksa_program(ambil(earena), ambil(sarena), ambil(funcs), ambil(parms))
+    jika galat > 0 {
+        kembalikan daftar()
+    }
+    nilai ir = turunkan_program(ambil(earena), ambil(sarena), ambil(funcs), ambil(parms))
+    kembalikan cetak_llvm(ambil(ir), ambil(tabel))
+}
+
+fungsi uji_emisi_fungsi_sederhana() -> boolean {
+    nilai ll = kompilasi("fungsi tambah(a: angka, b: angka) -> angka { kembalikan a + b }")
+    kembalikan mengandung(ambil(ll), "define i64 @tambah(i64 %r0, i64 %r1)") && mengandung(ambil(ll), "add i64") && mengandung(ambil(ll), "ret i64")
+}
+
+fungsi uji_emisi_rekursi_fib() -> boolean {
+    nilai ll = kompilasi("fungsi fib(n: angka) -> angka { jika n < 2 { kembalikan n } kembalikan fib(n - 1) + fib(n - 2) }")
+    kembalikan mengandung(ambil(ll), "define i64 @fib(i64 %r0)") && mengandung(ambil(ll), "icmp slt i64") && mengandung(ambil(ll), "br i1") && mengandung(ambil(ll), "call i64 @fib(")
+}
+
+fungsi uji_emisi_loop_faktorial() -> boolean {
+    nilai ll = kompilasi("fungsi fak(n: angka) -> angka { ubah h = 1 ubah i = 1 selama i <= n { h = h * i i = i + 1 } kembalikan h }")
+    kembalikan mengandung(ambil(ll), "define i64 @fak(i64 %r0)") && mengandung(ambil(ll), "icmp sle i64") && mengandung(ambil(ll), "mul i64")
+}
+
+fungsi uji_tolak_program_galat_sema() -> boolean {
+    nilai ll = kompilasi("fungsi f() -> angka { kembalikan tidak_ada }")
+    kembalikan panjang(ambil(ll)) == 0
+}
+
+utama {
+}
